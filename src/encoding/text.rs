@@ -5,10 +5,13 @@ use crate::registry::Registry;
 use std::io::Write;
 use std::iter::{once, Once};
 
-fn encode<'a, W, M, S: 'a>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
+fn encode<W, M, S>(
+    writer: &mut W,
+    registry: &Registry<M>,
+) -> Result<(), std::io::Error>
 where
     W: Write,
-    M: IterSamples<'a, S>,
+    M: ForEachSample<S>,
 {
     for (desc, metric) in registry.iter() {
         writer.write(b"# HELP ")?;
@@ -23,14 +26,15 @@ where
         writer.write(desc.m_type().as_bytes())?;
         writer.write(b"\n")?;
 
-        for sample in (&metric).iter_samples() {
+        metric.for_each(|sample| -> Result<(), std::io::Error> {
             writer.write(desc.name().as_bytes())?;
             // TODO: Only do if counter.
             writer.write(b"_total")?;
             writer.write(" ".as_bytes())?;
             writer.write(sample.value.as_bytes())?;
             writer.write(b"\n")?;
-        }
+            Ok(())
+        })?;
     }
 
     writer.write("# EOF\n".as_bytes())?;
@@ -38,30 +42,23 @@ where
     Ok(())
 }
 
-struct Sample<'a, S> {
+struct Sample<S> {
     suffix: Option<String>,
-    labels: Option<&'a S>,
+    labels: Option<S>,
     value: String,
 }
 
-trait IterSamples<'a, S: 'a>
-where
-    Self::IntoIter: 'a + Iterator<Item = Sample<'a, S>>,
-{
-    type IntoIter;
-
-    fn iter_samples(&self) -> Self::IntoIter;
+trait ForEachSample<S> {
+    fn for_each<E, F: FnMut(Sample<S>) -> Result<(), E>>(&self, f: F) -> Result<(), E>;
 }
 
-impl<'a, A, S: 'a> IterSamples<'a, S> for Counter<A>
+impl<A, S> ForEachSample<S> for Counter<A>
 where
     A: Atomic,
-    A::Number: ToString,
+    <A as Atomic>::Number: ToString,
 {
-    type IntoIter = Once<Sample<'a, S>>;
-
-    fn iter_samples(&self) -> Self::IntoIter {
-        once(Sample {
+    fn for_each<E, F: FnMut(Sample<S>) -> Result<(), E>>(&self, mut f: F) -> Result<(), E> {
+        f(Sample {
             suffix: None,
             labels: None,
             value: self.get().to_string(),
@@ -69,38 +66,23 @@ where
     }
 }
 
-impl<'a, S, M> IterSamples<'a, S> for &'a MetricFamily<S, M>
+impl<S, M> ForEachSample<S> for MetricFamily<S, M>
 where
-    S: 'a + Eq + std::hash::Hash + LabelSet + Clone,
-    M: 'a + IterSamples<'a, S>,
+    S: Clone + LabelSet + std::hash::Hash + Eq,
+    M: Default + ForEachSample<S>,
 {
-    type IntoIter = MetricFamilySampleIter<'a, S, M>;
-
-    fn iter_samples(&self) -> MetricFamilySampleIter<'a, S, M> {
-        MetricFamilySampleIter { iter: self.iter() }
-    }
-}
-
-struct MetricFamilySampleIter<'a, S, M> {
-    iter: std::collections::hash_map::Iter<'a, S, M>,
-}
-
-impl<'a, S, M> Iterator for MetricFamilySampleIter<'a, S, M>
-where
-    S: Clone,
-    M: IterSamples<'a, S>,
-{
-    type Item = Sample<'a, S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(label_set, metric)| {
-            // TODO: Remove `unwrap`. Today only expecting a single sample, thus
-            // not allowing nested metric families. Think about whether nesting
-            // is a good idea in the first place.
-            let mut sample = metric.iter_samples().next().unwrap();
-            sample.labels = Some(label_set);
-            sample
-        })
+    fn for_each<E, F: FnMut(Sample<S>) -> Result<(), E>>(&self, mut f: F) -> Result<(), E> {
+        let guard = self.read();
+        let mut iter = guard.iter();
+        while let Some((label_set, m)) = iter.next() {
+            m.for_each(|s: Sample<S>| {
+                let mut s = s;
+                // TODO: Would be ideal to get around this clone.
+                s.labels = Some(label_set.clone());
+                f(s)
+            })?;
+        }
+        Ok(())
     }
 }
 
@@ -113,13 +95,33 @@ mod tests {
     use std::sync::atomic::AtomicU64;
 
     #[test]
-    fn register_and_iterate() {
+    fn encode_counter() {
         let mut registry = Registry::new();
         let counter = Counter::<AtomicU64>::new();
         registry.register(
             Descriptor::new("counter", "My counter", "my_counter"),
             counter.clone(),
         );
+
+        let mut encoded = Vec::new();
+
+        encode::<_, _, Vec<(String, String)>>(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_counter_family() {
+        let mut registry = Registry::new();
+        let family = MetricFamily::<Vec<(String, String)>, Counter<AtomicU64>>::new();
+        registry.register(
+            Descriptor::new("counter", "My counter family", "my_counter_family"),
+            family.clone(),
+        );
+
+        family
+            .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+            .inc();
 
         let mut encoded = Vec::new();
 

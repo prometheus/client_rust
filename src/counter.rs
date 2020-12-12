@@ -28,6 +28,8 @@ impl<A: Atomic> Counter<A> {
     pub fn get(&self) -> A::Number {
         self.value.get()
     }
+
+    // TODO: For advanced use-cases, how about an `fn inner`?
 }
 
 pub trait Atomic {
