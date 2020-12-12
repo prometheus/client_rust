@@ -1,0 +1,69 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::io::Write;
+
+pub struct Counter<A> {
+    value: Arc<A>,
+}
+
+impl<A> Clone for Counter<A> {
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value.clone(),
+        }
+    }
+}
+
+impl<A: Atomic> Counter<A> {
+    pub fn new() -> Self {
+        Counter {
+            value: Arc::new(A::new()),
+        }
+    }
+
+    pub fn inc(&self) -> A::Number {
+        self.value.inc()
+    }
+
+    pub fn get(&self) -> A::Number {
+        self.value.get()
+    }
+}
+
+pub trait Atomic {
+    type Number;
+
+    fn new() -> Self;
+
+    fn inc(&self) -> Self::Number;
+
+    fn get(&self) -> Self::Number;
+}
+
+impl Atomic for AtomicU64 {
+    type Number = u64;
+
+    fn new() -> Self {
+        AtomicU64::new(0)
+    }
+
+    fn inc(&self) -> Self::Number {
+        self.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn get(&self) -> Self::Number {
+        self.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inc_and_get() {
+        let counter = Counter::<AtomicU64>::new();
+        assert_eq!(0, counter.inc());
+        assert_eq!(1, counter.get());
+    }
+}
