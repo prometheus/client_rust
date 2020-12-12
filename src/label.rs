@@ -1,8 +1,3 @@
-pub struct Label {
-    key: LabelKey,
-    value: LabelValue,
-}
+pub trait LabelSet: std::hash::Hash + Eq {}
 
-struct LabelKey(String);
-
-struct LabelValue(String);
+impl LabelSet for Vec<(String, String)> {}

@@ -1,10 +1,10 @@
 use crate::counter::{Atomic, Counter};
-use crate::label::Label;
+use crate::label::LabelSet;
 use crate::registry::Registry;
 use std::io::Write;
 use std::iter::{once, Once};
 
-fn encode<W: Write, M: IterSamples>(
+fn encode<W: Write, M: IterSamples<S>, S>(
     writer: &mut W,
     registry: &Registry<M>,
 ) -> Result<(), std::io::Error> {
@@ -36,29 +36,29 @@ fn encode<W: Write, M: IterSamples>(
     Ok(())
 }
 
-struct Sample {
+struct Sample<S> {
     suffix: Option<String>,
-    labels: Option<Vec<Label>>,
+    labels: Option<S>,
     value: String,
 }
 
-trait IterSamples
+trait IterSamples<S>
 where
-    Self::IntoIter: Iterator<Item = Sample>,
+    Self::IntoIter: Iterator<Item = Sample<S>>,
 {
     type IntoIter: Iterator;
 
     fn iter_samples(&self) -> Self::IntoIter;
 }
 
-impl<A> IterSamples for Counter<A>
+impl<A, S> IterSamples<S> for Counter<A>
 where
     A: Atomic,
     A::Number: ToString,
 {
-    type IntoIter = Once<Sample>;
+    type IntoIter = Once<Sample<S>>;
 
-    fn iter_samples(&self) -> Once<Sample> {
+    fn iter_samples(&self) -> Once<Sample<S>> {
         once(Sample {
             suffix: None,
             labels: None,
@@ -83,7 +83,7 @@ mod tests {
 
         let mut encoded = Vec::new();
 
-        encode(&mut encoded, &registry).unwrap();
+        encode::<_, _, Vec<(String, String)>>(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }

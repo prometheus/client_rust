@@ -1,6 +1,6 @@
+use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::io::Write;
 
 pub struct Counter<A> {
     value: Arc<A>,
@@ -38,6 +38,14 @@ pub trait Atomic {
     fn inc(&self) -> Self::Number;
 
     fn get(&self) -> Self::Number;
+}
+
+impl<A> Default for Counter<A> where A: Default {
+    fn default() -> Self {
+        Self {
+            value: Arc::new(A::default()),
+        }
+    }
 }
 
 impl Atomic for AtomicU64 {
