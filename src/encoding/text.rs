@@ -8,13 +8,30 @@ fn encode<W: Write, M: IterSamples>(
     writer: &mut W,
     registry: &Registry<M>,
 ) -> Result<(), std::io::Error> {
-    for sample in registry.iter().map(IterSamples::iter_samples).flatten() {
-        writer.write("metric_name".as_bytes())?;
-        writer.write(" ".as_bytes())?;
-        writer.write(sample.value.as_bytes())?;
+    for (desc, metric) in registry.iter() {
+        writer.write(b"# HELP ")?;
+        writer.write(desc.name().as_bytes())?;
+        writer.write(b" ")?;
+        writer.write(desc.help().as_bytes())?;
+        writer.write(b"\n")?;
+
+        writer.write(b"# TYPE ")?;
+        writer.write(desc.name().as_bytes())?;
+        writer.write(b" ")?;
+        writer.write(desc.m_type().as_bytes())?;
+        writer.write(b"\n")?;
+
+        for sample in metric.iter_samples() {
+            writer.write(desc.name().as_bytes())?;
+            // TODO: Only do if counter.
+            writer.write(b"_total")?;
+            writer.write(" ".as_bytes())?;
+            writer.write(sample.value.as_bytes())?;
+            writer.write(b"\n")?;
+        }
     }
 
-    writer.write("\n# EOF".as_bytes())?;
+    writer.write("# EOF\n".as_bytes())?;
 
     Ok(())
 }
@@ -54,17 +71,15 @@ where
 mod tests {
     use super::*;
     use crate::counter::Counter;
-    use pyo3::{
-        prelude::*,
-        types::{IntoPyDict, PyModule},
-    };
+    use crate::registry::Descriptor;
+    use pyo3::{prelude::*, types::PyModule};
     use std::sync::atomic::AtomicU64;
 
     #[test]
     fn register_and_iterate() {
         let mut registry = Registry::new();
         let counter = Counter::<AtomicU64>::new();
-        registry.register(counter.clone());
+        registry.register(Descriptor::new("counter", "My counter", "my_counter"), counter.clone());
 
         let mut encoded = Vec::new();
 
@@ -74,6 +89,7 @@ mod tests {
     }
 
     fn parse_with_python_client(input: String) {
+        println!("{:?}", input);
         Python::with_gil(|py| {
             let parser = PyModule::from_code(
                 py,
