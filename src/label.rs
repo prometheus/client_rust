@@ -1,3 +1,3 @@
-pub trait LabelSet: std::hash::Hash + Eq {}
+pub trait LabelSet {}
 
 impl LabelSet for Vec<(String, String)> {}
