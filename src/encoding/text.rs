@@ -5,13 +5,11 @@ use crate::registry::Registry;
 use std::io::Write;
 use std::iter::{once, Once};
 
-fn encode<W, M, S>(
-    writer: &mut W,
-    registry: &Registry<M>,
-) -> Result<(), std::io::Error>
+fn encode<W, M, S>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where
     W: Write,
     M: ForEachSample<S>,
+    S: Encode,
 {
     for (desc, metric) in registry.iter() {
         writer.write(b"# HELP ")?;
@@ -30,6 +28,11 @@ where
             writer.write(desc.name().as_bytes())?;
             // TODO: Only do if counter.
             writer.write(b"_total")?;
+
+            if let Some(label_set) = sample.labels {
+                label_set.encode(writer)?;
+            }
+
             writer.write(" ".as_bytes())?;
             writer.write(sample.value.as_bytes())?;
             writer.write(b"\n")?;
@@ -40,6 +43,36 @@ where
     writer.write("# EOF\n".as_bytes())?;
 
     Ok(())
+}
+
+trait Encode {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error>;
+}
+
+impl Encode for Vec<(String, String)> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        writer.write(b"{")?;
+
+        let mut iter = self.iter().peekable();
+        while let Some((name, value)) = iter.next() {
+            writer.write(name.as_bytes())?;
+            writer.write(b"=\"")?;
+            writer.write(value.as_bytes())?;
+            writer.write(b"\"")?;
+
+            if iter.peek().is_some() {
+                writer.write(b",")?;
+            }
+        }
+
+        writer.write(b"}")?;
+
+        Ok(())
+    }
 }
 
 struct Sample<S> {
