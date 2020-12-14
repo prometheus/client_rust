@@ -8,7 +8,11 @@ edition = "2018"
 
 [dependencies]
 owning_ref = "*"
-
+prost = "0.6.1"
+prost-types = "0.6.1"
 
 [dev-dependencies]
 pyo3 = "*"
+
+[build-dependencies]
+prost-build = "0.6"
