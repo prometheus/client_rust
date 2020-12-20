@@ -1,0 +1,8 @@
+# Open Metrics Client Library
+
+Client library for the [Rust ecosystem](https://github.com/rust-lang/)
+implementing the [Open Metrics
+specification](https://github.com/OpenObservability/OpenMetrics) allowing users
+to natively instrument their applications.
+
+**Work in progress.**
