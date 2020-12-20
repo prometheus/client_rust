@@ -1,5 +1,5 @@
 [package]
-name = "rust-open-metrics"
+name = "open-metrics-client"
 version = "0.1.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
