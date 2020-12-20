@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
 pub struct Counter<A> {
@@ -55,6 +55,22 @@ impl Atomic for AtomicU64 {
 
     fn new() -> Self {
         AtomicU64::new(0)
+    }
+
+    fn inc(&self) -> Self::Number {
+        self.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn get(&self) -> Self::Number {
+        self.load(Ordering::Relaxed)
+    }
+}
+
+impl Atomic for AtomicU32 {
+    type Number = u32;
+
+    fn new() -> Self {
+        AtomicU32::new(0)
     }
 
     fn inc(&self) -> Self::Number {
