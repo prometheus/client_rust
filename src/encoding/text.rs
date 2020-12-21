@@ -6,7 +6,6 @@ use crate::registry::Registry;
 use std::borrow::Cow;
 use std::io::Write;
 
-
 fn encode<W, M, S>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where
     W: Write,
@@ -145,9 +144,17 @@ impl ForEachSample<Vec<(String, String)>> for Histogram {
         })?;
 
         for (upper_bound, count) in self.buckets().iter() {
+            let label = (
+                "le".to_string(),
+                if *upper_bound == f64::MAX {
+                    "+Inf".to_string()
+                } else {
+                    upper_bound.to_string()
+                },
+            );
             f(Sample {
                 suffix: Some("bucket".into()),
-                labels: Some(vec![("le".to_string(), upper_bound.to_string())]),
+                labels: Some(vec![label]),
                 value: count.to_string(),
             })?;
         }

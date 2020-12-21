@@ -1,4 +1,5 @@
 use owning_ref::OwningRef;
+use std::iter::once;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 // TODO: Consider using atomics. See
@@ -30,6 +31,7 @@ impl Histogram {
                 count: Default::default(),
                 buckets: buckets
                     .into_iter()
+                    .chain(once(f64::MAX))
                     .map(|upper_bound| (upper_bound, 0))
                     .collect(),
             })),

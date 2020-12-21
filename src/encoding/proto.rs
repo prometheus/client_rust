@@ -1,10 +1,8 @@
 use crate::counter::{Atomic, Counter};
 
-
 use crate::registry::Registry;
 use prost::bytes::BufMut;
 use prost::Message;
-
 
 // TODO: Open issue on open metrics repo asking to consider using `optional` fields in proto spec.
 //
