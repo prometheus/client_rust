@@ -6,7 +6,7 @@ use crate::registry::Registry;
 use std::borrow::Cow;
 use std::io::Write;
 
-fn encode<W, M, S>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
+pub fn encode<W, M, S>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where
     W: Write,
     M: ForEachSample<S>,
@@ -49,7 +49,7 @@ where
     Ok(())
 }
 
-trait Encode {
+pub trait Encode {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error>;
 }
 
@@ -79,7 +79,7 @@ impl Encode for Vec<(String, String)> {
     }
 }
 
-struct Sample<S> {
+pub struct Sample<S> {
     suffix: Option<Cow<'static, str>>,
     labels: Option<S>,
     // TODO: Don't use String here. Likely an unneeded allocation. For integers
@@ -87,7 +87,7 @@ struct Sample<S> {
     value: String,
 }
 
-trait ForEachSample<S> {
+pub trait ForEachSample<S> {
     fn for_each<E, F: FnMut(Sample<S>) -> Result<(), E>>(&self, f: F) -> Result<(), E>;
 }
 

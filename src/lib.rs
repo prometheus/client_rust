@@ -1,6 +1,6 @@
-mod counter;
-mod encoding;
-mod family;
-mod histogram;
-mod label;
-mod registry;
+pub mod counter;
+pub mod encoding;
+pub mod family;
+pub mod histogram;
+pub mod label;
+pub mod registry;
