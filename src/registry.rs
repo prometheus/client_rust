@@ -56,7 +56,10 @@ mod tests {
     fn register_and_iterate() {
         let mut registry = Registry::new();
         let counter = Counter::<AtomicU64>::new();
-        registry.register(Descriptor::new("counter", "My counter", "my_counter"), counter.clone());
+        registry.register(
+            Descriptor::new("counter", "My counter", "my_counter"),
+            counter.clone(),
+        );
 
         assert_eq!(1, registry.iter().count())
     }

@@ -1,5 +1,5 @@
-use std::sync::{Arc, Mutex, MutexGuard};
 use owning_ref::OwningRef;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 // TODO: Consider using atomics. See
 // https://github.com/tikv/rust-prometheus/pull/314.
@@ -28,8 +28,11 @@ impl Histogram {
             inner: Arc::new(Mutex::new(Inner {
                 sum: Default::default(),
                 count: Default::default(),
-                buckets: buckets.into_iter().map(|upper_bound| (upper_bound, 0)).collect(),
-            }))
+                buckets: buckets
+                    .into_iter()
+                    .map(|upper_bound| (upper_bound, 0))
+                    .collect(),
+            })),
         }
     }
 

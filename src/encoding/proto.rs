@@ -2,9 +2,9 @@ use crate::counter::{Atomic, Counter};
 use crate::family::MetricFamily;
 use crate::label::LabelSet;
 use crate::registry::Registry;
-use std::iter::{once, Once};
-use prost::Message;
 use prost::bytes::BufMut;
+use prost::Message;
+use std::iter::{once, Once};
 
 // TODO: Open issue on open metrics repo asking to consider using `optional` fields in proto spec.
 //
@@ -16,16 +16,19 @@ mod open_metrics_proto {
 }
 
 fn encode<B: BufMut, M: ToMetrics>(mut buf: &mut B, registry: &Registry<M>) {
-    let families = registry.iter().map(|(desc, metric)| {
-        open_metrics_proto::MetricFamily {
-            name: desc.name().to_string(),
-            // TODO: Fix.
-            r#type: 0,
-            unit: "".to_string(),
-            help: desc.help().to_string(),
-            metrics: metric.to_metrics(),
-        }
-    }).collect();
+    let families = registry
+        .iter()
+        .map(|(desc, metric)| {
+            open_metrics_proto::MetricFamily {
+                name: desc.name().to_string(),
+                // TODO: Fix.
+                r#type: 0,
+                unit: "".to_string(),
+                help: desc.help().to_string(),
+                metrics: metric.to_metrics(),
+            }
+        })
+        .collect();
 
     let set = open_metrics_proto::MetricSet {
         metric_families: families,

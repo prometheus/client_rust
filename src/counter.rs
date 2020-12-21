@@ -42,7 +42,10 @@ pub trait Atomic {
     fn get(&self) -> Self::Number;
 }
 
-impl<A> Default for Counter<A> where A: Default {
+impl<A> Default for Counter<A>
+where
+    A: Default,
+{
     fn default() -> Self {
         Self {
             value: Arc::new(A::default()),
