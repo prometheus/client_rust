@@ -1,5 +1,6 @@
 mod counter;
-mod registry;
 mod encoding;
-mod label;
 mod family;
+mod histogram;
+mod label;
+mod registry;

@@ -1,7 +1,9 @@
 use crate::counter::{Atomic, Counter};
 use crate::family::MetricFamily;
+use crate::histogram::Histogram;
 use crate::label::LabelSet;
 use crate::registry::Registry;
+use std::borrow::Cow;
 use std::io::Write;
 use std::iter::{once, Once};
 
@@ -26,8 +28,11 @@ where
 
         metric.for_each(|sample| -> Result<(), std::io::Error> {
             writer.write(desc.name().as_bytes())?;
-            // TODO: Only do if counter.
-            writer.write(b"_total")?;
+
+            if let Some(suffix) = sample.suffix {
+                writer.write("_".as_bytes())?;
+                writer.write(suffix.as_bytes())?;
+            }
 
             if let Some(label_set) = sample.labels {
                 label_set.encode(writer)?;
@@ -76,8 +81,10 @@ impl Encode for Vec<(String, String)> {
 }
 
 struct Sample<S> {
-    suffix: Option<String>,
+    suffix: Option<Cow<'static, str>>,
     labels: Option<S>,
+    // TODO: Don't use String here. Likely an unneeded allocation. For integers
+    // itoa might bring some performance.
     value: String,
 }
 
@@ -92,7 +99,7 @@ where
 {
     fn for_each<E, F: FnMut(Sample<S>) -> Result<(), E>>(&self, mut f: F) -> Result<(), E> {
         f(Sample {
-            suffix: None,
+            suffix: Some("total".into()),
             labels: None,
             value: self.get().to_string(),
         })
@@ -115,6 +122,36 @@ where
                 f(s)
             })?;
         }
+        Ok(())
+    }
+}
+
+// TODO: Make sure labels are not overwritten when used with `MetricFamily`.
+impl ForEachSample<Vec<(String, String)>> for Histogram {
+    fn for_each<E, F: FnMut(Sample<Vec<(String, String)>>) -> Result<(), E>>(
+        &self,
+        mut f: F,
+    ) -> Result<(), E> {
+        f(Sample {
+            suffix: Some("sum".into()),
+            labels: None,
+            value: self.sum().to_string(),
+        })?;
+
+        f(Sample {
+            suffix: Some("count".into()),
+            labels: None,
+            value: self.count().to_string(),
+        })?;
+
+        for (upper_bound, count) in self.buckets().iter() {
+            f(Sample {
+                suffix: Some("bucket".into()),
+                labels: Some(vec![("le".to_string(), upper_bound.to_string())]),
+                value: count.to_string(),
+            })?;
+        }
+
         Ok(())
     }
 }
@@ -155,6 +192,23 @@ mod tests {
         family
             .get_or_create(&vec![("method".to_string(), "GET".to_string())])
             .inc();
+
+        let mut encoded = Vec::new();
+
+        encode::<_, _, Vec<(String, String)>>(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_histogram() {
+        let mut registry = Registry::new();
+        let histogram = Histogram::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        registry.register(
+            Descriptor::new("histogram", "My histogram", "my_histogram"),
+            histogram.clone(),
+        );
+        histogram.observe(1.0);
 
         let mut encoded = Vec::new();
 
