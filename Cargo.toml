@@ -7,12 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-owning_ref = "*"
-prost = "0.6.1"
-prost-types = "0.6.1"
+owning_ref = "0.4"
+prost = "0.6"
+prost-types = "0.6"
 
 [dev-dependencies]
-pyo3 = "*"
+pyo3 = "0.12.4"
 
 [build-dependencies]
 prost-build = "0.6"
