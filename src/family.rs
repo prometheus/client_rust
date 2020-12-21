@@ -1,7 +1,7 @@
-use crate::counter::Counter;
+
 use crate::label::LabelSet;
 use owning_ref::OwningRef;
-use std::collections::hash_map::{self, Entry};
+
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
@@ -54,7 +54,7 @@ mod tests {
 
     #[test]
     fn counter_family() {
-        let mut family = MetricFamily::<Vec<(String, String)>, Counter<AtomicU64>>::new();
+        let family = MetricFamily::<Vec<(String, String)>, Counter<AtomicU64>>::new();
 
         family
             .get_or_create(&vec![("method".to_string(), "GET".to_string())])

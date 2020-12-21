@@ -5,7 +5,7 @@ use crate::label::LabelSet;
 use crate::registry::Registry;
 use std::borrow::Cow;
 use std::io::Write;
-use std::iter::{once, Once};
+
 
 fn encode<W, M, S>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where

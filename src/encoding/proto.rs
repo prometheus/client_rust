@@ -1,10 +1,10 @@
 use crate::counter::{Atomic, Counter};
-use crate::family::MetricFamily;
-use crate::label::LabelSet;
+
+
 use crate::registry::Registry;
 use prost::bytes::BufMut;
 use prost::Message;
-use std::iter::{once, Once};
+
 
 // TODO: Open issue on open metrics repo asking to consider using `optional` fields in proto spec.
 //
