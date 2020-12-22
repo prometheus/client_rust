@@ -3,8 +3,8 @@ use open_metrics_client::encoding::text::encode;
 use open_metrics_client::registry::{Descriptor, Registry};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
-use tide::http::mime;
-use tide::utils::{After, Before};
+
+
 use tide::{Middleware, Next, Request, Response, Result, StatusCode};
 
 #[async_std::main]
@@ -58,10 +58,10 @@ struct MetricsMiddleware {
 
 #[tide::utils::async_trait]
 impl<State: Clone + Send + Sync + 'static> Middleware<State> for MetricsMiddleware {
-    async fn handle(&self, mut req: Request<State>, next: Next<'_, State>) -> Result {
-        let count = self.num_requests.inc();
+    async fn handle(&self, req: Request<State>, next: Next<'_, State>) -> Result {
+        let _count = self.num_requests.inc();
 
-        let mut res = next.run(req).await;
+        let res = next.run(req).await;
         Ok(res)
     }
 }

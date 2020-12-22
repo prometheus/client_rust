@@ -2,7 +2,7 @@ use crate::counter::{Atomic, Counter};
 use crate::family::MetricFamily;
 use crate::histogram::Histogram;
 use crate::registry::Registry;
-use std::borrow::Cow;
+
 use std::io::Write;
 
 pub fn encode<W, M, S>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
@@ -154,7 +154,7 @@ pub trait Encode {
 }
 
 impl Encode for () {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+    fn encode<W: Write>(&self, _writer: &mut W) -> Result<(), std::io::Error> {
         Ok(())
     }
 }
