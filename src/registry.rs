@@ -19,6 +19,7 @@ impl<M> Registry<M> {
 }
 
 pub struct Descriptor {
+    // TODO: How about making type an enum.
     m_type: String,
     help: String,
     name: String,

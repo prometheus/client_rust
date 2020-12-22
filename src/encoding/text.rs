@@ -1,6 +1,6 @@
-use crate::counter::{Counter, self};
+use crate::counter::{self, Counter};
 use crate::family::MetricFamily;
-use crate::gauge::{Gauge, self};
+use crate::gauge::{self, Gauge};
 use crate::histogram::Histogram;
 use crate::registry::Registry;
 

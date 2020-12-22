@@ -4,7 +4,6 @@ use open_metrics_client::registry::{Descriptor, Registry};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 
-
 use tide::{Middleware, Next, Request, Result};
 
 #[async_std::main]
