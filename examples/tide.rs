@@ -5,7 +5,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 
 
-use tide::{Middleware, Next, Request, Response, Result, StatusCode};
+use tide::{Middleware, Next, Request, Result};
 
 #[async_std::main]
 async fn main() -> std::result::Result<(), std::io::Error> {

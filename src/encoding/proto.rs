@@ -13,7 +13,7 @@ mod open_metrics_proto {
     include!(concat!(env!("OUT_DIR"), "/openmetrics.rs"));
 }
 
-fn encode<B: BufMut, M: ToMetrics>(mut buf: &mut B, registry: &Registry<M>) {
+pub fn encode<B: BufMut, M: ToMetrics>(mut buf: &mut B, registry: &Registry<M>) {
     let families = registry
         .iter()
         .map(|(desc, metric)| {
@@ -35,7 +35,7 @@ fn encode<B: BufMut, M: ToMetrics>(mut buf: &mut B, registry: &Registry<M>) {
     set.encode(&mut buf).unwrap();
 }
 
-trait ToMetrics {
+pub trait ToMetrics {
     fn to_metrics(&self) -> Vec<open_metrics_proto::Metric>;
 }
 

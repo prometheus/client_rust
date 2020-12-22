@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod counter;
 pub mod encoding;
 pub mod family;

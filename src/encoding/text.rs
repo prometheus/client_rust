@@ -45,7 +45,7 @@ pub struct Encoder<'a, 'b, W, S> {
 }
 
 impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
-    fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder<W>, std::io::Error> {
+    pub fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder<W>, std::io::Error> {
         self.writer.write(self.name.as_bytes())?;
         self.writer.write("_".as_bytes())?;
         self.writer.write(suffix.as_bytes()).map(|_| ())?;
@@ -53,7 +53,7 @@ impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
         self.encode_labels()
     }
 
-    fn no_suffix(&mut self) -> Result<BucketEncoder<W>, std::io::Error> {
+    pub fn no_suffix(&mut self) -> Result<BucketEncoder<W>, std::io::Error> {
         self.writer.write(self.name.as_bytes())?;
 
         self.encode_labels()
@@ -76,7 +76,7 @@ impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
         }
     }
 
-    fn with_label_set<'c, 'd, NewLabelSet>(
+    pub fn with_label_set<'c, 'd, NewLabelSet>(
         &'c mut self,
         label_set: &'d NewLabelSet,
     ) -> Encoder<'c, 'd, W, NewLabelSet> {
