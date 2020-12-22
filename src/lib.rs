@@ -1,4 +1,6 @@
 #![forbid(unsafe_code)]
+#![deny(unused)]
+#![deny(dead_code)]
 
 pub mod counter;
 pub mod encoding;
