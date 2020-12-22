@@ -280,10 +280,7 @@ impl EncodeMetric for Histogram {
 
             encoder
                 .encode_suffix("bucket")?
-                .encode_bucket(
-                    "le",
-                    bucket_key.as_str(),
-                )?
+                .encode_bucket("le", bucket_key.as_str())?
                 .encode_value(*count)?;
         }
 
