@@ -32,7 +32,7 @@ impl<S: Clone + LabelSet + std::hash::Hash + Eq, M: Default> MetricFamily<S, M> 
         return OwningRef::new(read_guard).map(|metrics| metrics.get(sample_set).unwrap());
     }
 
-    pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
+    pub(crate) fn read<'a>(&'a self) -> RwLockReadGuard<'a, HashMap<S, M>> {
         self.metrics.read().unwrap()
     }
 }

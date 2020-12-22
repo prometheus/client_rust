@@ -17,6 +17,7 @@ impl Clone for Histogram {
 }
 
 pub(crate) struct Inner {
+    // TODO: Consider allowing integer observe values.
     sum: f64,
     count: u64,
     // TODO: Consider being generic over the bucket length.

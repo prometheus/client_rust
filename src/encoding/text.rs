@@ -9,7 +9,7 @@ use std::io::Write;
 pub fn encode<W, M, S>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where
     W: Write,
-    M: ForEachSample<S>,
+    M: EncodeMetric,
     S: Encode,
 {
     for (desc, metric) in registry.iter() {
@@ -25,23 +25,13 @@ where
         writer.write(desc.m_type().as_bytes())?;
         writer.write(b"\n")?;
 
-        metric.for_each(|sample| -> Result<(), std::io::Error> {
-            writer.write(desc.name().as_bytes())?;
+        let encoder = Encoder {
+            writer: writer,
+            name: &desc.name(),
+            labels: None::<&()>,
+        };
 
-            if let Some(suffix) = sample.suffix {
-                writer.write("_".as_bytes())?;
-                writer.write(suffix.as_bytes())?;
-            }
-
-            if let Some(label_set) = sample.labels {
-                label_set.encode(writer)?;
-            }
-
-            writer.write(" ".as_bytes())?;
-            writer.write(sample.value.as_bytes())?;
-            writer.write(b"\n")?;
-            Ok(())
-        })?;
+        metric.encode(encoder)?;
     }
 
     writer.write("# EOF\n".as_bytes())?;
@@ -49,8 +39,152 @@ where
     Ok(())
 }
 
+pub struct Encoder<'a, 'b, W, S> {
+    writer: &'a mut W,
+    name: &'a str,
+    labels: Option<&'b S>,
+    // TODO: Check if label brackets are open.
+}
+
+// TODO: How about each function returns a new encoder that only allows encoding
+// what is allowed next?
+impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
+    fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder<W>, std::io::Error> {
+        self.writer.write(self.name.as_bytes())?;
+        self.writer.write("_".as_bytes())?;
+        self.writer.write(suffix.as_bytes()).map(|_| ())?;
+
+        self.encode_labels()
+    }
+
+    fn no_suffix(&mut self) -> Result<BucketEncoder<W>, std::io::Error> {
+        self.writer.write(self.name.as_bytes())?;
+
+        self.encode_labels()
+    }
+
+    pub(self) fn encode_labels(&mut self) -> Result<BucketEncoder<W>, std::io::Error> {
+        if let Some(labels) = &self.labels {
+            self.writer.write("{".as_bytes())?;
+            labels.encode(self.writer)?;
+
+            Ok(BucketEncoder {
+                opened_curly_brackets: true,
+                writer: self.writer,
+            })
+        } else {
+            Ok(BucketEncoder {
+                opened_curly_brackets: false,
+                writer: self.writer,
+            })
+        }
+    }
+
+    fn with_label_set<'c, 'd, NewLabelSet>(
+        &'c mut self,
+        label_set: &'d NewLabelSet,
+    ) -> Encoder<'c, 'd, W, NewLabelSet> {
+        debug_assert!(self.labels.is_none());
+
+        Encoder {
+            writer: self.writer,
+            name: self.name,
+            labels: Some(label_set),
+        }
+    }
+}
+
+#[must_use]
+pub struct BucketEncoder<'a, W> {
+    writer: &'a mut W,
+    opened_curly_brackets: bool,
+}
+
+impl<'a, W: Write> BucketEncoder<'a, W> {
+    fn encode_bucket<K: Encode, V: Encode>(
+        &mut self,
+        key: K,
+        value: V,
+    ) -> Result<ValueEncoder<W>, std::io::Error> {
+        if self.opened_curly_brackets {
+            self.writer.write(", ".as_bytes())?;
+        } else {
+            self.writer.write("{".as_bytes())?;
+        }
+
+        key.encode(self.writer)?;
+        self.writer.write("=\"".as_bytes())?;
+        value.encode(self.writer)?;
+        self.writer.write("\"}".as_bytes())?;
+
+        Ok(ValueEncoder {
+            writer: self.writer,
+        })
+    }
+
+    fn no_bucket(&mut self) -> Result<ValueEncoder<W>, std::io::Error> {
+        if self.opened_curly_brackets {
+            self.writer.write("}".as_bytes())?;
+        }
+        Ok(ValueEncoder {
+            writer: self.writer,
+        })
+    }
+}
+
+#[must_use]
+pub struct ValueEncoder<'a, W> {
+    writer: &'a mut W,
+}
+
+impl<'a, W: Write> ValueEncoder<'a, W> {
+    fn encode_value<V: Encode>(&mut self, v: V) -> Result<(), std::io::Error> {
+        self.writer.write(" ".as_bytes())?;
+        v.encode(self.writer)?;
+        self.writer.write("\n".as_bytes())?;
+        Ok(())
+    }
+}
+
+pub trait EncodeMetric {
+    fn encode<'a, 'b, W: Write, S: Encode>(
+        &self,
+        encoder: Encoder<'a, 'b, W, S>,
+    ) -> Result<(), std::io::Error>;
+}
+
 pub trait Encode {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error>;
+}
+
+impl Encode for () {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+        Ok(())
+    }
+}
+
+impl Encode for f64 {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+        // TODO: Can we do better?
+        writer.write(self.to_string().as_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for u64 {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+        // TODO: Can we do better?
+        writer.write(self.to_string().as_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for &str {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+        // TODO: Can we do better?
+        writer.write(self.as_bytes())?;
+        Ok(())
+    }
 }
 
 impl Encode for Vec<(String, String)> {
@@ -58,8 +192,6 @@ impl Encode for Vec<(String, String)> {
         if self.is_empty() {
             return Ok(());
         }
-
-        writer.write(b"{")?;
 
         let mut iter = self.iter().peekable();
         while let Some((name, value)) = iter.next() {
@@ -73,75 +205,62 @@ impl Encode for Vec<(String, String)> {
             }
         }
 
-        writer.write(b"}")?;
+        Ok(())
+    }
+}
+
+impl<A> EncodeMetric for Counter<A>
+where
+    A: Atomic,
+    <A as Atomic>::Number: Encode,
+{
+    fn encode<'a, 'b, W: Write, S: Encode>(
+        &self,
+        mut encoder: Encoder<'a, 'b, W, S>,
+    ) -> Result<(), std::io::Error> {
+        encoder
+            .encode_suffix("total")?
+            .no_bucket()?
+            .encode_value(self.get())?;
 
         Ok(())
     }
 }
 
-pub struct Sample<S> {
-    suffix: Option<Cow<'static, str>>,
-    labels: Option<S>,
-    // TODO: Don't use String here. Likely an unneeded allocation. For integers
-    // itoa might bring some performance.
-    value: String,
-}
-
-pub trait ForEachSample<S> {
-    fn for_each<E, F: FnMut(Sample<S>) -> Result<(), E>>(&self, f: F) -> Result<(), E>;
-}
-
-impl<A, S> ForEachSample<S> for Counter<A>
+impl<S, M> EncodeMetric for MetricFamily<S, M>
 where
-    A: Atomic,
-    <A as Atomic>::Number: ToString,
+    // TODO: Does S need to be Clone?
+    S: Clone + LabelSet + std::hash::Hash + Eq + Encode,
+    M: Default + EncodeMetric,
 {
-    fn for_each<E, F: FnMut(Sample<S>) -> Result<(), E>>(&self, mut f: F) -> Result<(), E> {
-        f(Sample {
-            suffix: Some("total".into()),
-            labels: None,
-            value: self.get().to_string(),
-        })
-    }
-}
-
-impl<S, M> ForEachSample<S> for MetricFamily<S, M>
-where
-    S: Clone + LabelSet + std::hash::Hash + Eq,
-    M: Default + ForEachSample<S>,
-{
-    fn for_each<E, F: FnMut(Sample<S>) -> Result<(), E>>(&self, mut f: F) -> Result<(), E> {
+    fn encode<'a, 'b, W: Write, NoneLabelSet: Encode>(
+        &self,
+        mut encoder: Encoder<'a, 'b, W, NoneLabelSet>,
+    ) -> Result<(), std::io::Error> {
         let guard = self.read();
         let mut iter = guard.iter();
         while let Some((label_set, m)) = iter.next() {
-            m.for_each(|s: Sample<S>| {
-                let mut s = s;
-                // TODO: Would be ideal to get around this clone.
-                s.labels = Some(label_set.clone());
-                f(s)
-            })?;
+            let encoder = encoder.with_label_set(label_set);
+            m.encode(encoder)?;
         }
         Ok(())
     }
 }
 
-// TODO: Make sure labels are not overwritten when used with `MetricFamily`.
-impl ForEachSample<Vec<(String, String)>> for Histogram {
-    fn for_each<E, F: FnMut(Sample<Vec<(String, String)>>) -> Result<(), E>>(
+impl EncodeMetric for Histogram {
+    fn encode<W: Write, NoneLabelSet: Encode>(
         &self,
-        mut f: F,
-    ) -> Result<(), E> {
-        f(Sample {
-            suffix: Some("sum".into()),
-            labels: None,
-            value: self.sum().to_string(),
-        })?;
-
-        f(Sample {
-            suffix: Some("count".into()),
-            labels: None,
-            value: self.count().to_string(),
-        })?;
+        mut encoder: Encoder<W, NoneLabelSet>,
+    ) -> Result<(), std::io::Error> {
+        // TODO: Acquire lock for the entire time, not one by one.
+        encoder
+            .encode_suffix("sum")?
+            .no_bucket()?
+            .encode_value(self.sum())?;
+        encoder
+            .encode_suffix("count")?
+            .no_bucket()?
+            .encode_value(self.count())?;
 
         for (upper_bound, count) in self.buckets().iter() {
             let label = (
@@ -152,11 +271,20 @@ impl ForEachSample<Vec<(String, String)>> for Histogram {
                     upper_bound.to_string()
                 },
             );
-            f(Sample {
-                suffix: Some("bucket".into()),
-                labels: Some(vec![label]),
-                value: count.to_string(),
-            })?;
+
+            let bucket_key = if *upper_bound == f64::MAX {
+                "+Inf".to_string()
+            } else {
+                upper_bound.to_string()
+            };
+
+            encoder
+                .encode_suffix("bucket")?
+                .encode_bucket(
+                    "le",
+                    bucket_key.as_str(),
+                )?
+                .encode_value(*count)?;
         }
 
         Ok(())
