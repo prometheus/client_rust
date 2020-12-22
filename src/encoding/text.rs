@@ -247,17 +247,17 @@ impl EncodeMetric for Histogram {
         &self,
         mut encoder: Encoder<W, NoneLabelSet>,
     ) -> Result<(), std::io::Error> {
-        // TODO: Acquire lock for the entire time, not one by one.
+        let (sum, count, buckets) = self.get();
         encoder
             .encode_suffix("sum")?
             .no_bucket()?
-            .encode_value(self.sum())?;
+            .encode_value(sum)?;
         encoder
             .encode_suffix("count")?
             .no_bucket()?
-            .encode_value(self.count())?;
+            .encode_value(count)?;
 
-        for (upper_bound, count) in self.buckets().iter() {
+        for (upper_bound, count) in buckets.iter() {
             let bucket_key = if *upper_bound == f64::MAX {
                 "+Inf".to_string()
             } else {

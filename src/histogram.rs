@@ -50,17 +50,12 @@ impl Histogram {
         }
     }
 
-    pub(crate) fn sum(&self) -> f64 {
-        self.inner.lock().unwrap().sum
-    }
-
-    pub(crate) fn count(&self) -> u64 {
-        self.inner.lock().unwrap().count
-    }
-
-    pub(crate) fn buckets(&self) -> OwningRef<MutexGuard<Inner>, Vec<(f64, u64)>> {
+    pub(crate) fn get(&self) -> (f64, u64, OwningRef<MutexGuard<Inner>, Vec<(f64, u64)>>) {
         let inner = self.inner.lock().unwrap();
-        OwningRef::new(inner).map(|inner| &inner.buckets)
+        let sum = inner.sum;
+        let count = inner.count;
+        let buckets = OwningRef::new(inner).map(|inner| &inner.buckets);
+        (sum, count, buckets)
     }
 }
 
