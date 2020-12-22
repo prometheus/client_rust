@@ -1,5 +1,6 @@
-use crate::counter::{Atomic, Counter};
+use crate::counter::{Counter, self};
 use crate::family::MetricFamily;
+use crate::gauge::{Gauge, self};
 use crate::histogram::Histogram;
 use crate::registry::Registry;
 
@@ -45,7 +46,10 @@ pub struct Encoder<'a, 'b, W, S> {
 }
 
 impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
-    pub fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder<W>, std::io::Error> {
+    pub fn encode_suffix(
+        &mut self,
+        suffix: &'static str,
+    ) -> Result<BucketEncoder<W>, std::io::Error> {
         self.writer.write(self.name.as_bytes())?;
         self.writer.write("_".as_bytes())?;
         self.writer.write(suffix.as_bytes()).map(|_| ())?;
@@ -207,8 +211,8 @@ impl Encode for Vec<(String, String)> {
 
 impl<A> EncodeMetric for Counter<A>
 where
-    A: Atomic,
-    <A as Atomic>::Number: Encode,
+    A: counter::Atomic,
+    <A as counter::Atomic>::Number: Encode,
 {
     fn encode<'a, 'b, W: Write, S: Encode>(
         &self,
@@ -218,6 +222,21 @@ where
             .encode_suffix("total")?
             .no_bucket()?
             .encode_value(self.get())?;
+
+        Ok(())
+    }
+}
+
+impl<A> EncodeMetric for Gauge<A>
+where
+    A: gauge::Atomic,
+    <A as gauge::Atomic>::Number: Encode,
+{
+    fn encode<'a, 'b, W: Write, S: Encode>(
+        &self,
+        mut encoder: Encoder<'a, 'b, W, S>,
+    ) -> Result<(), std::io::Error> {
+        encoder.no_suffix()?.no_bucket()?.encode_value(self.get())?;
 
         Ok(())
     }
@@ -278,6 +297,7 @@ impl EncodeMetric for Histogram {
 mod tests {
     use super::*;
     use crate::counter::Counter;
+    use crate::gauge::Gauge;
     use crate::registry::Descriptor;
     use pyo3::{prelude::*, types::PyModule};
     use std::sync::atomic::AtomicU64;
@@ -289,6 +309,22 @@ mod tests {
         registry.register(
             Descriptor::new("counter", "My counter", "my_counter"),
             counter.clone(),
+        );
+
+        let mut encoded = Vec::new();
+
+        encode::<_, _, Vec<(String, String)>>(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_gauge() {
+        let mut registry = Registry::new();
+        let gauge = Gauge::<AtomicU64>::new();
+        registry.register(
+            Descriptor::new("gauge", "My gauge", "my_gauge"),
+            gauge.clone(),
         );
 
         let mut encoded = Vec::new();
