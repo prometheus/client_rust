@@ -1,4 +1,3 @@
-use crate::label::LabelSet;
 use owning_ref::OwningRef;
 
 use std::collections::HashMap;
@@ -8,7 +7,7 @@ pub struct MetricFamily<S, M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
 }
 
-impl<S: Clone + LabelSet + std::hash::Hash + Eq, M: Default> MetricFamily<S, M> {
+impl<S: Clone + std::hash::Hash + Eq, M: Default> MetricFamily<S, M> {
     pub fn new() -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Default::default())),

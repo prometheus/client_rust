@@ -1,7 +1,6 @@
 use crate::counter::{Atomic, Counter};
 use crate::family::MetricFamily;
 use crate::histogram::Histogram;
-use crate::label::LabelSet;
 use crate::registry::Registry;
 use std::borrow::Cow;
 use std::io::Write;
@@ -43,11 +42,8 @@ pub struct Encoder<'a, 'b, W, S> {
     writer: &'a mut W,
     name: &'a str,
     labels: Option<&'b S>,
-    // TODO: Check if label brackets are open.
 }
 
-// TODO: How about each function returns a new encoder that only allows encoding
-// what is allowed next?
 impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
     fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder<W>, std::io::Error> {
         self.writer.write(self.name.as_bytes())?;
@@ -229,8 +225,7 @@ where
 
 impl<S, M> EncodeMetric for MetricFamily<S, M>
 where
-    // TODO: Does S need to be Clone?
-    S: Clone + LabelSet + std::hash::Hash + Eq + Encode,
+    S: Clone + std::hash::Hash + Eq + Encode,
     M: Default + EncodeMetric,
 {
     fn encode<'a, 'b, W: Write, NoneLabelSet: Encode>(
@@ -263,15 +258,6 @@ impl EncodeMetric for Histogram {
             .encode_value(self.count())?;
 
         for (upper_bound, count) in self.buckets().iter() {
-            let label = (
-                "le".to_string(),
-                if *upper_bound == f64::MAX {
-                    "+Inf".to_string()
-                } else {
-                    upper_bound.to_string()
-                },
-            );
-
             let bucket_key = if *upper_bound == f64::MAX {
                 "+Inf".to_string()
             } else {
