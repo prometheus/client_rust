@@ -7,6 +7,11 @@ implementing the [Open Metrics
 specification](https://github.com/OpenObservability/OpenMetrics) allowing users
 to natively instrument applications.
 
+## What is OpenMetrics?
+
+> OpenMetrics a specification built upon and carefully extending Prometheus
+> exposition format in almost 100% backwards-compatible ways.
+
 ## License
 
 Licensed under either of

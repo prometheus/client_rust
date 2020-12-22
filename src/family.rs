@@ -3,6 +3,106 @@ use owning_ref::OwningRef;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
+/// Representation of the OpenMetrics *MetricFamily* data type.
+///
+/// A [`MetricFamily`] is a set of metrics with the same name, help text and
+/// type, differentiated by their label values thus spanning a multidimensional
+/// space.
+///
+/// # Generic over the label set
+///
+/// A [`MetricFamily`] is generic over the label type. For convenience one might
+/// choose a `Vec<(String, String)>`, for performance one might define a custom
+/// type.
+///
+/// ## Examples
+///
+/// ### [`MetricFamily`] with `Vec<(String, String)>` for convenience
+///
+/// ```
+/// # use std::sync::atomic::AtomicU64;
+/// # use open_metrics_client::counter::{Atomic, Counter};
+/// # use open_metrics_client::encoding::text::encode;
+/// # use open_metrics_client::family::MetricFamily;
+/// # use open_metrics_client::registry::{Descriptor, Registry};
+/// #
+/// # let mut registry = Registry::new();
+/// let family = MetricFamily::<Vec<(String, String)>, Counter<AtomicU64>>::new();
+/// # registry.register(
+/// #   Descriptor::new("counter", "This is my counter.", "my_counter"),
+/// #   family.clone(),
+/// # );
+///
+/// // Record a single HTTP GET request.
+/// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
+///
+/// # // Encode all metrics in the registry in the text format.
+/// # let mut buffer = vec![];
+/// # encode::<_, _, ()>(&mut buffer, &registry).unwrap();
+/// #
+/// # let expected = "# HELP my_counter This is my counter.\n".to_owned() +
+/// #                "# TYPE my_counter counter\n" +
+/// #                "my_counter_total{method=\"GET\"} 1\n" +
+/// #                "# EOF\n";
+/// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
+/// ```
+///
+/// ### [`MetricFamily`] with custom type for performance
+///
+/// ```
+/// # use std::sync::atomic::AtomicU64;
+/// # use open_metrics_client::counter::{Atomic, Counter};
+/// # use open_metrics_client::encoding::text::encode;
+/// # use open_metrics_client::family::MetricFamily;
+/// # use open_metrics_client::registry::{Descriptor, Registry};
+/// # use open_metrics_client::encoding::text::Encode;
+/// # use std::io::Write;
+/// #
+/// # let mut registry = Registry::new();
+/// #[derive(Clone, Hash, PartialEq, Eq)]
+/// struct Labels {
+///   method: Method,
+/// };
+///
+/// #[derive(Clone, Hash, PartialEq, Eq)]
+/// enum Method {
+///   Get,
+///   Put,
+/// };
+///
+/// # impl Encode for Labels {
+/// # fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+/// #     let method = match self.method {
+/// #         Method::Get => {
+/// #             b"method=\"GET\""
+/// #         }
+/// #         Method::Put => {
+/// #             b"method=\"PUT\""
+/// #         }
+/// #     };
+/// #     writer.write(method).map(|_| ())
+/// #   }
+/// # }
+/// #
+/// let family = MetricFamily::<Labels, Counter<AtomicU64>>::new();
+/// # registry.register(
+/// #   Descriptor::new("counter", "This is my counter.", "my_counter"),
+/// #   family.clone(),
+/// # );
+///
+/// // Record a single HTTP GET request.
+/// family.get_or_create(&Labels { method: Method::Get }).inc();
+/// #
+/// # // Encode all metrics in the registry in the text format.
+/// # let mut buffer = vec![];
+/// # encode::<_, _, ()>(&mut buffer, &registry).unwrap();
+///
+/// # let expected = "# HELP my_counter This is my counter.\n".to_owned() +
+/// #                "# TYPE my_counter counter\n" +
+/// #                "my_counter_total{method=\"GET\"} 1\n" +
+/// #                "# EOF\n";
+/// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
+/// ```
 pub struct MetricFamily<S, M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
 }

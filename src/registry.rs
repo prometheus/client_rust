@@ -1,3 +1,4 @@
+// TODO: Add example allowing different metric types through dynamic dispatch.
 pub struct Registry<M> {
     metrics: Vec<(Descriptor, M)>,
 }
