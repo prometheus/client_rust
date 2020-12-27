@@ -27,7 +27,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     app.at("/metrics")
         .get(|req: tide::Request<State>| async move {
             let mut encoded = Vec::new();
-            encode::<_, _, Vec<(String, String)>>(
+            encode::<_, _>(
                 &mut encoded,
                 &req.state().registry.lock().unwrap(),
             )

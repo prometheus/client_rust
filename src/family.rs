@@ -38,7 +38,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 ///
 /// # // Encode all metrics in the registry in the text format.
 /// # let mut buffer = vec![];
-/// # encode::<_, _, ()>(&mut buffer, &registry).unwrap();
+/// # encode::<_, _>(&mut buffer, &registry).unwrap();
 /// #
 /// # let expected = "# HELP my_counter This is my counter.\n".to_owned() +
 /// #                "# TYPE my_counter counter\n" +
@@ -95,7 +95,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// #
 /// # // Encode all metrics in the registry in the text format.
 /// # let mut buffer = vec![];
-/// # encode::<_, _, ()>(&mut buffer, &registry).unwrap();
+/// # encode::<_, _>(&mut buffer, &registry).unwrap();
 ///
 /// # let expected = "# HELP my_counter This is my counter.\n".to_owned() +
 /// #                "# TYPE my_counter counter\n" +

@@ -6,11 +6,10 @@ use crate::registry::Registry;
 
 use std::io::Write;
 
-pub fn encode<W, M, S>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
+pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where
     W: Write,
     M: EncodeMetric,
-    S: Encode,
 {
     for (desc, metric) in registry.iter() {
         writer.write(b"# HELP ")?;
@@ -28,6 +27,7 @@ where
         let encoder = Encoder {
             writer: writer,
             name: &desc.name(),
+            // TODO: use some unconstructable type (e.g. void) here.
             labels: None::<&()>,
         };
 
@@ -313,7 +313,7 @@ mod tests {
 
         let mut encoded = Vec::new();
 
-        encode::<_, _, Vec<(String, String)>>(&mut encoded, &registry).unwrap();
+        encode::<_, _>(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
@@ -329,7 +329,7 @@ mod tests {
 
         let mut encoded = Vec::new();
 
-        encode::<_, _, Vec<(String, String)>>(&mut encoded, &registry).unwrap();
+        encode::<_, _>(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
@@ -349,7 +349,7 @@ mod tests {
 
         let mut encoded = Vec::new();
 
-        encode::<_, _, Vec<(String, String)>>(&mut encoded, &registry).unwrap();
+        encode::<_, _>(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
@@ -366,7 +366,7 @@ mod tests {
 
         let mut encoded = Vec::new();
 
-        encode::<_, _, Vec<(String, String)>>(&mut encoded, &registry).unwrap();
+        encode::<_, _>(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
