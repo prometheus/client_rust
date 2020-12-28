@@ -5,6 +5,7 @@ use crate::histogram::Histogram;
 use crate::registry::Registry;
 
 use std::io::Write;
+use std::ops::Deref;
 
 pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where
@@ -28,7 +29,7 @@ where
             writer: writer,
             name: &desc.name(),
             // TODO: use some unconstructable type (e.g. void) here.
-            labels: None::<&()>,
+            labels: None,
         };
 
         metric.encode(encoder)?;
@@ -39,17 +40,23 @@ where
     Ok(())
 }
 
-pub struct Encoder<'a, 'b, W, S> {
-    writer: &'a mut W,
+// `Encoder` does not take a trait parameter for `writer` and `labels` because
+// `EncodeMetric` which uses `Encoder` needs to be usable as a trait object in
+// order to be able to register different metric types with a `Registry`. Trait
+// objects can not use type parameters.
+//
+// TODO: Alternative solutions to the above are very much appreciated.
+pub struct Encoder<'a, 'b> {
+    writer: &'a mut dyn Write,
     name: &'a str,
-    labels: Option<&'b S>,
+    labels: Option<&'b dyn Encode>,
 }
 
-impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
+impl<'a, 'b> Encoder<'a, 'b> {
     pub fn encode_suffix(
         &mut self,
         suffix: &'static str,
-    ) -> Result<BucketEncoder<W>, std::io::Error> {
+    ) -> Result<BucketEncoder, std::io::Error> {
         self.writer.write(self.name.as_bytes())?;
         self.writer.write("_".as_bytes())?;
         self.writer.write(suffix.as_bytes()).map(|_| ())?;
@@ -57,13 +64,13 @@ impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
         self.encode_labels()
     }
 
-    pub fn no_suffix(&mut self) -> Result<BucketEncoder<W>, std::io::Error> {
+    pub fn no_suffix(&mut self) -> Result<BucketEncoder, std::io::Error> {
         self.writer.write(self.name.as_bytes())?;
 
         self.encode_labels()
     }
 
-    pub(self) fn encode_labels(&mut self) -> Result<BucketEncoder<W>, std::io::Error> {
+    pub(self) fn encode_labels(&mut self) -> Result<BucketEncoder, std::io::Error> {
         if let Some(labels) = &self.labels {
             self.writer.write("{".as_bytes())?;
             labels.encode(self.writer)?;
@@ -80,10 +87,10 @@ impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
         }
     }
 
-    pub fn with_label_set<'c, 'd, NewLabelSet>(
+    pub fn with_label_set<'c, 'd>(
         &'c mut self,
-        label_set: &'d NewLabelSet,
-    ) -> Encoder<'c, 'd, W, NewLabelSet> {
+        label_set: &'d dyn Encode,
+    ) -> Encoder<'c, 'd> {
         debug_assert!(self.labels.is_none());
 
         Encoder {
@@ -95,17 +102,17 @@ impl<'a, 'b, W: Write, S: Encode> Encoder<'a, 'b, W, S> {
 }
 
 #[must_use]
-pub struct BucketEncoder<'a, W> {
-    writer: &'a mut W,
+pub struct BucketEncoder<'a> {
+    writer: &'a mut dyn Write,
     opened_curly_brackets: bool,
 }
 
-impl<'a, W: Write> BucketEncoder<'a, W> {
+impl<'a> BucketEncoder<'a> {
     fn encode_bucket<K: Encode, V: Encode>(
         &mut self,
         key: K,
         value: V,
-    ) -> Result<ValueEncoder<W>, std::io::Error> {
+    ) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
             self.writer.write(", ".as_bytes())?;
         } else {
@@ -122,7 +129,7 @@ impl<'a, W: Write> BucketEncoder<'a, W> {
         })
     }
 
-    fn no_bucket(&mut self) -> Result<ValueEncoder<W>, std::io::Error> {
+    fn no_bucket(&mut self) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
             self.writer.write("}".as_bytes())?;
         }
@@ -133,11 +140,11 @@ impl<'a, W: Write> BucketEncoder<'a, W> {
 }
 
 #[must_use]
-pub struct ValueEncoder<'a, W> {
-    writer: &'a mut W,
+pub struct ValueEncoder<'a> {
+    writer: &'a mut dyn Write,
 }
 
-impl<'a, W: Write> ValueEncoder<'a, W> {
+impl<'a> ValueEncoder<'a> {
     fn encode_value<V: Encode>(&mut self, v: V) -> Result<(), std::io::Error> {
         self.writer.write(" ".as_bytes())?;
         v.encode(self.writer)?;
@@ -147,24 +154,34 @@ impl<'a, W: Write> ValueEncoder<'a, W> {
 }
 
 pub trait EncodeMetric {
-    fn encode<'a, 'b, W: Write, S: Encode>(
+    fn encode<'a, 'b>(
         &self,
-        encoder: Encoder<'a, 'b, W, S>,
+        encoder: Encoder<'a, 'b>,
     ) -> Result<(), std::io::Error>;
 }
 
+impl EncodeMetric for Box<dyn EncodeMetric> {
+    fn encode<'a, 'b>(
+        &self,
+        encoder: Encoder<'a, 'b>,
+    ) -> Result<(), std::io::Error> {
+        self.deref().encode(encoder)
+        
+    }
+}
+
 pub trait Encode {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error>;
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error>;
 }
 
 impl Encode for () {
-    fn encode<W: Write>(&self, _writer: &mut W) -> Result<(), std::io::Error> {
+    fn encode(&self, _writer: &mut dyn Write) -> Result<(), std::io::Error> {
         Ok(())
     }
 }
 
 impl Encode for f64 {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         // TODO: Can we do better?
         writer.write(self.to_string().as_bytes())?;
         Ok(())
@@ -172,7 +189,7 @@ impl Encode for f64 {
 }
 
 impl Encode for u64 {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         // TODO: Can we do better?
         writer.write(self.to_string().as_bytes())?;
         Ok(())
@@ -180,7 +197,7 @@ impl Encode for u64 {
 }
 
 impl Encode for &str {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         // TODO: Can we do better?
         writer.write(self.as_bytes())?;
         Ok(())
@@ -188,7 +205,7 @@ impl Encode for &str {
 }
 
 impl Encode for Vec<(String, String)> {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         if self.is_empty() {
             return Ok(());
         }
@@ -214,9 +231,9 @@ where
     A: counter::Atomic,
     <A as counter::Atomic>::Number: Encode,
 {
-    fn encode<'a, 'b, W: Write, S: Encode>(
+    fn encode<'a, 'b>(
         &self,
-        mut encoder: Encoder<'a, 'b, W, S>,
+        mut encoder: Encoder<'a, 'b>,
     ) -> Result<(), std::io::Error> {
         encoder
             .encode_suffix("total")?
@@ -232,9 +249,9 @@ where
     A: gauge::Atomic,
     <A as gauge::Atomic>::Number: Encode,
 {
-    fn encode<'a, 'b, W: Write, S: Encode>(
+    fn encode<'a, 'b>(
         &self,
-        mut encoder: Encoder<'a, 'b, W, S>,
+        mut encoder: Encoder<'a, 'b>,
     ) -> Result<(), std::io::Error> {
         encoder.no_suffix()?.no_bucket()?.encode_value(self.get())?;
 
@@ -247,9 +264,9 @@ where
     S: Clone + std::hash::Hash + Eq + Encode,
     M: Default + EncodeMetric,
 {
-    fn encode<'a, 'b, W: Write, NoneLabelSet: Encode>(
+    fn encode<'a, 'b>(
         &self,
-        mut encoder: Encoder<'a, 'b, W, NoneLabelSet>,
+        mut encoder: Encoder<'a, 'b>,
     ) -> Result<(), std::io::Error> {
         let guard = self.read();
         let mut iter = guard.iter();
@@ -262,9 +279,9 @@ where
 }
 
 impl EncodeMetric for Histogram {
-    fn encode<W: Write, NoneLabelSet: Encode>(
+    fn encode(
         &self,
-        mut encoder: Encoder<W, NoneLabelSet>,
+        mut encoder: Encoder,
     ) -> Result<(), std::io::Error> {
         let (sum, count, buckets) = self.get();
         encoder

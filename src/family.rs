@@ -71,7 +71,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// };
 ///
 /// # impl Encode for Labels {
-/// # fn encode<W: Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+/// #   fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
 /// #     let method = match self.method {
 /// #         Method::Get => {
 /// #             b"method=\"GET\""
