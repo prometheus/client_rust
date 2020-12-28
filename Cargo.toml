@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 owning_ref = "0.4"
-prost = "0.6"
+prost = "0.7"
 prost-types = "0.6"
 
 [dev-dependencies]
