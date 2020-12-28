@@ -100,11 +100,11 @@ impl Descriptor {
 //     Histogram(Histogram),
 //     MetricFamily(MetricFamily),
 // }
-// 
+//
 // // TODO: This is a hack. See `Metric`.
 // impl Registry<Metric> {
 //     fn register_counter<>(&mut self, name: String, help: String, counter: Counter<>) {
-//         
+//
 //     }
 // }
 

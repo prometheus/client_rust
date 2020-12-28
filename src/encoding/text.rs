@@ -53,10 +53,7 @@ pub struct Encoder<'a, 'b> {
 }
 
 impl<'a, 'b> Encoder<'a, 'b> {
-    pub fn encode_suffix(
-        &mut self,
-        suffix: &'static str,
-    ) -> Result<BucketEncoder, std::io::Error> {
+    pub fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder, std::io::Error> {
         self.writer.write(self.name.as_bytes())?;
         self.writer.write("_".as_bytes())?;
         self.writer.write(suffix.as_bytes()).map(|_| ())?;
@@ -87,10 +84,7 @@ impl<'a, 'b> Encoder<'a, 'b> {
         }
     }
 
-    pub fn with_label_set<'c, 'd>(
-        &'c mut self,
-        label_set: &'d dyn Encode,
-    ) -> Encoder<'c, 'd> {
+    pub fn with_label_set<'c, 'd>(&'c mut self, label_set: &'d dyn Encode) -> Encoder<'c, 'd> {
         debug_assert!(self.labels.is_none());
 
         Encoder {
@@ -154,19 +148,12 @@ impl<'a> ValueEncoder<'a> {
 }
 
 pub trait EncodeMetric {
-    fn encode<'a, 'b>(
-        &self,
-        encoder: Encoder<'a, 'b>,
-    ) -> Result<(), std::io::Error>;
+    fn encode<'a, 'b>(&self, encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error>;
 }
 
 impl EncodeMetric for Box<dyn EncodeMetric> {
-    fn encode<'a, 'b>(
-        &self,
-        encoder: Encoder<'a, 'b>,
-    ) -> Result<(), std::io::Error> {
+    fn encode<'a, 'b>(&self, encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
         self.deref().encode(encoder)
-        
     }
 }
 
@@ -231,10 +218,7 @@ where
     A: counter::Atomic,
     <A as counter::Atomic>::Number: Encode,
 {
-    fn encode<'a, 'b>(
-        &self,
-        mut encoder: Encoder<'a, 'b>,
-    ) -> Result<(), std::io::Error> {
+    fn encode<'a, 'b>(&self, mut encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
         encoder
             .encode_suffix("total")?
             .no_bucket()?
@@ -249,10 +233,7 @@ where
     A: gauge::Atomic,
     <A as gauge::Atomic>::Number: Encode,
 {
-    fn encode<'a, 'b>(
-        &self,
-        mut encoder: Encoder<'a, 'b>,
-    ) -> Result<(), std::io::Error> {
+    fn encode<'a, 'b>(&self, mut encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
         encoder.no_suffix()?.no_bucket()?.encode_value(self.get())?;
 
         Ok(())
@@ -264,10 +245,7 @@ where
     S: Clone + std::hash::Hash + Eq + Encode,
     M: Default + EncodeMetric,
 {
-    fn encode<'a, 'b>(
-        &self,
-        mut encoder: Encoder<'a, 'b>,
-    ) -> Result<(), std::io::Error> {
+    fn encode<'a, 'b>(&self, mut encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
         let guard = self.read();
         let mut iter = guard.iter();
         while let Some((label_set, m)) = iter.next() {
@@ -279,10 +257,7 @@ where
 }
 
 impl EncodeMetric for Histogram {
-    fn encode(
-        &self,
-        mut encoder: Encoder,
-    ) -> Result<(), std::io::Error> {
+    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         let (sum, count, buckets) = self.get();
         encoder
             .encode_suffix("sum")?
