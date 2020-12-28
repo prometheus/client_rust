@@ -8,13 +8,13 @@ edition = "2018"
 
 [dependencies]
 owning_ref = "0.4"
-prost = "0.6"
-prost-types = "0.6"
+prost = "0.7"
+prost-types = "0.7"
 
 [dev-dependencies]
-pyo3 = "0.13.0"
-async-std = { version = "1.6.5", features = ["attributes"] }
+pyo3 = "0.13"
+async-std = { version = "1", features = ["attributes"] }
 tide = "0.15"
 
 [build-dependencies]
-prost-build = "0.6"
+prost-build = "0.7"
