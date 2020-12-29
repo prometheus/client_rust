@@ -23,3 +23,8 @@ prost-build = "0.7"
 [[bench]]
 name = "family"
 harness = false
+
+[[bench]]
+name = "text"
+path = "benches/encoding/text.rs"
+harness = false

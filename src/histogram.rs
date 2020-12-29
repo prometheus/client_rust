@@ -8,6 +8,14 @@ pub struct Histogram {
     inner: Arc<Mutex<Inner>>,
 }
 
+impl Default for Histogram {
+    fn default() -> Self {
+        Histogram {
+            inner: Arc::new(Mutex::new(Default::default()))
+        }
+    }
+}
+
 impl Clone for Histogram {
     fn clone(&self) -> Self {
         Histogram {
@@ -16,6 +24,7 @@ impl Clone for Histogram {
     }
 }
 
+#[derive(Default)]
 pub(crate) struct Inner {
     // TODO: Consider allowing integer observe values.
     sum: f64,
