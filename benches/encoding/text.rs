@@ -99,7 +99,7 @@ pub fn text(c: &mut Criterion) {
         let mut buffer = vec![];
 
         b.iter(|| {
-            encode(&mut buffer, &registry);
+            encode(&mut buffer, &registry).unwrap();
             black_box(&mut buffer);
         })
     });
