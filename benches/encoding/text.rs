@@ -32,7 +32,7 @@ pub fn text(c: &mut Criterion) {
         };
 
         impl Encode for Labels {
-            fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+            fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
                 let method = match self.method {
                     Method::Get => b"method=\"GET\"",
                     Method::Put => b"method=\"PUT\"",
@@ -49,7 +49,7 @@ pub fn text(c: &mut Criterion) {
 
                 writer.write(b", ")?;
                 writer.write(b"some_number=\"")?;
-                writer.write(self.some_number.to_string().as_bytes())?;
+                self.some_number.encode(&mut writer)?;
                 writer.write(b"\"")?;
                 Ok(())
             }

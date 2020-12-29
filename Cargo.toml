@@ -10,6 +10,7 @@ license = "Apache-2.0 OR MIT"
 owning_ref = "0.4"
 prost = "0.7"
 prost-types = "0.7"
+itoa = "0.4"
 
 [dev-dependencies]
 pyo3 = "0.13"

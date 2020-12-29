@@ -28,7 +28,6 @@ where
         let encoder = Encoder {
             writer: writer,
             name: &desc.name(),
-            // TODO: use some unconstructable type (e.g. void) here.
             labels: None,
         };
 
@@ -176,9 +175,8 @@ impl Encode for f64 {
 }
 
 impl Encode for u64 {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        // TODO: Can we do better?
-        writer.write(self.to_string().as_bytes())?;
+    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        itoa::write(&mut writer, *self)?;
         Ok(())
     }
 }
