@@ -1,8 +1,3 @@
-// use crate::counter::Counter;
-// use crate::gauge::Gauge;
-// use crate::Histogram;
-// use crate::family::MetricFamily;
-
 /// A metric registry to register metrics with, later on passed to an encoder
 /// collecting samples of each metric by iterating all metrics in the registry.
 ///
@@ -86,27 +81,6 @@ impl Descriptor {
         &self.name
     }
 }
-
-// // TODO: In the ideal case one could use dynamic dispatching to pass different
-// // metric types wrapped in a box to a single registry. Problem is that
-// // `EncodeMetric` cannot be made into an object as its `encode` method has
-// // generic parameters.
-// //
-// // This is a hack to solve the above. An alternative solution would be very much
-// // appreciated.
-// enum Metric {
-//     Counter(Counter),
-//     Gauge(Gauge),
-//     Histogram(Histogram),
-//     MetricFamily(MetricFamily),
-// }
-//
-// // TODO: This is a hack. See `Metric`.
-// impl Registry<Metric> {
-//     fn register_counter<>(&mut self, name: String, help: String, counter: Counter<>) {
-//
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

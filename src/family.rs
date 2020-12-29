@@ -5,29 +5,29 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 /// Representation of the OpenMetrics *MetricFamily* data type.
 ///
-/// A [`MetricFamily`] is a set of metrics with the same name, help text and
+/// A [`Family`] is a set of metrics with the same name, help text and
 /// type, differentiated by their label values thus spanning a multidimensional
 /// space.
 ///
 /// # Generic over the label set
 ///
-/// A [`MetricFamily`] is generic over the label type. For convenience one might
+/// A [`Family`] is generic over the label type. For convenience one might
 /// choose a `Vec<(String, String)>`, for performance one might define a custom
 /// type.
 ///
 /// ## Examples
 ///
-/// ### [`MetricFamily`] with `Vec<(String, String)>` for convenience
+/// ### [`Family`] with `Vec<(String, String)>` for convenience
 ///
 /// ```
 /// # use std::sync::atomic::AtomicU64;
 /// # use open_metrics_client::counter::{Atomic, Counter};
 /// # use open_metrics_client::encoding::text::encode;
-/// # use open_metrics_client::family::MetricFamily;
+/// # use open_metrics_client::family::Family;
 /// # use open_metrics_client::registry::{Descriptor, Registry};
 /// #
 /// # let mut registry = Registry::new();
-/// let family = MetricFamily::<Vec<(String, String)>, Counter<AtomicU64>>::new();
+/// let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::new();
 /// # registry.register(
 /// #   Descriptor::new("counter", "This is my counter.", "my_counter"),
 /// #   family.clone(),
@@ -47,13 +47,13 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 ///
-/// ### [`MetricFamily`] with custom type for performance
+/// ### [`Family`] with custom type for performance
 ///
 /// ```
 /// # use std::sync::atomic::AtomicU64;
 /// # use open_metrics_client::counter::{Atomic, Counter};
 /// # use open_metrics_client::encoding::text::encode;
-/// # use open_metrics_client::family::MetricFamily;
+/// # use open_metrics_client::family::Family;
 /// # use open_metrics_client::registry::{Descriptor, Registry};
 /// # use open_metrics_client::encoding::text::Encode;
 /// # use std::io::Write;
@@ -84,7 +84,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// #   }
 /// # }
 /// #
-/// let family = MetricFamily::<Labels, Counter<AtomicU64>>::new();
+/// let family = Family::<Labels, Counter<AtomicU64>>::new();
 /// # registry.register(
 /// #   Descriptor::new("counter", "This is my counter.", "my_counter"),
 /// #   family.clone(),
@@ -103,12 +103,11 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// #                "# EOF\n";
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
-// TODO: Rename to Family.
-pub struct MetricFamily<S, M> {
+pub struct Family<S, M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M: Default> MetricFamily<S, M> {
+impl<S: Clone + std::hash::Hash + Eq, M: Default> Family<S, M> {
     pub fn new() -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Default::default())),
@@ -137,9 +136,9 @@ impl<S: Clone + std::hash::Hash + Eq, M: Default> MetricFamily<S, M> {
     }
 }
 
-impl<S, M> Clone for MetricFamily<S, M> {
+impl<S, M> Clone for Family<S, M> {
     fn clone(&self) -> Self {
-        MetricFamily {
+        Family {
             metrics: self.metrics.clone(),
         }
     }
@@ -153,7 +152,7 @@ mod tests {
 
     #[test]
     fn counter_family() {
-        let family = MetricFamily::<Vec<(String, String)>, Counter<AtomicU64>>::new();
+        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::new();
 
         family
             .get_or_create(&vec![("method".to_string(), "GET".to_string())])

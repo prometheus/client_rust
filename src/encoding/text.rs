@@ -1,5 +1,5 @@
 use crate::counter::{self, Counter};
-use crate::family::MetricFamily;
+use crate::family::Family;
 use crate::gauge::{self, Gauge};
 use crate::histogram::Histogram;
 use crate::registry::Registry;
@@ -240,7 +240,7 @@ where
     }
 }
 
-impl<S, M> EncodeMetric for MetricFamily<S, M>
+impl<S, M> EncodeMetric for Family<S, M>
 where
     S: Clone + std::hash::Hash + Eq + Encode,
     M: Default + EncodeMetric,
@@ -329,7 +329,7 @@ mod tests {
     #[test]
     fn encode_counter_family() {
         let mut registry = Registry::new();
-        let family = MetricFamily::<Vec<(String, String)>, Counter<AtomicU64>>::new();
+        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::new();
         registry.register(
             Descriptor::new("counter", "My counter family", "my_counter_family"),
             family.clone(),
