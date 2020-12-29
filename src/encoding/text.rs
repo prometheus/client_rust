@@ -167,9 +167,8 @@ impl Encode for () {
 }
 
 impl Encode for f64 {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        // TODO: Can we do better?
-        writer.write(self.to_string().as_bytes())?;
+    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        dtoa::write(&mut writer, *self)?;
         Ok(())
     }
 }
