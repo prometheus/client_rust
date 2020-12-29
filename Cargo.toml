@@ -3,8 +3,8 @@ name = "open-metrics-client"
 version = "0.1.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Open Metrics client library allowing users to natively instrument applications."
+license = "Apache-2.0 OR MIT"
 
 [dependencies]
 owning_ref = "0.4"
