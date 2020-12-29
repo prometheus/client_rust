@@ -11,7 +11,7 @@ pub struct Histogram {
 impl Default for Histogram {
     fn default() -> Self {
         Histogram {
-            inner: Arc::new(Mutex::new(Default::default()))
+            inner: Arc::new(Mutex::new(Default::default())),
         }
     }
 }
