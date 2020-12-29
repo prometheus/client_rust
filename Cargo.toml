@@ -15,6 +15,11 @@ prost-types = "0.7"
 pyo3 = "0.13"
 async-std = { version = "1", features = ["attributes"] }
 tide = "0.15"
+criterion = "0.3"
 
 [build-dependencies]
 prost-build = "0.7"
+
+[[bench]]
+name = "family"
+harness = false

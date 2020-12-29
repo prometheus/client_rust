@@ -103,6 +103,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// #                "# EOF\n";
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
+// TODO: Rename to Family.
 pub struct MetricFamily<S, M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
 }
