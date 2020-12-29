@@ -7,10 +7,15 @@ implementing the [Open Metrics
 specification](https://github.com/OpenObservability/OpenMetrics) allowing users
 to natively instrument applications.
 
-## What is OpenMetrics?
+## Goals
 
-> OpenMetrics a specification built upon and carefully extending Prometheus
-> exposition format in almost 100% backwards-compatible ways.
+- No `unsafe`. Don't use unsafe Rust within the library itself.
+
+- Type safe. Leverage Rust's type system to catch common instrumentation
+  mistakes at compile time.
+
+- Fast. Don't force users to worry about the performance impact of
+  instrumentation. Instead encourage users to instrument often and extensively.
 
 ## License
 
