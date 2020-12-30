@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Deref};
 
 /// A metric registry to register metrics with, later on passed to an encoder
 /// collecting samples of each metric by iterating all metrics in the registry.
@@ -169,6 +169,16 @@ impl Descriptor {
         &self.name
     }
 }
+
+pub trait SendEncodeMetric: crate::encoding::text::EncodeMetric + Send {}
+
+impl<> crate::encoding::text::EncodeMetric for Box<dyn SendEncodeMetric> {
+    fn encode<'a, 'b>(&self, encoder: crate::encoding::text::Encoder<'a, 'b>) -> Result<(), std::io::Error> {
+        self.deref().encode(encoder)
+    }
+}
+
+pub type DynSendRegistry = Registry<Box<dyn SendEncodeMetric>>;
 
 #[cfg(test)]
 mod tests {
