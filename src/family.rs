@@ -105,15 +105,36 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// ```
 pub struct Family<S, M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
+    /// Function that when called constructs a new metric.
+    ///
+    /// For most metric types this would simply be its [`Default`]
+    /// implementation set through [`Family::new`]. For metric types that need
+    /// custom construction logic like [`Histogram`] in order to set specific
+    /// buckets, a custom constructor is set via
+    /// [`Family::new_with_constructor`].
+    constructor: fn() -> M,
 }
 
 impl<S: Clone + std::hash::Hash + Eq, M: Default> Family<S, M> {
     pub fn new() -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Default::default())),
+            constructor: M::default,
         }
     }
+}
 
+impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
+    pub fn new_with_constructor(constructor: fn() -> M) -> Self {
+        Self {
+            metrics: Arc::new(RwLock::new(Default::default())),
+            constructor,
+        }
+    }
+}
+
+
+impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     pub fn get_or_create(&self, sample_set: &S) -> OwningRef<RwLockReadGuard<HashMap<S, M>>, M> {
         let read_guard = self.metrics.read().unwrap();
         if let Ok(metric) =
@@ -123,7 +144,7 @@ impl<S: Clone + std::hash::Hash + Eq, M: Default> Family<S, M> {
         }
 
         let mut write_guard = self.metrics.write().unwrap();
-        write_guard.insert(sample_set.clone(), Default::default());
+        write_guard.insert(sample_set.clone(), (self.constructor)());
 
         drop(write_guard);
 
@@ -140,6 +161,7 @@ impl<S, M> Clone for Family<S, M> {
     fn clone(&self) -> Self {
         Family {
             metrics: self.metrics.clone(),
+            constructor: self.constructor.clone(),
         }
     }
 }
@@ -148,6 +170,7 @@ impl<S, M> Clone for Family<S, M> {
 mod tests {
     use super::*;
     use crate::counter::Counter;
+    use crate::histogram::{Histogram, exponential_series};
     use std::sync::atomic::AtomicU64;
 
     #[test]
@@ -164,5 +187,10 @@ mod tests {
                 .get_or_create(&vec![("method".to_string(), "GET".to_string())])
                 .get()
         );
+    }
+
+    #[test]
+    fn histogram_family() {
+        Family::<(), Histogram>::new_with_constructor(|| Histogram::new(exponential_series(1.0, 2.0, 10)));
     }
 }

@@ -8,14 +8,6 @@ pub struct Histogram {
     inner: Arc<Mutex<Inner>>,
 }
 
-impl Default for Histogram {
-    fn default() -> Self {
-        Histogram {
-            inner: Arc::new(Mutex::new(Default::default())),
-        }
-    }
-}
-
 impl Clone for Histogram {
     fn clone(&self) -> Self {
         Histogram {
@@ -34,7 +26,7 @@ pub(crate) struct Inner {
 }
 
 impl Histogram {
-    pub fn new(buckets: Vec<f64>) -> Self {
+    pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 sum: Default::default(),
@@ -68,13 +60,22 @@ impl Histogram {
     }
 }
 
+pub fn exponential_series(start: f64, factor: f64, length: u16) -> impl Iterator<Item = f64> {
+    let mut current = start;
+    (0..length).map(move |_| {
+        let to_return = current;
+        current = current * factor;
+        to_return
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn histogram() {
-        let histogram = Histogram::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
         histogram.observe(1.0);
     }
 }

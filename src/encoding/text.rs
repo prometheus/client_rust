@@ -287,6 +287,7 @@ mod tests {
     use super::*;
     use crate::counter::Counter;
     use crate::gauge::Gauge;
+    use crate::histogram::exponential_series;
     use crate::registry::Descriptor;
     use pyo3::{prelude::*, types::PyModule};
     use std::sync::atomic::AtomicU64;
@@ -346,7 +347,7 @@ mod tests {
     #[test]
     fn encode_histogram() {
         let mut registry = Registry::new();
-        let histogram = Histogram::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
         registry.register(
             Descriptor::new("histogram", "My histogram", "my_histogram"),
             histogram.clone(),
