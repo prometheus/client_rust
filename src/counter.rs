@@ -1,6 +1,20 @@
+//! Module implementing an Open Metrics counter.
+//!
+//! See [`Counter`] for details.
+
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
+/// Open Metrics [`Counter`] to measure discrete events.
+///
+/// Single monotonically increasing value metric.
+///
+/// ```
+/// # use open_metrics_client::counter::Counter;
+/// # std::sync::atomic::AtomicU64;
+/// let counter = Counter::<AtomicU64>::new();
+/// counter.inc();
+/// ```
 pub struct Counter<A> {
     value: Arc<A>,
 }
