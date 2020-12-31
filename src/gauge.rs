@@ -11,8 +11,8 @@ use std::sync::Arc;
 ///
 /// ```
 /// # use open_metrics_client::gauge::Gauge;
-/// # std::sync::atomic::AtomicU64;
-/// let Gauge = Gauge::<AtomicU64>::new();
+/// # use std::sync::atomic::AtomicU64;
+/// let gauge = Gauge::<AtomicU64>::new();
 /// gauge.inc();
 /// ```
 pub struct Gauge<A> {

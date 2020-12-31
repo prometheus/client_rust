@@ -1,7 +1,18 @@
+//! Module implementing an Open Metrics histogram.
+//!
+//! See [`Histogram`] for details.
+
 use owning_ref::OwningRef;
 use std::iter::once;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+/// Open Metrics [`Histogram`] to measure distributions of discrete events.
+///
+/// ```
+/// # use open_metrics_client::histogram::{Histogram, exponential_series};
+/// let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
+/// histogram.observe(4.2);
+/// ```
 // TODO: Consider using atomics. See
 // https://github.com/tikv/rust-prometheus/pull/314.
 pub struct Histogram {

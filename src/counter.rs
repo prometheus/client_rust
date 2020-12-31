@@ -11,7 +11,7 @@ use std::sync::Arc;
 ///
 /// ```
 /// # use open_metrics_client::counter::Counter;
-/// # std::sync::atomic::AtomicU64;
+/// # use std::sync::atomic::AtomicU64;
 /// let counter = Counter::<AtomicU64>::new();
 /// counter.inc();
 /// ```
