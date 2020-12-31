@@ -133,7 +133,6 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     }
 }
 
-
 impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     pub fn get_or_create(&self, sample_set: &S) -> OwningRef<RwLockReadGuard<HashMap<S, M>>, M> {
         let read_guard = self.metrics.read().unwrap();
@@ -170,7 +169,7 @@ impl<S, M> Clone for Family<S, M> {
 mod tests {
     use super::*;
     use crate::counter::Counter;
-    use crate::histogram::{Histogram, exponential_series};
+    use crate::histogram::{exponential_series, Histogram};
     use std::sync::atomic::AtomicU64;
 
     #[test]
@@ -191,6 +190,8 @@ mod tests {
 
     #[test]
     fn histogram_family() {
-        Family::<(), Histogram>::new_with_constructor(|| Histogram::new(exponential_series(1.0, 2.0, 10)));
+        Family::<(), Histogram>::new_with_constructor(|| {
+            Histogram::new(exponential_series(1.0, 2.0, 10))
+        });
     }
 }

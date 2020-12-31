@@ -175,6 +175,7 @@ impl Descriptor {
     }
 }
 
+// TODO: Does this and the below really belong here?
 pub trait SendEncodeMetric: crate::encoding::text::EncodeMetric + Send {}
 
 impl<T: Send + crate::encoding::text::EncodeMetric> SendEncodeMetric for T {}
