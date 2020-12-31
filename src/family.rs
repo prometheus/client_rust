@@ -1,3 +1,7 @@
+//! Module implementing an Open Metrics metric family.
+//!
+//! See [`Family`] for details.
+
 use owning_ref::OwningRef;
 
 use std::collections::HashMap;
