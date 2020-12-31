@@ -147,11 +147,11 @@ impl<'a> ValueEncoder<'a> {
 }
 
 pub trait EncodeMetric {
-    fn encode<'a, 'b>(&self, encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error>;
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error>;
 }
 
 impl EncodeMetric for Box<dyn EncodeMetric> {
-    fn encode<'a, 'b>(&self, encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
         self.deref().encode(encoder)
     }
 }
@@ -215,7 +215,7 @@ where
     A: counter::Atomic,
     <A as counter::Atomic>::Number: Encode,
 {
-    fn encode<'a, 'b>(&self, mut encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
+    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         encoder
             .encode_suffix("total")?
             .no_bucket()?
@@ -230,7 +230,7 @@ where
     A: gauge::Atomic,
     <A as gauge::Atomic>::Number: Encode,
 {
-    fn encode<'a, 'b>(&self, mut encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
+    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         encoder.no_suffix()?.no_bucket()?.encode_value(self.get())?;
 
         Ok(())
@@ -242,7 +242,7 @@ where
     S: Clone + std::hash::Hash + Eq + Encode,
     M: EncodeMetric,
 {
-    fn encode<'a, 'b>(&self, mut encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
+    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         let guard = self.read();
         for (label_set, m) in guard.iter() {
             let encoder = encoder.with_label_set(label_set);

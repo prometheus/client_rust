@@ -59,8 +59,10 @@ impl<M> Registry<M> {
             .map(|p| p + "_")
             .unwrap_or_else(|| String::new().into())
             + prefix;
-        let mut sub_registry = Registry::default();
-        sub_registry.prefix = Some(prefix);
+        let sub_registry = Registry {
+            prefix: Some(prefix),
+            ..Default::default()
+        };
         self.sub_registries.push(sub_registry);
 
         self.sub_registries
@@ -183,10 +185,7 @@ pub trait SendEncodeMetric: crate::encoding::text::EncodeMetric + Send {}
 impl<T: Send + crate::encoding::text::EncodeMetric> SendEncodeMetric for T {}
 
 impl crate::encoding::text::EncodeMetric for Box<dyn SendEncodeMetric> {
-    fn encode<'a, 'b>(
-        &self,
-        encoder: crate::encoding::text::Encoder<'a, 'b>,
-    ) -> Result<(), std::io::Error> {
+    fn encode(&self, encoder: crate::encoding::text::Encoder) -> Result<(), std::io::Error> {
         self.deref().encode(encoder)
     }
 }
