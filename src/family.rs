@@ -110,7 +110,7 @@ pub struct Family<S, M> {
     /// For most metric types this would simply be its [`Default`]
     /// implementation set through [`Family::new`]. For metric types that need
     /// custom construction logic like
-    /// [`Histogram`](crate::histogram::Histogra) in order to set specific
+    /// [`Histogram`](crate::histogram::Histogram) in order to set specific
     /// buckets, a custom constructor is set via
     /// [`Family::new_with_constructor`].
     constructor: fn() -> M,
