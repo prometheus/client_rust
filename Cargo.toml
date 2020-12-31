@@ -1,6 +1,6 @@
 [package]
 name = "open-metrics-client"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
 description = "Open Metrics client library allowing users to natively instrument applications."
