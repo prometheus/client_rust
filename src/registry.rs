@@ -172,6 +172,8 @@ impl Descriptor {
 
 pub trait SendEncodeMetric: crate::encoding::text::EncodeMetric + Send {}
 
+impl<T: Send + crate::encoding::text::EncodeMetric> SendEncodeMetric for T {}
+
 impl<> crate::encoding::text::EncodeMetric for Box<dyn SendEncodeMetric> {
     fn encode<'a, 'b>(&self, encoder: crate::encoding::text::Encoder<'a, 'b>) -> Result<(), std::io::Error> {
         self.deref().encode(encoder)
