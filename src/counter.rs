@@ -24,6 +24,10 @@ impl<A: Atomic> Counter<A> {
         self.value.inc()
     }
 
+    pub fn inc_by(&self, v: A::Number) -> A::Number {
+        self.value.inc_by(v)
+    }
+
     pub fn get(&self) -> A::Number {
         self.value.get()
     }
@@ -37,6 +41,8 @@ pub trait Atomic {
     fn new() -> Self;
 
     fn inc(&self) -> Self::Number;
+
+    fn inc_by(&self, v: Self::Number) -> Self::Number;
 
     fn get(&self) -> Self::Number;
 }
@@ -60,7 +66,11 @@ impl Atomic for AtomicU64 {
     }
 
     fn inc(&self) -> Self::Number {
-        self.fetch_add(1, Ordering::Relaxed)
+        self.inc_by(1)
+    }
+
+    fn inc_by(&self, v: Self::Number) -> Self::Number {
+        self.fetch_add(v, Ordering::Relaxed)
     }
 
     fn get(&self) -> Self::Number {
@@ -76,7 +86,11 @@ impl Atomic for AtomicU32 {
     }
 
     fn inc(&self) -> Self::Number {
-        self.fetch_add(1, Ordering::Relaxed)
+        self.inc_by(1)
+    }
+
+    fn inc_by(&self, v: Self::Number) -> Self::Number {
+        self.fetch_add(v, Ordering::Relaxed)
     }
 
     fn get(&self) -> Self::Number {
