@@ -240,7 +240,7 @@ where
 impl<S, M> EncodeMetric for Family<S, M>
 where
     S: Clone + std::hash::Hash + Eq + Encode,
-    M: Default + EncodeMetric,
+    M: EncodeMetric,
 {
     fn encode<'a, 'b>(&self, mut encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
         let guard = self.read();
