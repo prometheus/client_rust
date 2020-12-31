@@ -1,6 +1,20 @@
+//! Module implementing an Open Metrics gauge.
+//!
+//! See [`Gauge`] for details.
+
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
+/// Open Metrics [`Gauge`] to record current measurements.
+///
+/// Single increasing, decreasing or constant value metric.
+///
+/// ```
+/// # use open_metrics_client::gauge::Gauge;
+/// # std::sync::atomic::AtomicU64;
+/// let Gauge = Gauge::<AtomicU64>::new();
+/// gauge.inc();
+/// ```
 pub struct Gauge<A> {
     value: Arc<A>,
 }
