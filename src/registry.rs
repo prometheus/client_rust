@@ -1,7 +1,15 @@
+//! Module implementing a metric registry.
+//!
+//! See [`Registry`] for details.
+
 use std::ops::{Add, Deref};
 
-/// A metric registry to register metrics with, later on passed to an encoder
-/// collecting samples of each metric by iterating all metrics in the registry.
+/// A metric registry.
+///
+/// First off one registers metrics with the registry via
+/// [`Registry::register`]. Later on the [`Registry`] is passed to an encoder
+/// collecting samples of each metric by iterating all metrics in the
+/// [`Registry`] via [`Registry::iter`].
 ///
 /// ```
 /// # use std::sync::atomic::AtomicU64;
