@@ -104,7 +104,6 @@ jobs:
           key: cargo-index-${{ hashFiles('Cargo.toml') }}
 
       - uses: actions-rs/cargo@v1
-        continue-on-error: true
         with:
           command: clippy
           args: -- -D warnings

@@ -80,7 +80,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// #             b"method=\"PUT\""
 /// #         }
 /// #     };
-/// #     writer.write(method).map(|_| ())
+/// #     writer.write_all(method).map(|_| ())
 /// #   }
 /// # }
 /// #

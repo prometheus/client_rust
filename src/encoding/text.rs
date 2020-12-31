@@ -13,17 +13,17 @@ where
     M: EncodeMetric,
 {
     for (desc, metric) in registry.iter() {
-        writer.write(b"# HELP ")?;
-        writer.write(desc.name().as_bytes())?;
-        writer.write(b" ")?;
-        writer.write(desc.help().as_bytes())?;
-        writer.write(b"\n")?;
+        writer.write_all(b"# HELP ")?;
+        writer.write_all(desc.name().as_bytes())?;
+        writer.write_all(b" ")?;
+        writer.write_all(desc.help().as_bytes())?;
+        writer.write_all(b"\n")?;
 
-        writer.write(b"# TYPE ")?;
-        writer.write(desc.name().as_bytes())?;
-        writer.write(b" ")?;
-        writer.write(desc.m_type().as_bytes())?;
-        writer.write(b"\n")?;
+        writer.write_all(b"# TYPE ")?;
+        writer.write_all(desc.name().as_bytes())?;
+        writer.write_all(b" ")?;
+        writer.write_all(desc.m_type().as_bytes())?;
+        writer.write_all(b"\n")?;
 
         let encoder = Encoder {
             writer: writer,
@@ -34,7 +34,7 @@ where
         metric.encode(encoder)?;
     }
 
-    writer.write("# EOF\n".as_bytes())?;
+    writer.write_all("# EOF\n".as_bytes())?;
 
     Ok(())
 }
@@ -53,22 +53,22 @@ pub struct Encoder<'a, 'b> {
 
 impl<'a, 'b> Encoder<'a, 'b> {
     pub fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder, std::io::Error> {
-        self.writer.write(self.name.as_bytes())?;
-        self.writer.write("_".as_bytes())?;
-        self.writer.write(suffix.as_bytes()).map(|_| ())?;
+        self.writer.write_all(self.name.as_bytes())?;
+        self.writer.write_all("_".as_bytes())?;
+        self.writer.write_all(suffix.as_bytes()).map(|_| ())?;
 
         self.encode_labels()
     }
 
     pub fn no_suffix(&mut self) -> Result<BucketEncoder, std::io::Error> {
-        self.writer.write(self.name.as_bytes())?;
+        self.writer.write_all(self.name.as_bytes())?;
 
         self.encode_labels()
     }
 
     pub(self) fn encode_labels(&mut self) -> Result<BucketEncoder, std::io::Error> {
         if let Some(labels) = &self.labels {
-            self.writer.write("{".as_bytes())?;
+            self.writer.write_all("{".as_bytes())?;
             labels.encode(self.writer)?;
 
             Ok(BucketEncoder {
@@ -107,15 +107,15 @@ impl<'a> BucketEncoder<'a> {
         value: V,
     ) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
-            self.writer.write(", ".as_bytes())?;
+            self.writer.write_all(", ".as_bytes())?;
         } else {
-            self.writer.write("{".as_bytes())?;
+            self.writer.write_all("{".as_bytes())?;
         }
 
         key.encode(self.writer)?;
-        self.writer.write("=\"".as_bytes())?;
+        self.writer.write_all("=\"".as_bytes())?;
         value.encode(self.writer)?;
-        self.writer.write("\"}".as_bytes())?;
+        self.writer.write_all("\"}".as_bytes())?;
 
         Ok(ValueEncoder {
             writer: self.writer,
@@ -124,7 +124,7 @@ impl<'a> BucketEncoder<'a> {
 
     fn no_bucket(&mut self) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
-            self.writer.write("}".as_bytes())?;
+            self.writer.write_all("}".as_bytes())?;
         }
         Ok(ValueEncoder {
             writer: self.writer,
@@ -139,9 +139,9 @@ pub struct ValueEncoder<'a> {
 
 impl<'a> ValueEncoder<'a> {
     fn encode_value<V: Encode>(&mut self, v: V) -> Result<(), std::io::Error> {
-        self.writer.write(" ".as_bytes())?;
+        self.writer.write_all(" ".as_bytes())?;
         v.encode(self.writer)?;
-        self.writer.write("\n".as_bytes())?;
+        self.writer.write_all("\n".as_bytes())?;
         Ok(())
     }
 }
@@ -183,7 +183,7 @@ impl Encode for u64 {
 impl Encode for &str {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         // TODO: Can we do better?
-        writer.write(self.as_bytes())?;
+        writer.write_all(self.as_bytes())?;
         Ok(())
     }
 }
@@ -196,13 +196,13 @@ impl Encode for Vec<(String, String)> {
 
         let mut iter = self.iter().peekable();
         while let Some((name, value)) = iter.next() {
-            writer.write(name.as_bytes())?;
-            writer.write(b"=\"")?;
-            writer.write(value.as_bytes())?;
-            writer.write(b"\"")?;
+            writer.write_all(name.as_bytes())?;
+            writer.write_all(b"=\"")?;
+            writer.write_all(value.as_bytes())?;
+            writer.write_all(b"\"")?;
 
             if iter.peek().is_some() {
-                writer.write(b",")?;
+                writer.write_all(b",")?;
             }
         }
 

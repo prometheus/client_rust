@@ -37,20 +37,20 @@ pub fn text(c: &mut Criterion) {
                     Method::Get => b"method=\"GET\"",
                     Method::Put => b"method=\"PUT\"",
                 };
-                writer.write(method)?;
+                writer.write_all(method)?;
 
-                writer.write(b", ")?;
+                writer.write_all(b", ")?;
                 let status = match self.status {
                     Status::Two => b"status=\"200\"",
                     Status::Four => b"status=\"400\"",
                     Status::Five => b"status=\"500\"",
                 };
-                writer.write(status)?;
+                writer.write_all(status)?;
 
-                writer.write(b", ")?;
-                writer.write(b"some_number=\"")?;
+                writer.write_all(b", ")?;
+                writer.write_all(b"some_number=\"")?;
                 self.some_number.encode(&mut writer)?;
-                writer.write(b"\"")?;
+                writer.write_all(b"\"")?;
                 Ok(())
             }
         }
