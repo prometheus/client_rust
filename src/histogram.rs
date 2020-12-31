@@ -16,7 +16,6 @@ impl Clone for Histogram {
     }
 }
 
-#[derive(Default)]
 pub(crate) struct Inner {
     // TODO: Consider allowing integer observe values.
     sum: f64,
@@ -60,6 +59,7 @@ impl Histogram {
     }
 }
 
+// TODO: consider renaming to exponential_buckets
 pub fn exponential_series(start: f64, factor: f64, length: u16) -> impl Iterator<Item = f64> {
     let mut current = start;
     (0..length).map(move |_| {
