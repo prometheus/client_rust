@@ -27,7 +27,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     app.at("/metrics")
         .get(|req: tide::Request<State>| async move {
             let mut encoded = Vec::new();
-            encode::<_, _>(&mut encoded, &req.state().registry.lock().unwrap()).unwrap();
+            encode(&mut encoded, &req.state().registry.lock().unwrap()).unwrap();
             Ok(String::from_utf8(encoded).unwrap())
         });
     app.listen("127.0.0.1:8080").await?;

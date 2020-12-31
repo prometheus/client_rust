@@ -1,3 +1,29 @@
+//! Open Metrics text format implementation.
+//!
+//! ```
+//! # use std::sync::atomic::AtomicU64;
+//! # use open_metrics_client::registry::{Descriptor, Registry};
+//! # use open_metrics_client::counter::Counter;
+//! # use open_metrics_client::encoding::text::encode;
+//! #
+//! # // Create registry and counter and register the latter with the former.
+//! # let mut registry = Registry::default();
+//! # let counter = Counter::<AtomicU64>::new();
+//! # registry.register(
+//! #   Descriptor::new("counter", "This is my counter.", "my_counter"),
+//! #   counter.clone(),
+//! # );
+//! # counter.inc();
+//! let mut buffer = vec![];
+//! encode(&mut buffer, &registry).unwrap();
+//!
+//! let expected = "# HELP my_counter This is my counter.\n".to_owned() +
+//!                "# TYPE my_counter counter\n" +
+//!                "my_counter_total 1\n" +
+//!                "# EOF\n";
+//! assert_eq!(expected, String::from_utf8(buffer).unwrap());
+//! ```
+
 use crate::counter::{self, Counter};
 use crate::family::Family;
 use crate::gauge::{self, Gauge};
@@ -302,7 +328,7 @@ mod tests {
 
         let mut encoded = Vec::new();
 
-        encode::<_, _>(&mut encoded, &registry).unwrap();
+        encode(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
@@ -318,7 +344,7 @@ mod tests {
 
         let mut encoded = Vec::new();
 
-        encode::<_, _>(&mut encoded, &registry).unwrap();
+        encode(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
@@ -338,7 +364,7 @@ mod tests {
 
         let mut encoded = Vec::new();
 
-        encode::<_, _>(&mut encoded, &registry).unwrap();
+        encode(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
@@ -355,7 +381,7 @@ mod tests {
 
         let mut encoded = Vec::new();
 
-        encode::<_, _>(&mut encoded, &registry).unwrap();
+        encode(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }

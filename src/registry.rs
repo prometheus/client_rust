@@ -11,8 +11,10 @@ use std::ops::{Add, Deref};
 /// # use open_metrics_client::registry::{Descriptor, Registry};
 /// #
 /// let mut registry = Registry::<Box<dyn EncodeMetric>>::default();
+///
 /// let counter = Counter::<AtomicU64>::new();
 /// let gauge= Gauge::<AtomicU64>::new();
+///
 /// registry.register(
 ///   Descriptor::new("counter", "This is my counter.", "my_counter"),
 ///   Box::new(counter.clone()),
@@ -24,7 +26,7 @@ use std::ops::{Add, Deref};
 ///
 /// # // Encode all metrics in the registry in the text format.
 /// # let mut buffer = vec![];
-/// # encode::<_, _>(&mut buffer, &registry).unwrap();
+/// # encode(&mut buffer, &registry).unwrap();
 /// #
 /// # let expected = "# HELP my_counter This is my counter.\n".to_owned() +
 /// #                "# TYPE my_counter counter\n" +
