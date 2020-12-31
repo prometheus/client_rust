@@ -8,7 +8,7 @@ use tide::{Middleware, Next, Request, Result};
 
 #[async_std::main]
 async fn main() -> std::result::Result<(), std::io::Error> {
-    let mut registry = Registry::new();
+    let mut registry = Registry::default();
     let counter = Counter::new();
     registry.register(
         Descriptor::new("counter", "my counter", "my_counter"),

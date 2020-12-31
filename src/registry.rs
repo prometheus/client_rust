@@ -10,7 +10,7 @@ use std::ops::{Add, Deref};
 /// # use open_metrics_client::encoding::text::{encode, EncodeMetric};
 /// # use open_metrics_client::registry::{Descriptor, Registry};
 /// #
-/// let mut registry = Registry::<Box<dyn EncodeMetric>>::new();
+/// let mut registry = Registry::<Box<dyn EncodeMetric>>::default();
 /// let counter = Counter::<AtomicU64>::new();
 /// let gauge= Gauge::<AtomicU64>::new();
 /// registry.register(
@@ -41,15 +41,17 @@ pub struct Registry<M> {
     sub_registries: Vec<Registry<M>>,
 }
 
-impl<M> Registry<M> {
-    pub fn new() -> Self {
+impl<M> Default for Registry<M> {
+    fn default() -> Self {
         Self {
             prefix: None,
             metrics: Default::default(),
             sub_registries: vec![],
         }
     }
+}
 
+impl<M> Registry<M> {
     pub fn sub_registry(&mut self, prefix: &str) -> &mut Self {
         let prefix = self
             .prefix
@@ -57,7 +59,7 @@ impl<M> Registry<M> {
             .map(|p| p + "_")
             .unwrap_or_else(|| String::new().into())
             + prefix;
-        let mut sub_registry = Registry::new();
+        let mut sub_registry = Registry::default();
         sub_registry.prefix = Some(prefix);
         self.sub_registries.push(sub_registry);
 
@@ -199,7 +201,7 @@ mod tests {
 
     #[test]
     fn register_and_iterate() {
-        let mut registry = Registry::new();
+        let mut registry = Registry::default();
         let counter = Counter::<AtomicU64>::new();
         registry.register(
             Descriptor::new("counter", "My counter", "my_counter"),
@@ -212,7 +214,7 @@ mod tests {
     #[test]
     fn sub_registry() {
         let top_level_metric_name = "my_top_level_metric";
-        let mut registry = Registry::<()>::new();
+        let mut registry = Registry::<()>::default();
         registry.register(
             Descriptor::new("unknown", "some help", top_level_metric_name),
             (),

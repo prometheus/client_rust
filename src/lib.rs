@@ -15,7 +15,7 @@
 //! # use open_metrics_client::encoding::text::encode;
 //! #
 //! // Create registry and counter and register the latter with the former.
-//! let mut registry = Registry::new();
+//! let mut registry = Registry::default();
 //! let counter = Counter::<AtomicU64>::new();
 //! registry.register(
 //!   Descriptor::new("counter", "This is my counter.", "my_counter"),

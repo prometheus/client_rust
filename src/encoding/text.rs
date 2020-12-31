@@ -26,7 +26,7 @@ where
         writer.write_all(b"\n")?;
 
         let encoder = Encoder {
-            writer: writer,
+            writer,
             name: &desc.name(),
             labels: None,
         };
@@ -34,7 +34,7 @@ where
         metric.encode(encoder)?;
     }
 
-    writer.write_all("# EOF\n".as_bytes())?;
+    writer.write_all(b"# EOF\n")?;
 
     Ok(())
 }
@@ -54,7 +54,7 @@ pub struct Encoder<'a, 'b> {
 impl<'a, 'b> Encoder<'a, 'b> {
     pub fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder, std::io::Error> {
         self.writer.write_all(self.name.as_bytes())?;
-        self.writer.write_all("_".as_bytes())?;
+        self.writer.write_all(b"_")?;
         self.writer.write_all(suffix.as_bytes()).map(|_| ())?;
 
         self.encode_labels()
@@ -68,7 +68,7 @@ impl<'a, 'b> Encoder<'a, 'b> {
 
     pub(self) fn encode_labels(&mut self) -> Result<BucketEncoder, std::io::Error> {
         if let Some(labels) = &self.labels {
-            self.writer.write_all("{".as_bytes())?;
+            self.writer.write_all(b"{")?;
             labels.encode(self.writer)?;
 
             Ok(BucketEncoder {
@@ -107,15 +107,15 @@ impl<'a> BucketEncoder<'a> {
         value: V,
     ) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
-            self.writer.write_all(", ".as_bytes())?;
+            self.writer.write_all(b", ")?;
         } else {
-            self.writer.write_all("{".as_bytes())?;
+            self.writer.write_all(b"{")?;
         }
 
         key.encode(self.writer)?;
-        self.writer.write_all("=\"".as_bytes())?;
+        self.writer.write_all(b"=\"")?;
         value.encode(self.writer)?;
-        self.writer.write_all("\"}".as_bytes())?;
+        self.writer.write_all(b"\"}")?;
 
         Ok(ValueEncoder {
             writer: self.writer,
@@ -124,7 +124,7 @@ impl<'a> BucketEncoder<'a> {
 
     fn no_bucket(&mut self) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
-            self.writer.write_all("}".as_bytes())?;
+            self.writer.write_all(b"}")?;
         }
         Ok(ValueEncoder {
             writer: self.writer,
@@ -139,9 +139,9 @@ pub struct ValueEncoder<'a> {
 
 impl<'a> ValueEncoder<'a> {
     fn encode_value<V: Encode>(&mut self, v: V) -> Result<(), std::io::Error> {
-        self.writer.write_all(" ".as_bytes())?;
+        self.writer.write_all(b" ")?;
         v.encode(self.writer)?;
-        self.writer.write_all("\n".as_bytes())?;
+        self.writer.write_all(b"\n")?;
         Ok(())
     }
 }
@@ -244,8 +244,7 @@ where
 {
     fn encode<'a, 'b>(&self, mut encoder: Encoder<'a, 'b>) -> Result<(), std::io::Error> {
         let guard = self.read();
-        let mut iter = guard.iter();
-        while let Some((label_set, m)) = iter.next() {
+        for (label_set, m) in guard.iter() {
             let encoder = encoder.with_label_set(label_set);
             m.encode(encoder)?;
         }
@@ -294,7 +293,7 @@ mod tests {
 
     #[test]
     fn encode_counter() {
-        let mut registry = Registry::new();
+        let mut registry = Registry::default();
         let counter = Counter::<AtomicU64>::new();
         registry.register(
             Descriptor::new("counter", "My counter", "my_counter"),
@@ -310,7 +309,7 @@ mod tests {
 
     #[test]
     fn encode_gauge() {
-        let mut registry = Registry::new();
+        let mut registry = Registry::default();
         let gauge = Gauge::<AtomicU64>::new();
         registry.register(
             Descriptor::new("gauge", "My gauge", "my_gauge"),
@@ -326,8 +325,8 @@ mod tests {
 
     #[test]
     fn encode_counter_family() {
-        let mut registry = Registry::new();
-        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::new();
+        let mut registry = Registry::default();
+        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
         registry.register(
             Descriptor::new("counter", "My counter family", "my_counter_family"),
             family.clone(),
@@ -346,7 +345,7 @@ mod tests {
 
     #[test]
     fn encode_histogram() {
-        let mut registry = Registry::new();
+        let mut registry = Registry::default();
         let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
         registry.register(
             Descriptor::new("histogram", "My histogram", "my_histogram"),

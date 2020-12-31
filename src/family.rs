@@ -26,8 +26,8 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # use open_metrics_client::family::Family;
 /// # use open_metrics_client::registry::{Descriptor, Registry};
 /// #
-/// # let mut registry = Registry::new();
-/// let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::new();
+/// # let mut registry = Registry::default();
+/// let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
 /// # registry.register(
 /// #   Descriptor::new("counter", "This is my counter.", "my_counter"),
 /// #   family.clone(),
@@ -58,7 +58,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # use open_metrics_client::encoding::text::Encode;
 /// # use std::io::Write;
 /// #
-/// # let mut registry = Registry::new();
+/// # let mut registry = Registry::default();
 /// #[derive(Clone, Hash, PartialEq, Eq)]
 /// struct Labels {
 ///   method: Method,
@@ -84,7 +84,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// #   }
 /// # }
 /// #
-/// let family = Family::<Labels, Counter<AtomicU64>>::new();
+/// let family = Family::<Labels, Counter<AtomicU64>>::default();
 /// # registry.register(
 /// #   Descriptor::new("counter", "This is my counter.", "my_counter"),
 /// #   family.clone(),
@@ -116,8 +116,8 @@ pub struct Family<S, M> {
     constructor: fn() -> M,
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M: Default> Family<S, M> {
-    pub fn new() -> Self {
+impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
+    fn default() -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Default::default())),
             constructor: M::default,
@@ -149,7 +149,11 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
         drop(write_guard);
 
         let read_guard = self.metrics.read().unwrap();
-        return OwningRef::new(read_guard).map(|metrics| metrics.get(sample_set).unwrap());
+        OwningRef::new(read_guard).map(|metrics| {
+            metrics
+                .get(sample_set)
+                .expect("Metric to exist after creating it.")
+        })
     }
 
     pub(crate) fn read<'a>(&'a self) -> RwLockReadGuard<'a, HashMap<S, M>> {
@@ -161,7 +165,7 @@ impl<S, M> Clone for Family<S, M> {
     fn clone(&self) -> Self {
         Family {
             metrics: self.metrics.clone(),
-            constructor: self.constructor.clone(),
+            constructor: self.constructor,
         }
     }
 }
@@ -175,7 +179,7 @@ mod tests {
 
     #[test]
     fn counter_family() {
-        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::new();
+        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
 
         family
             .get_or_create(&vec![("method".to_string(), "GET".to_string())])

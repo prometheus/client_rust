@@ -50,7 +50,7 @@ impl Histogram {
         }
     }
 
-    pub(crate) fn get(&self) -> (f64, u64, OwningRef<MutexGuard<Inner>, Vec<(f64, u64)>>) {
+    pub(crate) fn get(&self) -> (f64, u64, MutexGuardedBuckets) {
         let inner = self.inner.lock().unwrap();
         let sum = inner.sum;
         let count = inner.count;
@@ -59,12 +59,14 @@ impl Histogram {
     }
 }
 
+type MutexGuardedBuckets<'a> = OwningRef<MutexGuard<'a, Inner>, Vec<(f64, u64)>>;
+
 // TODO: consider renaming to exponential_buckets
 pub fn exponential_series(start: f64, factor: f64, length: u16) -> impl Iterator<Item = f64> {
     let mut current = start;
     (0..length).map(move |_| {
         let to_return = current;
-        current = current * factor;
+        current *= factor;
         to_return
     })
 }

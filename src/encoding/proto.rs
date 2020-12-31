@@ -74,7 +74,7 @@ mod tests {
 
     #[test]
     fn encode_counter_family() {
-        let mut registry = Registry::new();
+        let mut registry = Registry::default();
         let counter = Counter::<AtomicU32>::new();
         registry.register(
             Descriptor::new("counter", "My counter", "my_counter"),
