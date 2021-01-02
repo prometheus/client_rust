@@ -176,6 +176,9 @@ impl<'a> ValueEncoder<'a> {
 
 pub trait EncodeMetric {
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error>;
+
+    // One can not use [`TypedMetric`] directly, as associated constants are not
+    // object safe and thus can not be used with dynamic dispatching.
     fn metric_type(&self) -> MetricType;
 }
 
