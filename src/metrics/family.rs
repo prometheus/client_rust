@@ -2,8 +2,8 @@
 //!
 //! See [`Family`] for details.
 
+use super::{MetricType, TypedMetric};
 use owning_ref::OwningRef;
-
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
@@ -24,16 +24,17 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// ### [`Family`] with `Vec<(String, String)>` for convenience
 ///
 /// ```
-/// # use std::sync::atomic::AtomicU64;
-/// # use open_metrics_client::counter::{Atomic, Counter};
 /// # use open_metrics_client::encoding::text::encode;
-/// # use open_metrics_client::family::Family;
+/// # use open_metrics_client::metrics::counter::{Atomic, Counter};
+/// # use open_metrics_client::metrics::family::Family;
 /// # use open_metrics_client::registry::{Descriptor, Registry};
+/// # use std::sync::atomic::AtomicU64;
 /// #
 /// # let mut registry = Registry::default();
 /// let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
 /// # registry.register(
-/// #   Descriptor::new("counter", "This is my counter.", "my_counter"),
+/// #   "my_counter",
+/// #   "This is my counter.",
 /// #   family.clone(),
 /// # );
 ///
@@ -54,13 +55,13 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// ### [`Family`] with custom type for performance
 ///
 /// ```
-/// # use std::sync::atomic::AtomicU64;
-/// # use open_metrics_client::counter::{Atomic, Counter};
-/// # use open_metrics_client::encoding::text::encode;
-/// # use open_metrics_client::family::Family;
-/// # use open_metrics_client::registry::{Descriptor, Registry};
 /// # use open_metrics_client::encoding::text::Encode;
+/// # use open_metrics_client::encoding::text::encode;
+/// # use open_metrics_client::metrics::counter::{Atomic, Counter};
+/// # use open_metrics_client::metrics::family::Family;
+/// # use open_metrics_client::registry::{Descriptor, Registry};
 /// # use std::io::Write;
+/// # use std::sync::atomic::AtomicU64;
 /// #
 /// # let mut registry = Registry::default();
 /// #[derive(Clone, Hash, PartialEq, Eq)]
@@ -90,7 +91,8 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// #
 /// let family = Family::<Labels, Counter<AtomicU64>>::default();
 /// # registry.register(
-/// #   Descriptor::new("counter", "This is my counter.", "my_counter"),
+/// #   "my_counter",
+/// #   "This is my counter.",
 /// #   family.clone(),
 /// # );
 ///
@@ -114,8 +116,8 @@ pub struct Family<S, M> {
     /// For most metric types this would simply be its [`Default`]
     /// implementation set through [`Family::default`]. For metric types that
     /// need custom construction logic like
-    /// [`Histogram`](crate::histogram::Histogram) in order to set specific
-    /// buckets, a custom constructor is set via
+    /// [`Histogram`](crate::metrics::histogram::Histogram) in order to set
+    /// specific buckets, a custom constructor is set via
     /// [`Family::new_with_constructor`].
     constructor: fn() -> M,
 }
@@ -174,11 +176,15 @@ impl<S, M> Clone for Family<S, M> {
     }
 }
 
+impl<S, M: TypedMetric> TypedMetric for Family<S, M> {
+    const TYPE: MetricType = <M as TypedMetric>::TYPE;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::counter::Counter;
-    use crate::histogram::{exponential_series, Histogram};
+    use crate::metrics::counter::Counter;
+    use crate::metrics::histogram::{exponential_series, Histogram};
     use std::sync::atomic::AtomicU64;
 
     #[test]

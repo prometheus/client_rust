@@ -1,4 +1,4 @@
-use crate::counter::{Atomic, Counter};
+use crate::metrics::counter::{Atomic, Counter};
 
 use crate::registry::Registry;
 use prost::bytes::BufMut;
@@ -69,17 +69,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::registry::Descriptor;
     use std::sync::atomic::AtomicU32;
 
     #[test]
     fn encode_counter_family() {
         let mut registry = Registry::default();
         let counter = Counter::<AtomicU32>::new();
-        registry.register(
-            Descriptor::new("counter", "My counter", "my_counter"),
-            counter.clone(),
-        );
+        registry.register("my_counter", "My counter", counter.clone());
 
         counter.inc();
 

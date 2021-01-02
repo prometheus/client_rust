@@ -2,7 +2,8 @@
 //!
 //! See [`Registry`] for details.
 
-use std::ops::{Add, Deref};
+use std::ops::Add;
+// use crate::metrics::{MetricType, TypedMetric};
 
 /// A metric registry.
 ///
@@ -12,11 +13,11 @@ use std::ops::{Add, Deref};
 /// [`Registry`] via [`Registry::iter`].
 ///
 /// ```
-/// # use std::sync::atomic::AtomicU64;
-/// # use open_metrics_client::counter::{Atomic as _, Counter};
-/// # use open_metrics_client::gauge::{Atomic as _, Gauge};
 /// # use open_metrics_client::encoding::text::{encode, EncodeMetric};
-/// # use open_metrics_client::registry::{Descriptor, Registry};
+/// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
+/// # use open_metrics_client::metrics::gauge::{Atomic as _, Gauge};
+/// # use open_metrics_client::registry::Registry;
+/// # use std::sync::atomic::AtomicU64;
 /// #
 /// let mut registry = Registry::<Box<dyn EncodeMetric>>::default();
 ///
@@ -24,11 +25,13 @@ use std::ops::{Add, Deref};
 /// let gauge= Gauge::<AtomicU64>::new();
 ///
 /// registry.register(
-///   Descriptor::new("counter", "This is my counter.", "my_counter"),
+///   "my_counter",
+///   "This is my counter.",
 ///   Box::new(counter.clone()),
 /// );
 /// registry.register(
-///   Descriptor::new("gauge", "This is my gauge.", "my_gauge"),
+///   "my_gauge",
+///   "This is my gauge.",
 ///   Box::new(gauge.clone()),
 /// );
 ///
@@ -62,6 +65,23 @@ impl<M> Default for Registry<M> {
 }
 
 impl<M> Registry<M> {
+    pub fn register<N: Into<String>, H: Into<String>>(&mut self, name: N, help: H, metric: M) {
+        let name = name.into();
+        let descriptor = Descriptor {
+            name: self
+                .prefix
+                .as_ref()
+                .map(|p| (p.clone() + "_" + name.as_str()).into())
+                .unwrap_or(name),
+            help: help.into(),
+            // metric_type: <M as TypedMetric>::TYPE,
+        };
+
+        self.metrics.push((descriptor, metric));
+    }
+}
+
+impl<M> Registry<M> {
     pub fn sub_registry(&mut self, prefix: &str) -> &mut Self {
         let prefix = self
             .prefix
@@ -78,14 +98,6 @@ impl<M> Registry<M> {
         self.sub_registries
             .last_mut()
             .expect("sub_registries not to be empty.")
-    }
-
-    pub fn register(&mut self, mut desc: Descriptor, metric: M) {
-        if let Some(prefix) = &self.prefix {
-            desc.name = (prefix.clone() + "_" + desc.name.as_str()).into();
-        }
-
-        self.metrics.push((desc, metric));
     }
 
     pub fn iter(&self) -> RegistryIterator<M> {
@@ -161,32 +173,23 @@ impl Add<&Prefix> for String {
 }
 
 pub struct Descriptor {
-    // TODO: How about making type an enum.
-    m_type: String,
-    help: String,
     name: String,
+    help: String,
+    // metric_type: MetricType,
 }
 
 impl Descriptor {
-    pub fn new<T: ToString, H: ToString, N: ToString>(m_type: T, help: H, name: N) -> Self {
-        Self {
-            m_type: m_type.to_string(),
-            help: help.to_string(),
-            name: name.to_string(),
-        }
-    }
-
-    pub fn m_type(&self) -> &str {
-        &self.m_type
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn help(&self) -> &str {
         &self.help
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
+    // pub fn metric_type(&self) -> MetricType {
+    //     self.metric_type
+    // }
 }
 
 // TODO: Does this and the below really belong here?
@@ -194,28 +197,19 @@ pub trait SendEncodeMetric: crate::encoding::text::EncodeMetric + Send {}
 
 impl<T: Send + crate::encoding::text::EncodeMetric> SendEncodeMetric for T {}
 
-impl crate::encoding::text::EncodeMetric for Box<dyn SendEncodeMetric> {
-    fn encode(&self, encoder: crate::encoding::text::Encoder) -> Result<(), std::io::Error> {
-        self.deref().encode(encoder)
-    }
-}
-
 pub type DynSendRegistry = Registry<Box<dyn SendEncodeMetric>>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::counter::Counter;
+    use crate::metrics::counter::Counter;
     use std::sync::atomic::AtomicU64;
 
     #[test]
     fn register_and_iterate() {
         let mut registry = Registry::default();
         let counter = Counter::<AtomicU64>::new();
-        registry.register(
-            Descriptor::new("counter", "My counter", "my_counter"),
-            counter.clone(),
-        );
+        registry.register("my_counter", "My counter", counter.clone());
 
         assert_eq!(1, registry.iter().count())
     }
@@ -223,27 +217,18 @@ mod tests {
     #[test]
     fn sub_registry() {
         let top_level_metric_name = "my_top_level_metric";
-        let mut registry = Registry::<()>::default();
-        registry.register(
-            Descriptor::new("unknown", "some help", top_level_metric_name),
-            (),
-        );
+        let mut registry = Registry::<Counter<AtomicU64>>::default();
+        registry.register(top_level_metric_name, "some help", Default::default());
 
         let prefix_1 = "prefix_1";
         let prefix_1_metric_name = "my_prefix_1_metric";
         let sub_registry = registry.sub_registry(prefix_1);
-        sub_registry.register(
-            Descriptor::new("unknown", "some help", prefix_1_metric_name),
-            (),
-        );
+        sub_registry.register(prefix_1_metric_name, "some help", Default::default());
 
         let prefix_1_1 = "prefix_1_1";
         let prefix_1_1_metric_name = "my_prefix_1_1_metric";
         let sub_sub_registry = sub_registry.sub_registry(prefix_1_1);
-        sub_sub_registry.register(
-            Descriptor::new("unknown", "some help", prefix_1_1_metric_name),
-            (),
-        );
+        sub_sub_registry.register(prefix_1_1_metric_name, "some help", Default::default());
 
         let prefix_2 = "prefix_2";
         let _ = registry.sub_registry(prefix_2);
@@ -251,10 +236,7 @@ mod tests {
         let prefix_3 = "prefix_3";
         let prefix_3_metric_name = "my_prefix_3_metric";
         let sub_registry = registry.sub_registry(prefix_3);
-        sub_registry.register(
-            Descriptor::new("unknown", "some help", prefix_3_metric_name),
-            (),
-        );
+        sub_registry.register(prefix_3_metric_name, "some help", Default::default());
 
         let mut metric_iter = registry.iter().map(|(desc, _)| desc.name.clone());
         assert_eq!(Some(top_level_metric_name.to_string()), metric_iter.next());

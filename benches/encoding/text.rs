@@ -1,11 +1,11 @@
 // Benchmark inspired by https://github.com/tikv/rust-prometheus/blob/ab1ca7285d3463504381a5025ae1951e020d6796/benches/text_encoder.rs
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use open_metrics_client::counter::Counter;
 use open_metrics_client::encoding::text::{encode, Encode, EncodeMetric};
-use open_metrics_client::family::Family;
-use open_metrics_client::histogram::Histogram;
-use open_metrics_client::registry::{Descriptor, Registry};
+use open_metrics_client::metrics::counter::Counter;
+use open_metrics_client::metrics::family::Family;
+use open_metrics_client::metrics::histogram::{exponential_series, Histogram};
+use open_metrics_client::registry::Registry;
 use std::io::Write;
 use std::sync::atomic::AtomicU64;
 
@@ -55,26 +55,22 @@ pub fn text(c: &mut Criterion) {
             }
         }
 
-        let mut registry = Registry::<Box<dyn EncodeMetric>>::new();
+        let mut registry = Registry::<Box<dyn EncodeMetric>>::default();
 
         for i in 0..100 {
-            let counter_family = Family::<Labels, Counter<AtomicU64>>::new();
-            let histogram_family = Family::<Labels, Histogram>::new();
+            let counter_family = Family::<Labels, Counter<AtomicU64>>::default();
+            let histogram_family = Family::<Labels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_series(1.0, 2.0, 10))
+            });
 
             registry.register(
-                Descriptor::new(
-                    "Counter".to_string(),
-                    "My counter".to_string(),
-                    format!("my_counter_{}", i),
-                ),
+                format!("my_counter_{}", i),
+                "My counter",
                 Box::new(counter_family.clone()),
             );
             registry.register(
-                Descriptor::new(
-                    "Histogram".to_string(),
-                    "My histogram".to_string(),
-                    format!("my_histogram_{}", i),
-                ),
+                format!("my_histogram_{}", i),
+                "My histogram",
                 Box::new(histogram_family.clone()),
             );
 

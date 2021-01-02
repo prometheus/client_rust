@@ -2,6 +2,7 @@
 //!
 //! See [`Histogram`] for details.
 
+use super::{MetricType, TypedMetric};
 use owning_ref::OwningRef;
 use std::iter::once;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -9,7 +10,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 /// Open Metrics [`Histogram`] to measure distributions of discrete events.
 ///
 /// ```
-/// # use open_metrics_client::histogram::{Histogram, exponential_series};
+/// # use open_metrics_client::metrics::histogram::{Histogram, exponential_series};
 /// let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
 /// histogram.observe(4.2);
 /// ```
@@ -71,6 +72,10 @@ impl Histogram {
 }
 
 type MutexGuardedBuckets<'a> = OwningRef<MutexGuard<'a, Inner>, Vec<(f64, u64)>>;
+
+impl TypedMetric for Histogram {
+    const TYPE: MetricType = MetricType::Histogram;
+}
 
 // TODO: consider renaming to exponential_buckets
 pub fn exponential_series(start: f64, factor: f64, length: u16) -> impl Iterator<Item = f64> {

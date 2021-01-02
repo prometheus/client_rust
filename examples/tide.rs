@@ -1,6 +1,6 @@
-use open_metrics_client::counter::Counter;
 use open_metrics_client::encoding::text::encode;
-use open_metrics_client::registry::{Descriptor, Registry};
+use open_metrics_client::metrics::counter::Counter;
+use open_metrics_client::registry::Registry;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 
@@ -10,10 +10,7 @@ use tide::{Middleware, Next, Request, Result};
 async fn main() -> std::result::Result<(), std::io::Error> {
     let mut registry = Registry::default();
     let counter = Counter::new();
-    registry.register(
-        Descriptor::new("counter", "my counter", "my_counter"),
-        counter.clone(),
-    );
+    registry.register("my_counter", "My counter", counter.clone());
     let middleware = MetricsMiddleware {
         num_requests: counter,
     };

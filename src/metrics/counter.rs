@@ -1,25 +1,26 @@
-//! Module implementing an Open Metrics gauge.
+//! Module implementing an Open Metrics counter.
 //!
-//! See [`Gauge`] for details.
+//! See [`Counter`] for details.
 
+use super::{MetricType, TypedMetric};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
-/// Open Metrics [`Gauge`] to record current measurements.
+/// Open Metrics [`Counter`] to measure discrete events.
 ///
-/// Single increasing, decreasing or constant value metric.
+/// Single monotonically increasing value metric.
 ///
 /// ```
-/// # use open_metrics_client::gauge::Gauge;
+/// # use open_metrics_client::metrics::counter::Counter;
 /// # use std::sync::atomic::AtomicU64;
-/// let gauge = Gauge::<AtomicU64>::new();
-/// gauge.inc();
+/// let counter = Counter::<AtomicU64>::new();
+/// counter.inc();
 /// ```
-pub struct Gauge<A> {
+pub struct Counter<A> {
     value: Arc<A>,
 }
 
-impl<A> Clone for Gauge<A> {
+impl<A> Clone for Counter<A> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
@@ -27,9 +28,9 @@ impl<A> Clone for Gauge<A> {
     }
 }
 
-impl<A: Atomic> Gauge<A> {
+impl<A: Atomic> Counter<A> {
     pub fn new() -> Self {
-        Gauge {
+        Counter {
             value: Arc::new(A::new()),
         }
     }
@@ -42,13 +43,11 @@ impl<A: Atomic> Gauge<A> {
         self.value.inc_by(v)
     }
 
-    pub fn set(&self, v: A::Number) -> A::Number {
-        self.value.set(v)
-    }
-
     pub fn get(&self) -> A::Number {
         self.value.get()
     }
+
+    // TODO: For advanced use-cases, how about an `fn inner`?
 }
 
 pub trait Atomic {
@@ -60,12 +59,10 @@ pub trait Atomic {
 
     fn inc_by(&self, v: Self::Number) -> Self::Number;
 
-    fn set(&self, v: Self::Number) -> Self::Number;
-
     fn get(&self) -> Self::Number;
 }
 
-impl<A> Default for Gauge<A>
+impl<A> Default for Counter<A>
 where
     A: Default,
 {
@@ -91,10 +88,6 @@ impl Atomic for AtomicU64 {
         self.fetch_add(v, Ordering::Relaxed)
     }
 
-    fn set(&self, v: Self::Number) -> Self::Number {
-        self.swap(v, Ordering::Relaxed)
-    }
-
     fn get(&self) -> Self::Number {
         self.load(Ordering::Relaxed)
     }
@@ -115,13 +108,13 @@ impl Atomic for AtomicU32 {
         self.fetch_add(v, Ordering::Relaxed)
     }
 
-    fn set(&self, v: Self::Number) -> Self::Number {
-        self.swap(v, Ordering::Relaxed)
-    }
-
     fn get(&self) -> Self::Number {
         self.load(Ordering::Relaxed)
     }
+}
+
+impl<A> TypedMetric for Counter<A> {
+    const TYPE: MetricType = MetricType::Counter;
 }
 
 #[cfg(test)]
@@ -130,10 +123,8 @@ mod tests {
 
     #[test]
     fn inc_and_get() {
-        let gauge = Gauge::<AtomicU64>::new();
-        assert_eq!(0, gauge.inc());
-        assert_eq!(1, gauge.get());
-        assert_eq!(1, gauge.set(10));
-        assert_eq!(10, gauge.get());
+        let counter = Counter::<AtomicU64>::new();
+        assert_eq!(0, counter.inc());
+        assert_eq!(1, counter.get());
     }
 }

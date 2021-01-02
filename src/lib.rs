@@ -11,14 +11,15 @@
 //! ```
 //! # use std::sync::atomic::AtomicU64;
 //! # use open_metrics_client::registry::{Descriptor, Registry};
-//! # use open_metrics_client::counter::Counter;
+//! # use open_metrics_client::metrics::counter::Counter;
 //! # use open_metrics_client::encoding::text::encode;
 //! #
 //! // Create registry and counter and register the latter with the former.
 //! let mut registry = Registry::default();
 //! let counter = Counter::<AtomicU64>::new();
 //! registry.register(
-//!   Descriptor::new("counter", "This is my counter.", "my_counter"),
+//!   "my_counter",
+//!   "This is my counter.",
 //!   counter.clone(),
 //! );
 //!
@@ -39,9 +40,6 @@
 //!
 //! [examples]: https://github.com/mxinden/rust-open-metrics-client/tree/master/examples
 
-pub mod counter;
 pub mod encoding;
-pub mod family;
-pub mod gauge;
-pub mod histogram;
+pub mod metrics;
 pub mod registry;

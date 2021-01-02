@@ -1,16 +1,17 @@
 //! Open Metrics text format implementation.
 //!
 //! ```
-//! # use std::sync::atomic::AtomicU64;
-//! # use open_metrics_client::registry::{Descriptor, Registry};
-//! # use open_metrics_client::counter::Counter;
 //! # use open_metrics_client::encoding::text::encode;
+//! # use open_metrics_client::metrics::counter::Counter;
+//! # use open_metrics_client::registry::Registry;
+//! # use std::sync::atomic::AtomicU64;
 //! #
 //! # // Create registry and counter and register the latter with the former.
 //! # let mut registry = Registry::default();
 //! # let counter = Counter::<AtomicU64>::new();
 //! # registry.register(
-//! #   Descriptor::new("counter", "This is my counter.", "my_counter"),
+//! #   "my_counter",
+//! #   "This is my counter.",
 //! #   counter.clone(),
 //! # );
 //! # counter.inc();
@@ -24,10 +25,11 @@
 //! assert_eq!(expected, String::from_utf8(buffer).unwrap());
 //! ```
 
-use crate::counter::{self, Counter};
-use crate::family::Family;
-use crate::gauge::{self, Gauge};
-use crate::histogram::Histogram;
+use crate::metrics::counter::{self, Counter};
+use crate::metrics::family::Family;
+use crate::metrics::gauge::{self, Gauge};
+use crate::metrics::histogram::Histogram;
+use crate::metrics::{MetricType, TypedMetric};
 use crate::registry::Registry;
 
 use std::io::Write;
@@ -48,7 +50,7 @@ where
         writer.write_all(b"# TYPE ")?;
         writer.write_all(desc.name().as_bytes())?;
         writer.write_all(b" ")?;
-        writer.write_all(desc.m_type().as_bytes())?;
+        metric.metric_type().encode(writer)?;
         writer.write_all(b"\n")?;
 
         let encoder = Encoder {
@@ -174,11 +176,16 @@ impl<'a> ValueEncoder<'a> {
 
 pub trait EncodeMetric {
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error>;
+    fn metric_type(&self) -> MetricType;
 }
 
 impl EncodeMetric for Box<dyn EncodeMetric> {
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
         self.deref().encode(encoder)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        self.deref().metric_type()
     }
 }
 
@@ -236,6 +243,20 @@ impl Encode for Vec<(String, String)> {
     }
 }
 
+impl Encode for MetricType {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        let t = match self {
+            MetricType::Counter => "counter",
+            MetricType::Gauge => "gauge",
+            MetricType::Histogram => "histogram",
+            MetricType::Unknown => "unknown",
+        };
+
+        writer.write_all(t.as_bytes())?;
+        Ok(())
+    }
+}
+
 impl<A> EncodeMetric for Counter<A>
 where
     A: counter::Atomic,
@@ -249,6 +270,10 @@ where
 
         Ok(())
     }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
 }
 
 impl<A> EncodeMetric for Gauge<A>
@@ -261,12 +286,15 @@ where
 
         Ok(())
     }
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
 }
 
 impl<S, M> EncodeMetric for Family<S, M>
 where
     S: Clone + std::hash::Hash + Eq + Encode,
-    M: EncodeMetric,
+    M: EncodeMetric + TypedMetric,
 {
     fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         let guard = self.read();
@@ -275,6 +303,10 @@ where
             m.encode(encoder)?;
         }
         Ok(())
+    }
+
+    fn metric_type(&self) -> MetricType {
+        M::TYPE
     }
 }
 
@@ -305,15 +337,18 @@ impl EncodeMetric for Histogram {
 
         Ok(())
     }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::counter::Counter;
-    use crate::gauge::Gauge;
-    use crate::histogram::exponential_series;
-    use crate::registry::Descriptor;
+    use crate::metrics::counter::Counter;
+    use crate::metrics::gauge::Gauge;
+    use crate::metrics::histogram::exponential_series;
     use pyo3::{prelude::*, types::PyModule};
     use std::sync::atomic::AtomicU64;
 
@@ -321,10 +356,7 @@ mod tests {
     fn encode_counter() {
         let mut registry = Registry::default();
         let counter = Counter::<AtomicU64>::new();
-        registry.register(
-            Descriptor::new("counter", "My counter", "my_counter"),
-            counter.clone(),
-        );
+        registry.register("my_counter", "My counter", counter.clone());
 
         let mut encoded = Vec::new();
 
@@ -337,10 +369,7 @@ mod tests {
     fn encode_gauge() {
         let mut registry = Registry::default();
         let gauge = Gauge::<AtomicU64>::new();
-        registry.register(
-            Descriptor::new("gauge", "My gauge", "my_gauge"),
-            gauge.clone(),
-        );
+        registry.register("my_gauge", "My gauge", gauge.clone());
 
         let mut encoded = Vec::new();
 
@@ -353,10 +382,7 @@ mod tests {
     fn encode_counter_family() {
         let mut registry = Registry::default();
         let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
-        registry.register(
-            Descriptor::new("counter", "My counter family", "my_counter_family"),
-            family.clone(),
-        );
+        registry.register("my_counter_family", "My counter family", family.clone());
 
         family
             .get_or_create(&vec![("method".to_string(), "GET".to_string())])
@@ -373,10 +399,7 @@ mod tests {
     fn encode_histogram() {
         let mut registry = Registry::default();
         let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
-        registry.register(
-            Descriptor::new("histogram", "My histogram", "my_histogram"),
-            histogram.clone(),
-        );
+        registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0);
 
         let mut encoded = Vec::new();
