@@ -30,6 +30,11 @@ jobs:
         with:
           command: check
 
+      - uses: actions-rs/cargo@v1
+        with:
+          command: bench
+          args: --no-run
+
   test:
     name: Test Suite
     runs-on: ubuntu-latest
