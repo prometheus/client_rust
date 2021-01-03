@@ -3,7 +3,6 @@
 //! See [`Registry`] for details.
 
 use std::ops::Add;
-// use crate::metrics::{MetricType, TypedMetric};
 
 /// A metric registry.
 ///
@@ -26,12 +25,12 @@ use std::ops::Add;
 ///
 /// registry.register(
 ///   "my_counter",
-///   "This is my counter.",
+///   "This is my counter",
 ///   Box::new(counter.clone()),
 /// );
 /// registry.register(
 ///   "my_gauge",
-///   "This is my gauge.",
+///   "This is my gauge",
 ///   Box::new(gauge.clone()),
 /// );
 ///
@@ -65,23 +64,89 @@ impl<M> Default for Registry<M> {
 }
 
 impl<M> Registry<M> {
+    /// Register a metric with the [`Registry`].
+    ///
+    /// Note: In the Open Metrics text exposition format some metric types have
+    /// a special suffix, e.g. the
+    /// [`Counter`](crate::metrics::counter::Counter`) metric with `_total`.
+    /// These suffixes are inferred through the metric type and must not be
+    /// appended to the metric name manually by the user.
+    ///
+    /// Note: A full stop punctuation mark (`.`) is automatically added to the
+    /// passed help text.
+    ///
+    /// Use [`Registry::register_with_unit`] whenever a unit for the given
+    /// metric is known.
+    ///
+    /// ```
+    /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
+    /// # use open_metrics_client::registry::{Registry, Unit};
+    /// # use std::sync::atomic::AtomicU64;
+    /// #
+    /// let mut registry = Registry::default();
+    /// let counter = Counter::<AtomicU64>::new();
+    ///
+    /// registry.register("my_counter", "This is my counter", counter.clone());
+    /// ```
     pub fn register<N: Into<String>, H: Into<String>>(&mut self, name: N, help: H, metric: M) {
+        self.priv_register(name, help, metric, None)
+    }
+
+    /// Register a metric with the [`Registry`] specifying the metric's unit.
+    ///
+    /// See [`Registry::register`] for additional documentation.
+    ///
+    /// Note: In the Open Metrics text exposition format units are appended to
+    /// the metric name. This is done automatically. Users must not append the
+    /// unit to the name manually.
+    ///
+    /// ```
+    /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
+    /// # use open_metrics_client::registry::{Registry, Unit};
+    /// # use std::sync::atomic::AtomicU64;
+    /// #
+    /// let mut registry = Registry::default();
+    /// let counter = Counter::<AtomicU64>::new();
+    ///
+    /// registry.register_with_unit(
+    ///   "my_counter",
+    ///   "This is my counter",
+    ///   Unit::Seconds,
+    ///   counter.clone(),
+    /// );
+    /// ```
+    pub fn register_with_unit<N: Into<String>, H: Into<String>>(
+        &mut self,
+        name: N,
+        help: H,
+        unit: Unit,
+        metric: M,
+    ) {
+        self.priv_register(name, help, metric, Some(unit))
+    }
+
+    fn priv_register<N: Into<String>, H: Into<String>>(
+        &mut self,
+        name: N,
+        help: H,
+        metric: M,
+        unit: Option<Unit>,
+    ) {
         let name = name.into();
+        let help = help.into() + ".";
         let descriptor = Descriptor {
             name: self
                 .prefix
                 .as_ref()
                 .map(|p| (p.clone() + "_" + name.as_str()).into())
                 .unwrap_or(name),
-            help: help.into(),
-            // metric_type: <M as TypedMetric>::TYPE,
+            help,
+            unit,
         };
 
         self.metrics.push((descriptor, metric));
     }
-}
 
-impl<M> Registry<M> {
     pub fn sub_registry(&mut self, prefix: &str) -> &mut Self {
         let prefix = self
             .prefix
@@ -175,7 +240,7 @@ impl Add<&Prefix> for String {
 pub struct Descriptor {
     name: String,
     help: String,
-    // metric_type: MetricType,
+    unit: Option<Unit>,
 }
 
 impl Descriptor {
@@ -187,9 +252,22 @@ impl Descriptor {
         &self.help
     }
 
-    // pub fn metric_type(&self) -> MetricType {
-    //     self.metric_type
-    // }
+    pub fn unit(&self) -> &Option<Unit> {
+        &self.unit
+    }
+}
+
+pub enum Unit {
+    Amperes,
+    Bytes,
+    Celsius,
+    Grams,
+    Joules,
+    Meters,
+    Ratios,
+    Seconds,
+    Volts,
+    Other(String),
 }
 
 // TODO: Does this and the below really belong here?

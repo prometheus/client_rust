@@ -34,7 +34,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
 /// # registry.register(
 /// #   "my_counter",
-/// #   "This is my counter.",
+/// #   "This is my counter",
 /// #   family.clone(),
 /// # );
 ///
@@ -92,7 +92,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// let family = Family::<Labels, Counter<AtomicU64>>::default();
 /// # registry.register(
 /// #   "my_counter",
-/// #   "This is my counter.",
+/// #   "This is my counter",
 /// #   family.clone(),
 /// # );
 ///

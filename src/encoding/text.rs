@@ -11,7 +11,7 @@
 //! # let counter = Counter::<AtomicU64>::new();
 //! # registry.register(
 //! #   "my_counter",
-//! #   "This is my counter.",
+//! #   "This is my counter",
 //! #   counter.clone(),
 //! # );
 //! # counter.inc();
@@ -30,7 +30,7 @@ use crate::metrics::family::Family;
 use crate::metrics::gauge::{self, Gauge};
 use crate::metrics::histogram::Histogram;
 use crate::metrics::{MetricType, TypedMetric};
-use crate::registry::Registry;
+use crate::registry::{Registry, Unit};
 
 use std::io::Write;
 use std::ops::Deref;
@@ -43,19 +43,38 @@ where
     for (desc, metric) in registry.iter() {
         writer.write_all(b"# HELP ")?;
         writer.write_all(desc.name().as_bytes())?;
+        if let Some(unit) = desc.unit() {
+            writer.write_all(b"_")?;
+            unit.encode(writer)?;
+        }
         writer.write_all(b" ")?;
         writer.write_all(desc.help().as_bytes())?;
         writer.write_all(b"\n")?;
 
         writer.write_all(b"# TYPE ")?;
         writer.write_all(desc.name().as_bytes())?;
+        if let Some(unit) = desc.unit() {
+            writer.write_all(b"_")?;
+            unit.encode(writer)?;
+        }
         writer.write_all(b" ")?;
         metric.metric_type().encode(writer)?;
         writer.write_all(b"\n")?;
 
+        if let Some(unit) = desc.unit() {
+            writer.write_all(b"# UNIT ")?;
+            writer.write_all(desc.name().as_bytes())?;
+            writer.write_all(b"_")?;
+            unit.encode(writer)?;
+            writer.write_all(b" ")?;
+            unit.encode(writer)?;
+            writer.write_all(b"\n")?;
+        }
+
         let encoder = Encoder {
             writer,
             name: &desc.name(),
+            unit: desc.unit(),
             labels: None,
         };
 
@@ -76,12 +95,14 @@ where
 pub struct Encoder<'a, 'b> {
     writer: &'a mut dyn Write,
     name: &'a str,
+    unit: &'a Option<Unit>,
     labels: Option<&'b dyn Encode>,
 }
 
 impl<'a, 'b> Encoder<'a, 'b> {
     pub fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder, std::io::Error> {
-        self.writer.write_all(self.name.as_bytes())?;
+        self.write_name_and_unit()?;
+
         self.writer.write_all(b"_")?;
         self.writer.write_all(suffix.as_bytes()).map(|_| ())?;
 
@@ -89,9 +110,19 @@ impl<'a, 'b> Encoder<'a, 'b> {
     }
 
     pub fn no_suffix(&mut self) -> Result<BucketEncoder, std::io::Error> {
-        self.writer.write_all(self.name.as_bytes())?;
+        self.write_name_and_unit()?;
 
         self.encode_labels()
+    }
+
+    fn write_name_and_unit(&mut self) -> Result<(), std::io::Error> {
+        self.writer.write_all(self.name.as_bytes())?;
+        if let Some(unit) = self.unit {
+            self.writer.write_all(b"_")?;
+            unit.encode(self.writer)?;
+        }
+
+        Ok(())
     }
 
     pub(self) fn encode_labels(&mut self) -> Result<BucketEncoder, std::io::Error> {
@@ -117,6 +148,7 @@ impl<'a, 'b> Encoder<'a, 'b> {
         Encoder {
             writer: self.writer,
             name: self.name,
+            unit: self.unit,
             labels: Some(label_set),
         }
     }
@@ -260,6 +292,26 @@ impl Encode for MetricType {
     }
 }
 
+impl Encode for Unit {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        let u = match self {
+            Unit::Amperes => "amperes",
+            Unit::Bytes => "bytes",
+            Unit::Celsius => "celsius",
+            Unit::Grams => "grams",
+            Unit::Joules => "joules",
+            Unit::Meters => "meters",
+            Unit::Ratios => "ratios",
+            Unit::Seconds => "seconds",
+            Unit::Volts => "volts",
+            Unit::Other(other) => other.as_str(),
+        };
+
+        writer.write_all(u.as_bytes())?;
+        Ok(())
+    }
+}
+
 impl<A> EncodeMetric for Counter<A>
 where
     A: counter::Atomic,
@@ -364,6 +416,25 @@ mod tests {
         let mut encoded = Vec::new();
 
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_counter_with_unit() {
+        let mut registry = Registry::default();
+        let counter = Counter::<AtomicU64>::new();
+        registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter.clone());
+
+        let mut encoded = Vec::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_counter_seconds My counter.\n".to_owned()
+            + "# TYPE my_counter_seconds counter\n"
+            + "# UNIT my_counter_seconds seconds\n"
+            + "my_counter_seconds_total 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }

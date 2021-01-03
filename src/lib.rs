@@ -19,7 +19,7 @@
 //! let counter = Counter::<AtomicU64>::new();
 //! registry.register(
 //!   "my_counter",
-//!   "This is my counter.",
+//!   "This is my counter",
 //!   counter.clone(),
 //! );
 //!
