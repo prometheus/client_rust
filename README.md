@@ -5,8 +5,7 @@ Metrics specification](https://github.com/OpenObservability/OpenMetrics). Allows
 developers to instrument applications and thus enables operators to monitor said
 applications with monitoring systems like [Prometheus](https://prometheus.io/).
 
-**Documentation** as well as **how to get started**:
-https://docs.rs/open-metrics-client/
+**Documentation**: https://docs.rs/open-metrics-client/
 
 ## Goals
 
