@@ -1,9 +1,9 @@
 # Open Metrics Client Library
 
-Client library for the [Rust ecosystem](https://github.com/rust-lang/)
-implementing the [Open Metrics
-specification](https://github.com/OpenObservability/OpenMetrics) allowing users
-to natively instrument applications.
+[Rust](https://github.com/rust-lang/) client library implementation of the [Open
+Metrics specification](https://github.com/OpenObservability/OpenMetrics). Allows
+developers to instrument applications and thus enables operators to monitor said
+applications with monitoring systems like [Prometheus](https://prometheus.io/).
 
 **Documentation** as well as **how to get started**:
 https://docs.rs/open-metrics-client/
