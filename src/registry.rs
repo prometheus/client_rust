@@ -271,8 +271,8 @@ pub enum Unit {
 }
 
 use crate::encoding::text::{EncodeMetric, Encoder};
-use std::ops::Deref;
 use crate::metrics::MetricType;
+use std::ops::Deref;
 
 // TODO: Does this and the below really belong here?
 pub trait SendEncodeMetric: EncodeMetric + Send {}

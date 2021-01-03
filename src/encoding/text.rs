@@ -125,6 +125,8 @@ impl<'a, 'b> Encoder<'a, 'b> {
         Ok(())
     }
 
+    // TODO: Consider caching the encoded labels for Histograms as they stay the
+    // same but are currently encoded multiple times.
     pub(self) fn encode_labels(&mut self) -> Result<BucketEncoder, std::io::Error> {
         if let Some(labels) = &self.labels {
             self.writer.write_all(b"{")?;
@@ -161,20 +163,19 @@ pub struct BucketEncoder<'a> {
 }
 
 impl<'a> BucketEncoder<'a> {
-    fn encode_bucket<K: Encode, V: Encode>(
-        &mut self,
-        key: K,
-        value: V,
-    ) -> Result<ValueEncoder, std::io::Error> {
+    fn encode_bucket(&mut self, upper_bound: f64) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
             self.writer.write_all(b", ")?;
         } else {
             self.writer.write_all(b"{")?;
         }
 
-        key.encode(self.writer)?;
-        self.writer.write_all(b"=\"")?;
-        value.encode(self.writer)?;
+        self.writer.write_all(b"le=\"")?;
+        if upper_bound == f64::MAX {
+            self.writer.write_all(b"+Inf")?;
+        } else {
+            upper_bound.encode(self.writer)?;
+        }
         self.writer.write_all(b"\"}")?;
 
         Ok(ValueEncoder {
@@ -226,12 +227,6 @@ impl EncodeMetric for Box<dyn EncodeMetric> {
 
 pub trait Encode {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error>;
-}
-
-impl Encode for () {
-    fn encode(&self, _writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        Ok(())
-    }
 }
 
 impl Encode for f64 {
@@ -378,15 +373,9 @@ impl EncodeMetric for Histogram {
             .encode_value(count)?;
 
         for (upper_bound, count) in buckets.iter() {
-            let bucket_key = if *upper_bound == f64::MAX {
-                "+Inf".to_string()
-            } else {
-                upper_bound.to_string()
-            };
-
             encoder
                 .encode_suffix("bucket")?
-                .encode_bucket("le", bucket_key.as_str())?
+                .encode_bucket(*upper_bound)?
                 .encode_value(*count)?;
         }
 
