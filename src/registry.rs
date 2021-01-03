@@ -270,10 +270,24 @@ pub enum Unit {
     Other(String),
 }
 
-// TODO: Does this and the below really belong here?
-pub trait SendEncodeMetric: crate::encoding::text::EncodeMetric + Send {}
+use crate::encoding::text::{EncodeMetric, Encoder};
+use std::ops::Deref;
+use crate::metrics::MetricType;
 
-impl<T: Send + crate::encoding::text::EncodeMetric> SendEncodeMetric for T {}
+// TODO: Does this and the below really belong here?
+pub trait SendEncodeMetric: EncodeMetric + Send {}
+
+impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
+
+impl EncodeMetric for Box<dyn SendEncodeMetric> {
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
+        self.deref().encode(encoder)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        self.deref().metric_type()
+    }
+}
 
 pub type DynSendRegistry = Registry<Box<dyn SendEncodeMetric>>;
 
