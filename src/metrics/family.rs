@@ -132,6 +132,26 @@ impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
 }
 
 impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
+    /// Create a metric family using a custom constructor to construct new
+    /// metrics.
+    ///
+    /// When calling [`Family::get_or_create`] a [`Family`] needs to be able to
+    /// construct a new metric in case none exists for the given label set. In
+    /// most cases, e.g. for [`Counter`](crate::metrics::counter::Counter)
+    /// [`Family`] can just use the [`Default::default`] implementation for the
+    /// metric type. For metric types such as
+    /// [`Histogram`](crate::metrics::histogram::Histogram) one might want
+    /// [`Family`] to construct a
+    /// [`Histogram`](crate::metrics::histogram::Histogram) with custom buckets
+    /// (see example below). For such case one can use this method.
+    ///
+    /// ```
+    /// # use open_metrics_client::metrics::family::Family;
+    /// # use open_metrics_client::metrics::histogram::{exponential_series, Histogram};
+    /// Family::<Vec<(String, String)>, Histogram>::new_with_constructor(|| {
+    ///     Histogram::new(exponential_series(1.0, 2.0, 10))
+    /// });
+    /// ```
     pub fn new_with_constructor(constructor: fn() -> M) -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Default::default())),
