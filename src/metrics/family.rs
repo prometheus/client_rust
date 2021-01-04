@@ -16,8 +16,8 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # Generic over the label set
 ///
 /// A [`Family`] is generic over the label type. For convenience one might
-/// choose a `Vec<(String, String)>`, for performance one might define a custom
-/// type.
+/// choose a `Vec<(String, String)>`, for performance and/or type safety one might
+/// define a custom type.
 ///
 /// ## Examples
 ///
@@ -52,7 +52,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 ///
-/// ### [`Family`] with custom type for performance
+/// ### [`Family`] with custom type for performance and/or type safety
 ///
 /// ```
 /// # use open_metrics_client::encoding::text::Encode;
@@ -161,23 +161,41 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
 }
 
 impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
-    pub fn get_or_create(&self, sample_set: &S) -> OwningRef<RwLockReadGuard<HashMap<S, M>>, M> {
+    /// Access a metric with the given label set, creating it if one does not
+    /// yet exist.
+    ///
+    /// ```
+    /// # use open_metrics_client::metrics::counter::{Atomic, Counter};
+    /// # use open_metrics_client::metrics::family::Family;
+    /// # use std::sync::atomic::AtomicU64;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
+    ///
+    /// // Will create the metric with label `method="GET"` on first call and
+    /// // return a reference.
+    /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
+    ///
+    /// // Will return a reference to the existing metric on all subsequent
+    /// // calls.
+    /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
+    /// ```
+    pub fn get_or_create(&self, label_set: &S) -> OwningRef<RwLockReadGuard<HashMap<S, M>>, M> {
         let read_guard = self.metrics.read().unwrap();
         if let Ok(metric) =
-            OwningRef::new(read_guard).try_map(|metrics| metrics.get(sample_set).ok_or(()))
+            OwningRef::new(read_guard).try_map(|metrics| metrics.get(label_set).ok_or(()))
         {
             return metric;
         }
 
         let mut write_guard = self.metrics.write().unwrap();
-        write_guard.insert(sample_set.clone(), (self.constructor)());
+        write_guard.insert(label_set.clone(), (self.constructor)());
 
         drop(write_guard);
 
         let read_guard = self.metrics.read().unwrap();
         OwningRef::new(read_guard).map(|metrics| {
             metrics
-                .get(sample_set)
+                .get(label_set)
                 .expect("Metric to exist after creating it.")
         })
     }
