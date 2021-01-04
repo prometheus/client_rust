@@ -147,13 +147,45 @@ impl<M> Registry<M> {
         self.metrics.push((descriptor, metric));
     }
 
-    pub fn sub_registry(&mut self, prefix: &str) -> &mut Self {
+    /// Create a sub-registry to register metrics with a common prefix.
+    ///
+    /// Say you would like to prefix one set of metrics with `subsystem_a` and
+    /// one set of metrics with `subsystem_b`. Instead of prefixing each metric
+    /// with the corresponding subsystem string individually, you can create two
+    /// sub-registries like demonstrated below.
+    ///
+    /// This can be used to pass a prefixed sub-registry down to a subsystem of
+    /// your architecture automatically adding a prefix to each metric the
+    /// subsystem registers.
+    ///
+    /// ```
+    /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
+    /// # use open_metrics_client::registry::{Registry, Unit};
+    /// # use std::sync::atomic::AtomicU64;
+    /// #
+    /// let mut registry = Registry::default();
+    ///
+    /// let subsystem_a_counter_1 = Counter::<AtomicU64>::new();
+    /// let subsystem_a_counter_2 = Counter::<AtomicU64>::new();
+    ///
+    /// let subsystem_a_registry = registry.sub_registry("subsystem_a");
+    /// registry.register("counter_1", "", subsystem_a_counter_1.clone());
+    /// registry.register("counter_2", "", subsystem_a_counter_2.clone());
+    ///
+    /// let subsystem_b_counter_1 = Counter::<AtomicU64>::new();
+    /// let subsystem_b_counter_2 = Counter::<AtomicU64>::new();
+    ///
+    /// let subsystem_a_registry = registry.sub_registry("subsystem_b");
+    /// registry.register("counter_1", "", subsystem_b_counter_1.clone());
+    /// registry.register("counter_2", "", subsystem_b_counter_2.clone());
+    /// ```
+    pub fn sub_registry<P: AsRef<str>>(&mut self, prefix: P) -> &mut Self {
         let prefix = self
             .prefix
             .clone()
             .map(|p| p + "_")
             .unwrap_or_else(|| String::new().into())
-            + prefix;
+            + prefix.as_ref();
         let sub_registry = Registry {
             prefix: Some(prefix),
             ..Default::default()
