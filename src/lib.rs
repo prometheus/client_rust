@@ -2,9 +2,11 @@
 #![deny(unused)]
 #![deny(dead_code)]
 
-//! Client library implementing the [Open Metrics
-//! specification](https://github.com/OpenObservability/OpenMetrics) allowing
-//! users to natively instrument applications.
+//! Client library implementation of the [Open Metrics
+//! specification](https://github.com/OpenObservability/OpenMetrics). Allows
+//! developers to instrument applications and thus enables operators to monitor
+//! said applications with monitoring systems like
+//! [Prometheus](https://prometheus.io/).
 //!
 //! # Examples
 //!

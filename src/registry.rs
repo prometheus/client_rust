@@ -1,4 +1,4 @@
-//! Module implementing a metric registry.
+//! Metric registry implementation.
 //!
 //! See [`Registry`] for details.
 
@@ -289,6 +289,9 @@ impl Descriptor {
     }
 }
 
+/// Metric units recommended by Open Metrics.
+///
+/// See [`Unit::Other`] to specify alternative units.
 pub enum Unit {
     Amperes,
     Bytes,
