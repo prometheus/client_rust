@@ -9,8 +9,6 @@ keywords = ["openmetrics", "prometheus", "metrics", "instrumentation", "monitori
 
 [dependencies]
 owning_ref = "0.4"
-prost = "0.7"
-prost-types = "0.7"
 itoa = "0.4"
 dtoa = "0.4"
 
@@ -19,9 +17,6 @@ pyo3 = "0.13"
 async-std = { version = "1", features = ["attributes"] }
 tide = "0.15"
 criterion = "0.3"
-
-[build-dependencies]
-prost-build = "0.7"
 
 [[bench]]
 name = "family"
