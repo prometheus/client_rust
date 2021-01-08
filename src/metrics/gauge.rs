@@ -50,6 +50,14 @@ impl<A: Atomic> Gauge<A> {
     pub fn get(&self) -> A::Number {
         self.value.get()
     }
+
+    /// Exposes the inner atomic type.
+    ///
+    /// This should only be used for advanced use-cases which are not directly
+    /// supported by the library.
+    pub fn inner(&self) -> &A {
+        &self.value
+    }
 }
 
 pub trait Atomic {

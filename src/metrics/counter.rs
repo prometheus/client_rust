@@ -47,7 +47,17 @@ impl<A: Atomic> Counter<A> {
         self.value.get()
     }
 
-    // TODO: For advanced use-cases, how about an `fn inner`?
+    /// Exposes the inner atomic type.
+    ///
+    /// This should only be used for advanced use-cases which are not directly
+    /// supported by the library.
+    ///
+    /// The caller of this function has to uphold the property of an Open
+    /// Metrics counter namely that the value is monotonically increasing, i.e.
+    /// either stays the same or increases.
+    pub fn inner(&self) -> &A {
+        &self.value
+    }
 }
 
 pub trait Atomic {
