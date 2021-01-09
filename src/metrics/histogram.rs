@@ -3,24 +3,26 @@
 //! See [`Histogram`] for details.
 
 use super::{MetricType, TypedMetric};
+use generic_array::{ArrayLength, GenericArray};
+use generic_array::sequence::GenericSequence;
+use generic_array::typenum::U10;
 use owning_ref::OwningRef;
-use std::iter::once;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 /// Open Metrics [`Histogram`] to measure distributions of discrete events.
 ///
 /// ```
 /// # use open_metrics_client::metrics::histogram::{Histogram, exponential_series};
-/// let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
+/// let histogram = Histogram::new(exponential_series(1.0, 2.0));
 /// histogram.observe(4.2);
 /// ```
 // TODO: Consider using atomics. See
 // https://github.com/tikv/rust-prometheus/pull/314.
-pub struct Histogram {
-    inner: Arc<Mutex<Inner>>,
+pub struct Histogram<NumBuckets: ArrayLength<(f64, u64)> = U10> {
+    inner: Arc<Mutex<Inner<NumBuckets>>>,
 }
 
-impl Clone for Histogram {
+impl<NumBuckets: ArrayLength<(f64, u64)>> Clone for Histogram<NumBuckets> {
     fn clone(&self) -> Self {
         Histogram {
             inner: self.inner.clone(),
@@ -28,25 +30,21 @@ impl Clone for Histogram {
     }
 }
 
-pub(crate) struct Inner {
+pub(crate) struct Inner<NumBuckets: ArrayLength<(f64, u64)>> {
     // TODO: Consider allowing integer observe values.
     sum: f64,
     count: u64,
     // TODO: Consider being generic over the bucket length.
-    buckets: Vec<(f64, u64)>,
+    buckets: GenericArray<(f64, u64), NumBuckets>,
 }
 
-impl Histogram {
-    pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
+impl<NumBuckets: ArrayLength<(f64, u64)>> Histogram<NumBuckets> {
+    pub fn new(buckets: GenericArray<(f64, u64), NumBuckets>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 sum: Default::default(),
                 count: Default::default(),
-                buckets: buckets
-                    .into_iter()
-                    .chain(once(f64::MAX))
-                    .map(|upper_bound| (upper_bound, 0))
-                    .collect(),
+                buckets,
             })),
         }
     }
@@ -62,7 +60,7 @@ impl Histogram {
         }
     }
 
-    pub(crate) fn get(&self) -> (f64, u64, MutexGuardedBuckets) {
+    pub(crate) fn get(&self) -> (f64, u64, MutexGuardedBuckets<NumBuckets>) {
         let inner = self.inner.lock().unwrap();
         let sum = inner.sum;
         let count = inner.count;
@@ -71,20 +69,19 @@ impl Histogram {
     }
 }
 
-type MutexGuardedBuckets<'a> = OwningRef<MutexGuard<'a, Inner>, Vec<(f64, u64)>>;
+type MutexGuardedBuckets<'a, NumBuckets> =
+    OwningRef<MutexGuard<'a, Inner<NumBuckets>>, GenericArray<(f64, u64), NumBuckets>>;
 
-impl TypedMetric for Histogram {
+impl<NumBuckets: ArrayLength<(f64, u64)>> TypedMetric for Histogram<NumBuckets> {
     const TYPE: MetricType = MetricType::Histogram;
 }
 
 // TODO: consider renaming to exponential_buckets
-pub fn exponential_series(start: f64, factor: f64, length: u16) -> impl Iterator<Item = f64> {
-    let mut current = start;
-    (0..length).map(move |_| {
-        let to_return = current;
-        current *= factor;
-        to_return
-    })
+pub fn exponential_series<NumBuckets: ArrayLength<(f64, u64)>>(
+    start: f64,
+    factor: f64,
+) -> GenericArray<(f64, u64), NumBuckets> {
+    GenericArray::generate(|i: usize| (start * factor.powf(i as f64), 0))
 }
 
 #[cfg(test)]
@@ -93,7 +90,7 @@ mod tests {
 
     #[test]
     fn histogram() {
-        let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
+        let histogram = Histogram::<U10>::new(exponential_series(1.0, 2.0));
         histogram.observe(1.0);
     }
 }

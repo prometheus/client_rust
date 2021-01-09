@@ -32,6 +32,7 @@ use crate::metrics::histogram::Histogram;
 use crate::metrics::{MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
 
+use generic_array::ArrayLength;
 use std::io::Write;
 use std::ops::Deref;
 
@@ -360,7 +361,7 @@ where
     }
 }
 
-impl EncodeMetric for Histogram {
+impl<NumBuckets: ArrayLength<(f64, u64)>> EncodeMetric for Histogram<NumBuckets> {
     fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         let (sum, count, buckets) = self.get();
         encoder
@@ -395,6 +396,7 @@ mod tests {
     use crate::metrics::histogram::exponential_series;
     use pyo3::{prelude::*, types::PyModule};
     use std::sync::atomic::AtomicU64;
+    use generic_array::typenum::U10;
 
     #[test]
     fn encode_counter() {
@@ -461,7 +463,7 @@ mod tests {
     #[test]
     fn encode_histogram() {
         let mut registry = Registry::default();
-        let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
+        let histogram = Histogram::<U10>::new(exponential_series(1.0, 2.0));
         registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0);
 

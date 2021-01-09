@@ -11,6 +11,7 @@ keywords = ["openmetrics", "prometheus", "metrics", "instrumentation", "monitori
 owning_ref = "0.4"
 itoa = "0.4"
 dtoa = "0.4"
+generic-array = "0.14"
 
 [dev-dependencies]
 pyo3 = "0.13"
