@@ -225,6 +225,20 @@ impl EncodeMetric for Box<dyn EncodeMetric> {
     }
 }
 
+pub trait SendEncodeMetric: EncodeMetric + Send {}
+
+impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
+
+impl EncodeMetric for Box<dyn SendEncodeMetric> {
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
+        self.deref().encode(encoder)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        self.deref().metric_type()
+    }
+}
+
 pub trait Encode {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error>;
 }

@@ -11,14 +11,24 @@ use std::ops::Add;
 /// collecting samples of each metric by iterating all metrics in the
 /// [`Registry`] via [`Registry::iter`].
 ///
+/// **Note: When in doubt use the type alias [`ConvenientRegistry`] instead of
+/// [`Registry`]**.
+///
+/// [`Registry`] is the core building block, generic over the metric type being
+/// registered. Out of convenience you likely want to use dynamic dispatching to
+/// register different types of metrics (e.g. [`Counter`](crate::metrics::counter::Counter) and [`Gauge`](crate::metrics::gauge::Gauge)) with
+/// the same registry. The type alias [`ConvenientRegistry`] offers just that,
+/// implementing all necessary traits to register dynamically dispatched
+/// [`Send`] metrics.
+///
 /// ```
 /// # use open_metrics_client::encoding::text::{encode, EncodeMetric};
 /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
 /// # use open_metrics_client::metrics::gauge::{Atomic as _, Gauge};
-/// # use open_metrics_client::registry::Registry;
+/// # use open_metrics_client::registry::ConvenientRegistry;
 /// # use std::sync::atomic::AtomicU64;
 /// #
-/// let mut registry = Registry::<Box<dyn EncodeMetric>>::default();
+/// let mut registry = ConvenientRegistry::default();
 ///
 /// let counter = Counter::<AtomicU64>::new();
 /// let gauge= Gauge::<AtomicU64>::new();
@@ -305,26 +315,10 @@ pub enum Unit {
     Other(String),
 }
 
-use crate::encoding::text::{EncodeMetric, Encoder};
-use crate::metrics::MetricType;
-use std::ops::Deref;
-
-// TODO: Does this and the below really belong here?
-pub trait SendEncodeMetric: EncodeMetric + Send {}
-
-impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
-
-impl EncodeMetric for Box<dyn SendEncodeMetric> {
-    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
-        self.deref().encode(encoder)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        self.deref().metric_type()
-    }
-}
-
-pub type DynSendRegistry = Registry<Box<dyn SendEncodeMetric>>;
+/// Type alias for a [`Registry`] using dynamically dispatched [`Send`] metrics.
+///
+/// If in doubt use [`ConvenientRegistry`] over [`Registry`].
+pub type ConvenientRegistry = Registry<Box<dyn crate::encoding::text::SendEncodeMetric>>;
 
 #[cfg(test)]
 mod tests {
