@@ -17,6 +17,43 @@ applications with monitoring systems like [Prometheus](https://prometheus.io/).
 - Fast. Don't force users to worry about the performance impact of
   instrumentation. Instead encourage users to instrument often and extensively.
 
+# Specification Compliance
+
+Below is a list of properties where this client library implementation lags
+behind the Open Metrics specification. Not being compliant with all requirements
+(`MUST` and `MUST NOT`) of the specification is considered a bug and likely to
+be fixed in the future. Contributions in all forms are most welcome.
+
+- Info metric.
+
+- State set metric.
+
+- Enforce "A Histogram MetricPoint MUST contain at least one bucket".
+
+- Enforce "A MetricFamily MUST have a [...] UNIT metadata".
+
+- Enforce "MetricFamily names [...] MUST be unique within a MetricSet."
+
+- Enforce "Names SHOULD be in snake_case".
+
+- Enforce "MetricFamily names beginning with underscores are RESERVED and MUST
+  NOT be used unless specified by this standard".
+
+- Enforce "Exposers SHOULD avoid names that could be confused with the suffixes
+  that text format sample metric names use".
+
+- Protobuf wire format. (Follow [spec
+  issue](https://github.com/OpenObservability/OpenMetrics/issues/183).)
+
+- Exemplars
+
+- Gauge histogram metric.
+
+- Allow "A MetricPoint in a Metric with the type [Counter, Histogram] SHOULD have a Timestamp
+  value called Created".
+
+- Summary metric.
+
 ## License
 
 Licensed under either of

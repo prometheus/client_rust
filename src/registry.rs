@@ -16,9 +16,11 @@ use std::ops::Add;
 ///
 /// [`Registry`] is the core building block, generic over the metric type being
 /// registered. Out of convenience you likely want to use dynamic dispatching to
-/// register different types of metrics (e.g. [`Counter`](crate::metrics::counter::Counter) and [`Gauge`](crate::metrics::gauge::Gauge)) with
-/// the same registry. The type alias [`ConvenientRegistry`] offers just that,
-/// implementing all necessary traits to register dynamically dispatched
+/// register different types of metrics (e.g.
+/// [`Counter`](crate::metrics::counter::Counter) and
+/// [`Gauge`](crate::metrics::gauge::Gauge)) with the same registry. The type
+/// alias [`ConvenientRegistry`] offers just that, implementing all necessary
+/// traits to register dynamically dispatched
 /// [`Send`] metrics.
 ///
 /// ```
