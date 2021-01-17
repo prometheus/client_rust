@@ -17,7 +17,7 @@ applications with monitoring systems like [Prometheus](https://prometheus.io/).
 - Fast. Don't force users to worry about the performance impact of
   instrumentation. Instead encourage users to instrument often and extensively.
 
-# Specification Compliance
+## Specification Compliance
 
 Below is a list of properties where this client library implementation lags
 behind the Open Metrics specification. Not being compliant with all requirements
