@@ -15,7 +15,7 @@ dtoa = "0.4"
 [dev-dependencies]
 pyo3 = "0.13"
 async-std = { version = "1", features = ["attributes"] }
-tide = "0.15"
+tide = "0.16"
 criterion = "0.3"
 
 [[bench]]
