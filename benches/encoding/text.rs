@@ -8,6 +8,7 @@ use open_metrics_client::metrics::histogram::{exponential_series, Histogram};
 use open_metrics_client::registry::Registry;
 use std::io::Write;
 use std::sync::atomic::AtomicU64;
+use generic_array::typenum::U10;
 
 pub fn text(c: &mut Criterion) {
     c.bench_function("encode", |b| {
@@ -59,8 +60,8 @@ pub fn text(c: &mut Criterion) {
 
         for i in 0..100 {
             let counter_family = Family::<Labels, Counter<AtomicU64>>::default();
-            let histogram_family = Family::<Labels, Histogram>::new_with_constructor(|| {
-                Histogram::new(exponential_series(1.0, 2.0, 10))
+            let histogram_family = Family::<Labels, Histogram<U10>>::new_with_constructor(|| {
+                Histogram::new(exponential_series(1.0, 2.0))
             });
 
             registry.register(

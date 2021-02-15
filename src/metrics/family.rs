@@ -150,7 +150,7 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     /// # use open_metrics_client::metrics::family::Family;
     /// # use open_metrics_client::metrics::histogram::{exponential_series, Histogram};
     /// Family::<Vec<(String, String)>, Histogram>::new_with_constructor(|| {
-    ///     Histogram::new(exponential_series(1.0, 2.0, 10))
+    ///     Histogram::new(exponential_series(1.0, 2.0))
     /// });
     /// ```
     pub fn new_with_constructor(constructor: fn() -> M) -> Self {
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn histogram_family() {
         Family::<(), Histogram>::new_with_constructor(|| {
-            Histogram::new(exponential_series(1.0, 2.0, 10))
+            Histogram::new(exponential_series(1.0, 2.0))
         });
     }
 }
