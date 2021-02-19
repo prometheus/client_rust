@@ -8,15 +8,16 @@ license = "Apache-2.0 OR MIT"
 keywords = ["openmetrics", "prometheus", "metrics", "instrumentation", "monitoring"]
 
 [dependencies]
-owning_ref = "0.4"
-itoa = "0.4"
 dtoa = "0.4"
+itoa = "0.4"
+owning_ref = "0.4"
 
 [dev-dependencies]
-pyo3 = "0.13"
 async-std = { version = "1", features = ["attributes"] }
-tide = "0.16"
 criterion = "0.3"
+http-types = "2"
+pyo3 = "0.13"
+tide = "0.16"
 
 [[bench]]
 name = "family"
