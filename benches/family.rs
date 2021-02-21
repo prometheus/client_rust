@@ -27,13 +27,16 @@ pub fn family(c: &mut Criterion) {
         #[derive(Clone, Hash, PartialEq, Eq)]
         enum Method {
             Get,
+            #[allow(dead_code)]
             Put,
         };
 
         #[derive(Clone, Hash, PartialEq, Eq)]
         enum Status {
             Two,
+            #[allow(dead_code)]
             Four,
+            #[allow(dead_code)]
             Five,
         };
         let family = Family::<Labels, Counter<AtomicU64>>::default();

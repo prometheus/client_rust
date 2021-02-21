@@ -21,13 +21,16 @@ pub fn text(c: &mut Criterion) {
         #[derive(Clone, Hash, PartialEq, Eq, Encode)]
         enum Method {
             Get,
+            #[allow(dead_code)]
             Put,
         };
 
         #[derive(Clone, Hash, PartialEq, Eq)]
         enum Status {
             Two,
+            #[allow(dead_code)]
             Four,
+            #[allow(dead_code)]
             Five,
         };
 
