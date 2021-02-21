@@ -7,10 +7,14 @@ description = "Open Metrics client library allowing users to natively instrument
 license = "Apache-2.0 OR MIT"
 keywords = ["openmetrics", "prometheus", "metrics", "instrumentation", "monitoring"]
 
+[workspace]
+members = ["derive-text-encode"]
+
 [dependencies]
 dtoa = "0.4"
 itoa = "0.4"
 owning_ref = "0.4"
+open-metrics-client-derive-text-encode = { version = "0.1", path = "derive-text-encode" }
 
 [dev-dependencies]
 async-std = { version = "1", features = ["attributes"] }

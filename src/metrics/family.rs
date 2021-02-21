@@ -54,6 +54,9 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 ///
 /// ### [`Family`] with custom type for performance and/or type safety
 ///
+/// Using `Encode` derive macro to generate
+/// [`Encode`](crate::encoding::text::Encode) implementation.
+///
 /// ```
 /// # use open_metrics_client::encoding::text::Encode;
 /// # use open_metrics_client::encoding::text::encode;
@@ -64,31 +67,17 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # use std::sync::atomic::AtomicU64;
 /// #
 /// # let mut registry = Registry::default();
-/// #[derive(Clone, Hash, PartialEq, Eq)]
+/// #[derive(Clone, Hash, PartialEq, Eq, Encode)]
 /// struct Labels {
 ///   method: Method,
 /// };
 ///
-/// #[derive(Clone, Hash, PartialEq, Eq)]
+/// #[derive(Clone, Hash, PartialEq, Eq, Encode)]
 /// enum Method {
-///   Get,
-///   Put,
+///   GET,
+///   PUT,
 /// };
 ///
-/// # impl Encode for Labels {
-/// #   fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-/// #     let method = match self.method {
-/// #         Method::Get => {
-/// #             b"method=\"GET\""
-/// #         }
-/// #         Method::Put => {
-/// #             b"method=\"PUT\""
-/// #         }
-/// #     };
-/// #     writer.write_all(method).map(|_| ())
-/// #   }
-/// # }
-/// #
 /// let family = Family::<Labels, Counter<AtomicU64>>::default();
 /// # registry.register(
 /// #   "my_counter",
@@ -97,12 +86,12 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # );
 ///
 /// // Record a single HTTP GET request.
-/// family.get_or_create(&Labels { method: Method::Get }).inc();
+/// family.get_or_create(&Labels { method: Method::GET }).inc();
 /// #
 /// # // Encode all metrics in the registry in the text format.
 /// # let mut buffer = vec![];
 /// # encode(&mut buffer, &registry).unwrap();
-///
+/// #
 /// # let expected = "# HELP my_counter This is my counter.\n".to_owned() +
 /// #                "# TYPE my_counter counter\n" +
 /// #                "my_counter_total{method=\"GET\"} 1\n" +

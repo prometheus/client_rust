@@ -11,14 +11,14 @@ use std::sync::atomic::AtomicU64;
 
 pub fn text(c: &mut Criterion) {
     c.bench_function("encode", |b| {
-        #[derive(Clone, Hash, PartialEq, Eq)]
+        #[derive(Clone, Hash, PartialEq, Eq, Encode)]
         struct Labels {
             method: Method,
             status: Status,
             some_number: u64,
         }
 
-        #[derive(Clone, Hash, PartialEq, Eq)]
+        #[derive(Clone, Hash, PartialEq, Eq, Encode)]
         enum Method {
             Get,
             Put,
@@ -31,26 +31,14 @@ pub fn text(c: &mut Criterion) {
             Five,
         };
 
-        impl Encode for Labels {
-            fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
-                let method = match self.method {
-                    Method::Get => b"method=\"GET\"",
-                    Method::Put => b"method=\"PUT\"",
-                };
-                writer.write_all(method)?;
-
-                writer.write_all(b", ")?;
-                let status = match self.status {
-                    Status::Two => b"status=\"200\"",
-                    Status::Four => b"status=\"400\"",
-                    Status::Five => b"status=\"500\"",
+        impl Encode for Status {
+            fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+                let status = match self {
+                    Status::Two => b"200",
+                    Status::Four => b"400",
+                    Status::Five => b"500",
                 };
                 writer.write_all(status)?;
-
-                writer.write_all(b", ")?;
-                writer.write_all(b"some_number=\"")?;
-                self.some_number.encode(&mut writer)?;
-                writer.write_all(b"\"")?;
                 Ok(())
             }
         }

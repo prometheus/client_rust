@@ -1,0 +1,17 @@
+[package]
+name = "open-metrics-client-derive-text-encode"
+version = "0.1.0"
+authors = ["Max Inden <mail@max-inden.de>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+quote = "1.0"
+syn = "1.0"
+
+[dev-dependencies]
+open-metrics-client = { version = "0.6.0", path = "../" }
+
+[lib]
+proc-macro = true

@@ -3,7 +3,6 @@ use open_metrics_client::metrics::counter::Counter;
 use open_metrics_client::metrics::family::Family;
 use open_metrics_client::registry::Registry;
 
-use std::io::Write;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 
@@ -41,27 +40,13 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     Ok(())
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Encode)]
 struct Labels {
     method: Method,
     path: String,
 }
 
-impl Encode for Labels {
-    fn encode(&self, writer: &mut dyn Write) -> std::io::Result<()> {
-        let method = match self.method {
-            Method::Get => b"method=\"GET\"",
-            Method::Put => b"method=\"PUT\"",
-        };
-        writer.write_all(method)?;
-
-        writer.write_all(b", path=\"")?;
-        writer.write_all(self.path.as_bytes())?;
-        writer.write_all(b"\"").map(|_| ())
-    }
-}
-
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Encode)]
 enum Method {
     Get,
     Put,

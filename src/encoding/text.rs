@@ -35,6 +35,8 @@ use crate::registry::{Registry, Unit};
 use std::io::Write;
 use std::ops::Deref;
 
+pub use open_metrics_client_derive_text_encode::*;
+
 pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where
     W: Write,
@@ -265,17 +267,17 @@ impl Encode for &str {
     }
 }
 
-impl Encode for Vec<(String, String)> {
+impl<T: Encode> Encode for Vec<(T, T)> {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         if self.is_empty() {
             return Ok(());
         }
 
         let mut iter = self.iter().peekable();
-        while let Some((name, value)) = iter.next() {
-            writer.write_all(name.as_bytes())?;
+        while let Some((key, value)) = iter.next() {
+            key.encode(writer)?;
             writer.write_all(b"=\"")?;
-            writer.write_all(value.as_bytes())?;
+            value.encode(writer)?;
             writer.write_all(b"\"")?;
 
             if iter.peek().is_some() {
@@ -284,6 +286,12 @@ impl Encode for Vec<(String, String)> {
         }
 
         Ok(())
+    }
+}
+
+impl Encode for String {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(self.as_bytes()).map(|_| ())
     }
 }
 
