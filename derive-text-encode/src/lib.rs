@@ -1,8 +1,8 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::export::TokenStream2;
 use syn::DeriveInput;
 
 #[proc_macro_derive(Encode)]
@@ -10,7 +10,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let name = &ast.ident;
 
-    let body: TokenStream2 = match ast.data {
+    let body = match ast.data {
         syn::Data::Struct(s) => match s.fields {
             syn::Fields::Named(syn::FieldsNamed { named, .. }) => named
                 .into_iter()
