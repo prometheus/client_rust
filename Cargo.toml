@@ -1,11 +1,15 @@
 [package]
 name = "open-metrics-client"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
 description = "Open Metrics client library allowing users to natively instrument applications."
 license = "Apache-2.0 OR MIT"
 keywords = ["openmetrics", "prometheus", "metrics", "instrumentation", "monitoring"]
+repository = "https://github.com/mxinden/rust-open-metrics-client"
+homepage = "https://github.com/mxinden/rust-open-metrics-client"
+documentation = "https://docs.rs/open-metrics-client"
+
 
 [workspace]
 members = ["derive-text-encode"]

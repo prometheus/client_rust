@@ -3,6 +3,11 @@ name = "open-metrics-client-derive-text-encode"
 version = "0.1.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
+description = "Auxiliary crate to derive text Encode trait from open-metrics-client."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/mxinden/rust-open-metrics-client"
+homepage = "https://github.com/mxinden/rust-open-metrics-client"
+documentation = "https://docs.rs/open-metrics-client-derive-text-encode"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,7 +17,7 @@ quote = "1"
 syn = "1"
 
 [dev-dependencies]
-open-metrics-client = { version = "0.6", path = "../" }
+open-metrics-client = { path = "../" }
 
 [lib]
 proc-macro = true
