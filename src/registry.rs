@@ -11,26 +11,25 @@ use std::ops::Add;
 /// collecting samples of each metric by iterating all metrics in the
 /// [`Registry`] via [`Registry::iter`].
 ///
-/// **Note: When in doubt use the type alias [`ConvenientRegistry`] instead of
-/// [`Registry`]**.
-///
 /// [`Registry`] is the core building block, generic over the metric type being
-/// registered. Out of convenience you likely want to use dynamic dispatching to
-/// register different types of metrics (e.g.
-/// [`Counter`](crate::metrics::counter::Counter) and
-/// [`Gauge`](crate::metrics::gauge::Gauge)) with the same registry. The type
-/// alias [`ConvenientRegistry`] offers just that, implementing all necessary
-/// traits to register dynamically dispatched
-/// [`Send`] metrics.
+/// registered. Out of convenience, the generic type parameter is set to use
+/// dynamic dispatching by default to be able to register different types of
+/// metrics (e.g. [`Counter`](crate::metrics::counter::Counter) and
+/// [`Gauge`](crate::metrics::gauge::Gauge)) with the same registry. Advanced
+/// users might want to use their custom types.
 ///
 /// ```
 /// # use open_metrics_client::encoding::text::{encode, EncodeMetric};
 /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
 /// # use open_metrics_client::metrics::gauge::{Atomic as _, Gauge};
-/// # use open_metrics_client::registry::ConvenientRegistry;
+/// # use open_metrics_client::registry::Registry;
 /// # use std::sync::atomic::AtomicU64;
 /// #
-/// let mut registry = ConvenientRegistry::default();
+/// // Create a metric registry.
+/// //
+/// // Note the angle brackets to make sure to use the default (dynamic
+/// // dispatched boxed metric) for the generic type parameter.
+/// let mut registry = <Registry>::default();
 ///
 /// let counter = Counter::<AtomicU64>::new();
 /// let gauge= Gauge::<AtomicU64>::new();
@@ -59,7 +58,7 @@ use std::ops::Add;
 /// #                "# EOF\n";
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
-pub struct Registry<M> {
+pub struct Registry<M = Box<dyn crate::encoding::text::SendEncodeMetric>> {
     prefix: Option<Prefix>,
     metrics: Vec<(Descriptor, M)>,
     sub_registries: Vec<Registry<M>>,
@@ -316,11 +315,6 @@ pub enum Unit {
     Volts,
     Other(String),
 }
-
-/// Type alias for a [`Registry`] using dynamically dispatched [`Send`] metrics.
-///
-/// If in doubt use [`ConvenientRegistry`] over [`Registry`].
-pub type ConvenientRegistry = Registry<Box<dyn crate::encoding::text::SendEncodeMetric>>;
 
 #[cfg(test)]
 mod tests {

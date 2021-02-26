@@ -15,12 +15,15 @@
 //! # use open_metrics_client::encoding::text::encode;
 //! # use open_metrics_client::metrics::counter::{Atomic, Counter};
 //! # use open_metrics_client::metrics::family::Family;
-//! # use open_metrics_client::registry::{Descriptor, ConvenientRegistry};
+//! # use open_metrics_client::registry::Registry;
 //! # use std::io::Write;
 //! # use std::sync::atomic::AtomicU64;
 //! #
 //! // Create a metric registry.
-//! let mut registry = ConvenientRegistry::default();
+//! //
+//! // Note the angle brackets to make sure to use the default (dynamic
+//! // dispatched boxed metric) for the generic type parameter.
+//! let mut registry = <Registry>::default();
 //!
 //! // Define a type representing a metric label set, i.e. a key value pair.
 //! //
