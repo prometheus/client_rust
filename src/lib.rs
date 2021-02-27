@@ -17,7 +17,6 @@
 //! # use open_metrics_client::metrics::family::Family;
 //! # use open_metrics_client::registry::Registry;
 //! # use std::io::Write;
-//! # use std::sync::atomic::AtomicU64;
 //! #
 //! // Create a metric registry.
 //! //

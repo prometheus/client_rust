@@ -23,7 +23,6 @@ use std::ops::Add;
 /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
 /// # use open_metrics_client::metrics::gauge::{Atomic as _, Gauge};
 /// # use open_metrics_client::registry::Registry;
-/// # use std::sync::atomic::AtomicU64;
 /// #
 /// // Create a metric registry.
 /// //
@@ -32,7 +31,7 @@ use std::ops::Add;
 /// let mut registry = <Registry>::default();
 ///
 /// let counter: Counter = Counter::default();
-/// let gauge= Gauge::<AtomicU64>::new();
+/// let gauge: Gauge = Gauge::default();
 ///
 /// registry.register(
 ///   "my_counter",
@@ -92,7 +91,6 @@ impl<M> Registry<M> {
     /// ```
     /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
     /// # use open_metrics_client::registry::{Registry, Unit};
-    /// # use std::sync::atomic::AtomicU64;
     /// #
     /// let mut registry: Registry<Counter> = Registry::default();
     /// let counter = Counter::default();
@@ -114,7 +112,6 @@ impl<M> Registry<M> {
     /// ```
     /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
     /// # use open_metrics_client::registry::{Registry, Unit};
-    /// # use std::sync::atomic::AtomicU64;
     /// #
     /// let mut registry: Registry<Counter> = Registry::default();
     /// let counter = Counter::default();
@@ -172,7 +169,6 @@ impl<M> Registry<M> {
     /// ```
     /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
     /// # use open_metrics_client::registry::{Registry, Unit};
-    /// # use std::sync::atomic::AtomicU64;
     /// #
     /// let mut registry: Registry<Counter> = Registry::default();
     ///

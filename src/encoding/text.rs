@@ -4,7 +4,6 @@
 //! # use open_metrics_client::encoding::text::encode;
 //! # use open_metrics_client::metrics::counter::Counter;
 //! # use open_metrics_client::registry::Registry;
-//! # use std::sync::atomic::AtomicU64;
 //! #
 //! # // Create registry and counter and register the latter with the former.
 //! # let mut registry = Registry::default();
@@ -416,7 +415,6 @@ mod tests {
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::exponential_series;
     use pyo3::{prelude::*, types::PyModule};
-    use std::sync::atomic::AtomicU64;
 
     #[test]
     fn encode_counter() {
@@ -453,7 +451,7 @@ mod tests {
     #[test]
     fn encode_gauge() {
         let mut registry = Registry::default();
-        let gauge = Gauge::<AtomicU64>::new();
+        let gauge: Gauge = Gauge::default();
         registry.register("my_gauge", "My gauge", gauge.clone());
 
         let mut encoded = Vec::new();

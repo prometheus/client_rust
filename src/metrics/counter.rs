@@ -16,7 +16,6 @@ use std::sync::Arc;
 ///
 /// ```
 /// # use open_metrics_client::metrics::counter::Counter;
-/// # use std::sync::atomic::AtomicU64;
 /// let counter: Counter = Counter::default();
 /// counter.inc();
 /// ```

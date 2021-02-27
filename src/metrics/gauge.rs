@@ -12,11 +12,10 @@ use std::sync::Arc;
 ///
 /// ```
 /// # use open_metrics_client::metrics::gauge::Gauge;
-/// # use std::sync::atomic::AtomicU64;
-/// let gauge = Gauge::<AtomicU64>::new();
+/// let gauge: Gauge = Gauge::default();
 /// gauge.inc();
 /// ```
-pub struct Gauge<A> {
+pub struct Gauge<A = AtomicU64> {
     value: Arc<A>,
 }
 
@@ -28,13 +27,18 @@ impl<A> Clone for Gauge<A> {
     }
 }
 
-impl<A: Atomic> Gauge<A> {
-    pub fn new() -> Self {
-        Gauge {
-            value: Arc::new(A::new()),
+impl<A> Default for Gauge<A>
+where
+    A: Default,
+{
+    fn default() -> Self {
+        Self {
+            value: Arc::new(A::default()),
         }
     }
+}
 
+impl<A: Atomic> Gauge<A> {
     pub fn inc(&self) -> A::Number {
         self.value.inc()
     }
@@ -63,8 +67,6 @@ impl<A: Atomic> Gauge<A> {
 pub trait Atomic {
     type Number;
 
-    fn new() -> Self;
-
     fn inc(&self) -> Self::Number;
 
     fn inc_by(&self, v: Self::Number) -> Self::Number;
@@ -74,23 +76,8 @@ pub trait Atomic {
     fn get(&self) -> Self::Number;
 }
 
-impl<A> Default for Gauge<A>
-where
-    A: Default,
-{
-    fn default() -> Self {
-        Self {
-            value: Arc::new(A::default()),
-        }
-    }
-}
-
 impl Atomic for AtomicU64 {
     type Number = u64;
-
-    fn new() -> Self {
-        AtomicU64::new(0)
-    }
 
     fn inc(&self) -> Self::Number {
         self.inc_by(1)
@@ -111,10 +98,6 @@ impl Atomic for AtomicU64 {
 
 impl Atomic for AtomicU32 {
     type Number = u32;
-
-    fn new() -> Self {
-        AtomicU32::new(0)
-    }
 
     fn inc(&self) -> Self::Number {
         self.inc_by(1)
@@ -143,7 +126,7 @@ mod tests {
 
     #[test]
     fn inc_and_get() {
-        let gauge = Gauge::<AtomicU64>::new();
+        let gauge: Gauge = Gauge::default();
         assert_eq!(0, gauge.inc());
         assert_eq!(1, gauge.get());
         assert_eq!(1, gauge.set(10));
