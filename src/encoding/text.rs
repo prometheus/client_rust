@@ -4,11 +4,10 @@
 //! # use open_metrics_client::encoding::text::encode;
 //! # use open_metrics_client::metrics::counter::Counter;
 //! # use open_metrics_client::registry::Registry;
-//! # use std::sync::atomic::AtomicU64;
 //! #
 //! # // Create registry and counter and register the latter with the former.
 //! # let mut registry = Registry::default();
-//! # let counter = Counter::<AtomicU64>::new();
+//! # let counter: Counter = Counter::default();
 //! # registry.register(
 //! #   "my_counter",
 //! #   "This is my counter",
@@ -416,12 +415,11 @@ mod tests {
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::exponential_series;
     use pyo3::{prelude::*, types::PyModule};
-    use std::sync::atomic::AtomicU64;
 
     #[test]
     fn encode_counter() {
+        let counter: Counter = Counter::default();
         let mut registry = Registry::default();
-        let counter = Counter::<AtomicU64>::new();
         registry.register("my_counter", "My counter", counter.clone());
 
         let mut encoded = Vec::new();
@@ -434,7 +432,7 @@ mod tests {
     #[test]
     fn encode_counter_with_unit() {
         let mut registry = Registry::default();
-        let counter = Counter::<AtomicU64>::new();
+        let counter: Counter = Counter::default();
         registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter.clone());
 
         let mut encoded = Vec::new();
@@ -453,7 +451,7 @@ mod tests {
     #[test]
     fn encode_gauge() {
         let mut registry = Registry::default();
-        let gauge = Gauge::<AtomicU64>::new();
+        let gauge: Gauge = Gauge::default();
         registry.register("my_gauge", "My gauge", gauge.clone());
 
         let mut encoded = Vec::new();
@@ -466,7 +464,7 @@ mod tests {
     #[test]
     fn encode_counter_family() {
         let mut registry = Registry::default();
-        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
+        let family = Family::<Vec<(String, String)>, Counter>::default();
         registry.register("my_counter_family", "My counter family", family.clone());
 
         family

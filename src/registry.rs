@@ -11,29 +11,27 @@ use std::ops::Add;
 /// collecting samples of each metric by iterating all metrics in the
 /// [`Registry`] via [`Registry::iter`].
 ///
-/// **Note: When in doubt use the type alias [`ConvenientRegistry`] instead of
-/// [`Registry`]**.
-///
 /// [`Registry`] is the core building block, generic over the metric type being
-/// registered. Out of convenience you likely want to use dynamic dispatching to
-/// register different types of metrics (e.g.
-/// [`Counter`](crate::metrics::counter::Counter) and
-/// [`Gauge`](crate::metrics::gauge::Gauge)) with the same registry. The type
-/// alias [`ConvenientRegistry`] offers just that, implementing all necessary
-/// traits to register dynamically dispatched
-/// [`Send`] metrics.
+/// registered. Out of convenience, the generic type parameter is set to use
+/// dynamic dispatching by default to be able to register different types of
+/// metrics (e.g. [`Counter`](crate::metrics::counter::Counter) and
+/// [`Gauge`](crate::metrics::gauge::Gauge)) with the same registry. Advanced
+/// users might want to use their custom types.
 ///
 /// ```
 /// # use open_metrics_client::encoding::text::{encode, EncodeMetric};
 /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
 /// # use open_metrics_client::metrics::gauge::{Atomic as _, Gauge};
-/// # use open_metrics_client::registry::ConvenientRegistry;
-/// # use std::sync::atomic::AtomicU64;
+/// # use open_metrics_client::registry::Registry;
 /// #
-/// let mut registry = ConvenientRegistry::default();
+/// // Create a metric registry.
+/// //
+/// // Note the angle brackets to make sure to use the default (dynamic
+/// // dispatched boxed metric) for the generic type parameter.
+/// let mut registry = <Registry>::default();
 ///
-/// let counter = Counter::<AtomicU64>::new();
-/// let gauge= Gauge::<AtomicU64>::new();
+/// let counter: Counter = Counter::default();
+/// let gauge: Gauge = Gauge::default();
 ///
 /// registry.register(
 ///   "my_counter",
@@ -59,7 +57,7 @@ use std::ops::Add;
 /// #                "# EOF\n";
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
-pub struct Registry<M> {
+pub struct Registry<M = Box<dyn crate::encoding::text::SendEncodeMetric>> {
     prefix: Option<Prefix>,
     metrics: Vec<(Descriptor, M)>,
     sub_registries: Vec<Registry<M>>,
@@ -93,10 +91,9 @@ impl<M> Registry<M> {
     /// ```
     /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
     /// # use open_metrics_client::registry::{Registry, Unit};
-    /// # use std::sync::atomic::AtomicU64;
     /// #
-    /// let mut registry = Registry::default();
-    /// let counter = Counter::<AtomicU64>::new();
+    /// let mut registry: Registry<Counter> = Registry::default();
+    /// let counter = Counter::default();
     ///
     /// registry.register("my_counter", "This is my counter", counter.clone());
     /// ```
@@ -115,10 +112,9 @@ impl<M> Registry<M> {
     /// ```
     /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
     /// # use open_metrics_client::registry::{Registry, Unit};
-    /// # use std::sync::atomic::AtomicU64;
     /// #
-    /// let mut registry = Registry::default();
-    /// let counter = Counter::<AtomicU64>::new();
+    /// let mut registry: Registry<Counter> = Registry::default();
+    /// let counter = Counter::default();
     ///
     /// registry.register_with_unit(
     ///   "my_counter",
@@ -173,19 +169,18 @@ impl<M> Registry<M> {
     /// ```
     /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
     /// # use open_metrics_client::registry::{Registry, Unit};
-    /// # use std::sync::atomic::AtomicU64;
     /// #
-    /// let mut registry = Registry::default();
+    /// let mut registry: Registry<Counter> = Registry::default();
     ///
-    /// let subsystem_a_counter_1 = Counter::<AtomicU64>::new();
-    /// let subsystem_a_counter_2 = Counter::<AtomicU64>::new();
+    /// let subsystem_a_counter_1 = Counter::default();
+    /// let subsystem_a_counter_2 = Counter::default();
     ///
     /// let subsystem_a_registry = registry.sub_registry("subsystem_a");
     /// registry.register("counter_1", "", subsystem_a_counter_1.clone());
     /// registry.register("counter_2", "", subsystem_a_counter_2.clone());
     ///
-    /// let subsystem_b_counter_1 = Counter::<AtomicU64>::new();
-    /// let subsystem_b_counter_2 = Counter::<AtomicU64>::new();
+    /// let subsystem_b_counter_1 = Counter::default();
+    /// let subsystem_b_counter_2 = Counter::default();
     ///
     /// let subsystem_a_registry = registry.sub_registry("subsystem_b");
     /// registry.register("counter_1", "", subsystem_b_counter_1.clone());
@@ -317,21 +312,15 @@ pub enum Unit {
     Other(String),
 }
 
-/// Type alias for a [`Registry`] using dynamically dispatched [`Send`] metrics.
-///
-/// If in doubt use [`ConvenientRegistry`] over [`Registry`].
-pub type ConvenientRegistry = Registry<Box<dyn crate::encoding::text::SendEncodeMetric>>;
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::metrics::counter::Counter;
-    use std::sync::atomic::AtomicU64;
 
     #[test]
     fn register_and_iterate() {
-        let mut registry = Registry::default();
-        let counter = Counter::<AtomicU64>::new();
+        let mut registry: Registry<Counter> = Registry::default();
+        let counter = Counter::default();
         registry.register("my_counter", "My counter", counter.clone());
 
         assert_eq!(1, registry.iter().count())
@@ -340,7 +329,7 @@ mod tests {
     #[test]
     fn sub_registry() {
         let top_level_metric_name = "my_top_level_metric";
-        let mut registry = Registry::<Counter<AtomicU64>>::default();
+        let mut registry = Registry::<Counter>::default();
         registry.register(top_level_metric_name, "some help", Default::default());
 
         let prefix_1 = "prefix_1";

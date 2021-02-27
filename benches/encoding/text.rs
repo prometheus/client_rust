@@ -49,7 +49,7 @@ pub fn text(c: &mut Criterion) {
         let mut registry = Registry::<Box<dyn EncodeMetric>>::default();
 
         for i in 0..100 {
-            let counter_family = Family::<Labels, Counter<AtomicU64>>::default();
+            let counter_family = Family::<Labels, Counter>::default();
             let histogram_family = Family::<Labels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_series(1.0, 2.0, 10))
             });

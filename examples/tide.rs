@@ -3,7 +3,6 @@ use open_metrics_client::metrics::counter::Counter;
 use open_metrics_client::metrics::family::Family;
 use open_metrics_client::registry::Registry;
 
-use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 
 use tide::{Middleware, Next, Request, Result};
@@ -13,7 +12,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     tide::log::start();
 
     let mut registry = Registry::default();
-    let http_requests_total = Family::<Labels, Counter<AtomicU64>>::default();
+    let http_requests_total = Family::<Labels, Counter>::default();
     registry.register(
         "http_requests_total",
         "Number of HTTP requests",
@@ -54,12 +53,12 @@ enum Method {
 
 #[derive(Clone)]
 struct State {
-    registry: Arc<Mutex<Registry<Family<Labels, Counter<AtomicU64>>>>>,
+    registry: Arc<Mutex<Registry<Family<Labels, Counter>>>>,
 }
 
 #[derive(Default)]
 struct MetricsMiddleware {
-    http_requests_total: Family<Labels, Counter<AtomicU64>>,
+    http_requests_total: Family<Labels, Counter>,
 }
 
 #[tide::utils::async_trait]
