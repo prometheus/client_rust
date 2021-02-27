@@ -2,7 +2,6 @@ use open_metrics_client::encoding::text::{encode, Encode};
 use open_metrics_client::metrics::counter::Counter;
 use open_metrics_client::metrics::family::Family;
 use open_metrics_client::registry::Registry;
-use std::sync::atomic::AtomicU64;
 
 #[test]
 fn basic_flow() {
@@ -20,7 +19,7 @@ fn basic_flow() {
         PUT,
     };
 
-    let family = Family::<Labels, Counter<AtomicU64>>::default();
+    let family = Family::<Labels, Counter>::default();
     registry.register("my_counter", "This is my counter", family.clone());
 
     // Record a single HTTP GET request.

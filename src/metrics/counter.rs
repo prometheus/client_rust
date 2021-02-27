@@ -10,13 +10,17 @@ use std::sync::Arc;
 ///
 /// Single monotonically increasing value metric.
 ///
+/// [`Counter`] is generic over the actual data type tracking the counter state.
+/// Out of convenience the generic type parameter is set to use an [`AtomicU64`]
+/// by default.
+///
 /// ```
 /// # use open_metrics_client::metrics::counter::Counter;
 /// # use std::sync::atomic::AtomicU64;
-/// let counter = Counter::<AtomicU64>::new();
+/// let counter: Counter = Counter::default();
 /// counter.inc();
 /// ```
-pub struct Counter<A> {
+pub struct Counter<A = AtomicU64> {
     value: Arc<A>,
 }
 
@@ -28,13 +32,15 @@ impl<A> Clone for Counter<A> {
     }
 }
 
-impl<A: Atomic> Counter<A> {
-    pub fn new() -> Self {
+impl<A: Default> Default for Counter<A> {
+    fn default() -> Self {
         Counter {
-            value: Arc::new(A::new()),
+            value: Arc::new(A::default()),
         }
     }
+}
 
+impl<A: Atomic> Counter<A> {
     pub fn inc(&self) -> A::Number {
         self.value.inc()
     }
@@ -63,8 +69,6 @@ impl<A: Atomic> Counter<A> {
 pub trait Atomic {
     type Number;
 
-    fn new() -> Self;
-
     fn inc(&self) -> Self::Number;
 
     fn inc_by(&self, v: Self::Number) -> Self::Number;
@@ -72,23 +76,8 @@ pub trait Atomic {
     fn get(&self) -> Self::Number;
 }
 
-impl<A> Default for Counter<A>
-where
-    A: Default,
-{
-    fn default() -> Self {
-        Self {
-            value: Arc::new(A::default()),
-        }
-    }
-}
-
 impl Atomic for AtomicU64 {
     type Number = u64;
-
-    fn new() -> Self {
-        AtomicU64::new(0)
-    }
 
     fn inc(&self) -> Self::Number {
         self.inc_by(1)
@@ -105,10 +94,6 @@ impl Atomic for AtomicU64 {
 
 impl Atomic for AtomicU32 {
     type Number = u32;
-
-    fn new() -> Self {
-        AtomicU32::new(0)
-    }
 
     fn inc(&self) -> Self::Number {
         self.inc_by(1)
@@ -133,7 +118,7 @@ mod tests {
 
     #[test]
     fn inc_and_get() {
-        let counter = Counter::<AtomicU64>::new();
+        let counter: Counter = Counter::default();
         assert_eq!(0, counter.inc());
         assert_eq!(1, counter.get());
     }

@@ -45,7 +45,7 @@
 //!
 //! // Create a sample counter metric family utilizing the above custom label
 //! // type, representing the number of HTTP requests received.
-//! let http_requests = Family::<Labels, Counter<AtomicU64>>::default();
+//! let http_requests = Family::<Labels, Counter>::default();
 //!
 //! // Register the metric family with the registry.
 //! registry.register(

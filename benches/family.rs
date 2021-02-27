@@ -1,11 +1,10 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use open_metrics_client::metrics::counter::Counter;
 use open_metrics_client::metrics::family::Family;
-use std::sync::atomic::AtomicU64;
 
 pub fn family(c: &mut Criterion) {
     c.bench_function("counter family with Vec<(String, String)> label set", |b| {
-        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
+        let family = Family::<Vec<(String, String)>, Counter>::default();
 
         b.iter(|| {
             family
@@ -39,7 +38,7 @@ pub fn family(c: &mut Criterion) {
             #[allow(dead_code)]
             Five,
         };
-        let family = Family::<Labels, Counter<AtomicU64>>::default();
+        let family = Family::<Labels, Counter>::default();
 
         b.iter(|| {
             family

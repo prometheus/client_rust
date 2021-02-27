@@ -8,7 +8,7 @@
 //! #
 //! # // Create registry and counter and register the latter with the former.
 //! # let mut registry = Registry::default();
-//! # let counter = Counter::<AtomicU64>::new();
+//! # let counter: Counter = Counter::default();
 //! # registry.register(
 //! #   "my_counter",
 //! #   "This is my counter",
@@ -420,8 +420,8 @@ mod tests {
 
     #[test]
     fn encode_counter() {
+        let counter: Counter = Counter::default();
         let mut registry = Registry::default();
-        let counter = Counter::<AtomicU64>::new();
         registry.register("my_counter", "My counter", counter.clone());
 
         let mut encoded = Vec::new();
@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn encode_counter_with_unit() {
         let mut registry = Registry::default();
-        let counter = Counter::<AtomicU64>::new();
+        let counter: Counter = Counter::default();
         registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter.clone());
 
         let mut encoded = Vec::new();
@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn encode_counter_family() {
         let mut registry = Registry::default();
-        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
+        let family = Family::<Vec<(String, String)>, Counter>::default();
         registry.register("my_counter_family", "My counter family", family.clone());
 
         family

@@ -31,7 +31,7 @@ use std::ops::Add;
 /// // dispatched boxed metric) for the generic type parameter.
 /// let mut registry = <Registry>::default();
 ///
-/// let counter = Counter::<AtomicU64>::new();
+/// let counter: Counter = Counter::default();
 /// let gauge= Gauge::<AtomicU64>::new();
 ///
 /// registry.register(
@@ -94,8 +94,8 @@ impl<M> Registry<M> {
     /// # use open_metrics_client::registry::{Registry, Unit};
     /// # use std::sync::atomic::AtomicU64;
     /// #
-    /// let mut registry = Registry::default();
-    /// let counter = Counter::<AtomicU64>::new();
+    /// let mut registry: Registry<Counter> = Registry::default();
+    /// let counter = Counter::default();
     ///
     /// registry.register("my_counter", "This is my counter", counter.clone());
     /// ```
@@ -116,8 +116,8 @@ impl<M> Registry<M> {
     /// # use open_metrics_client::registry::{Registry, Unit};
     /// # use std::sync::atomic::AtomicU64;
     /// #
-    /// let mut registry = Registry::default();
-    /// let counter = Counter::<AtomicU64>::new();
+    /// let mut registry: Registry<Counter> = Registry::default();
+    /// let counter = Counter::default();
     ///
     /// registry.register_with_unit(
     ///   "my_counter",
@@ -174,17 +174,17 @@ impl<M> Registry<M> {
     /// # use open_metrics_client::registry::{Registry, Unit};
     /// # use std::sync::atomic::AtomicU64;
     /// #
-    /// let mut registry = Registry::default();
+    /// let mut registry: Registry<Counter> = Registry::default();
     ///
-    /// let subsystem_a_counter_1 = Counter::<AtomicU64>::new();
-    /// let subsystem_a_counter_2 = Counter::<AtomicU64>::new();
+    /// let subsystem_a_counter_1 = Counter::default();
+    /// let subsystem_a_counter_2 = Counter::default();
     ///
     /// let subsystem_a_registry = registry.sub_registry("subsystem_a");
     /// registry.register("counter_1", "", subsystem_a_counter_1.clone());
     /// registry.register("counter_2", "", subsystem_a_counter_2.clone());
     ///
-    /// let subsystem_b_counter_1 = Counter::<AtomicU64>::new();
-    /// let subsystem_b_counter_2 = Counter::<AtomicU64>::new();
+    /// let subsystem_b_counter_1 = Counter::default();
+    /// let subsystem_b_counter_2 = Counter::default();
     ///
     /// let subsystem_a_registry = registry.sub_registry("subsystem_b");
     /// registry.register("counter_1", "", subsystem_b_counter_1.clone());
@@ -320,12 +320,11 @@ pub enum Unit {
 mod tests {
     use super::*;
     use crate::metrics::counter::Counter;
-    use std::sync::atomic::AtomicU64;
 
     #[test]
     fn register_and_iterate() {
-        let mut registry = Registry::default();
-        let counter = Counter::<AtomicU64>::new();
+        let mut registry: Registry<Counter> = Registry::default();
+        let counter = Counter::default();
         registry.register("my_counter", "My counter", counter.clone());
 
         assert_eq!(1, registry.iter().count())
@@ -334,7 +333,7 @@ mod tests {
     #[test]
     fn sub_registry() {
         let top_level_metric_name = "my_top_level_metric";
-        let mut registry = Registry::<Counter<AtomicU64>>::default();
+        let mut registry = Registry::<Counter>::default();
         registry.register(top_level_metric_name, "some help", Default::default());
 
         let prefix_1 = "prefix_1";

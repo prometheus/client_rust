@@ -28,10 +28,9 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # use open_metrics_client::metrics::counter::{Atomic, Counter};
 /// # use open_metrics_client::metrics::family::Family;
 /// # use open_metrics_client::registry::{Descriptor, Registry};
-/// # use std::sync::atomic::AtomicU64;
 /// #
 /// # let mut registry = Registry::default();
-/// let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
+/// let family = Family::<Vec<(String, String)>, Counter>::default();
 /// # registry.register(
 /// #   "my_counter",
 /// #   "This is my counter",
@@ -64,7 +63,6 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # use open_metrics_client::metrics::family::Family;
 /// # use open_metrics_client::registry::{Descriptor, Registry};
 /// # use std::io::Write;
-/// # use std::sync::atomic::AtomicU64;
 /// #
 /// # let mut registry = Registry::default();
 /// #[derive(Clone, Hash, PartialEq, Eq, Encode)]
@@ -78,7 +76,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 ///   PUT,
 /// };
 ///
-/// let family = Family::<Labels, Counter<AtomicU64>>::default();
+/// let family = Family::<Labels, Counter>::default();
 /// # registry.register(
 /// #   "my_counter",
 /// #   "This is my counter",
@@ -157,9 +155,8 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     /// ```
     /// # use open_metrics_client::metrics::counter::{Atomic, Counter};
     /// # use open_metrics_client::metrics::family::Family;
-    /// # use std::sync::atomic::AtomicU64;
     /// #
-    /// let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
     ///
     /// // Will create the metric with label `method="GET"` on first call and
     /// // return a reference.
@@ -213,11 +210,10 @@ mod tests {
     use super::*;
     use crate::metrics::counter::Counter;
     use crate::metrics::histogram::{exponential_series, Histogram};
-    use std::sync::atomic::AtomicU64;
 
     #[test]
     fn counter_family() {
-        let family = Family::<Vec<(String, String)>, Counter<AtomicU64>>::default();
+        let family = Family::<Vec<(String, String)>, Counter>::default();
 
         family
             .get_or_create(&vec![("method".to_string(), "GET".to_string())])
