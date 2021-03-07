@@ -3,6 +3,7 @@
 //! See [`Gauge`] for details.
 
 use super::{MetricType, TypedMetric};
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -10,52 +11,76 @@ use std::sync::Arc;
 ///
 /// Single increasing, decreasing or constant value metric.
 ///
+/// [`Gauge`] is generic over the actual data type tracking the [`Gauge`] state
+/// as well as the data type used to interact with the [`Gauge`]. Out of
+/// convenience the generic type parameters are set to use an [`AtomicU64`] as a
+/// storage and [`u64`] on the interface by default.
+///
+/// # Examples
+///
+/// ## Using [`AtomicU64`] as storage and [`u64`] on the interface
+///
 /// ```
 /// # use open_metrics_client::metrics::gauge::Gauge;
 /// let gauge: Gauge = Gauge::default();
-/// gauge.inc();
+/// gauge.set(42u64);
+/// let _value: u64 = gauge.get();
 /// ```
-pub struct Gauge<A = AtomicU64> {
+///
+/// ## Using [`AtomicU64`] as storage and [`f64`] on the interface
+///
+/// ```
+/// # use open_metrics_client::metrics::gauge::Gauge;
+/// # use std::sync::atomic::AtomicU64;
+/// let gauge = Gauge::<f64, AtomicU64>::default();
+/// gauge.set(42.0);
+/// let _value: f64 = gauge.get();
+/// ```
+pub struct Gauge<N = u64, A = AtomicU64> {
     value: Arc<A>,
+    phantom: PhantomData<N>,
 }
 
-impl<A> Clone for Gauge<A> {
+impl<N, A> Clone for Gauge<N, A> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
+            phantom: PhantomData,
         }
     }
 }
 
-impl<A> Default for Gauge<A>
-where
-    A: Default,
-{
+impl<N, A: Default> Default for Gauge<N, A> {
     fn default() -> Self {
         Self {
             value: Arc::new(A::default()),
+            phantom: PhantomData,
         }
     }
 }
 
-impl<A: Atomic> Gauge<A> {
-    pub fn inc(&self) -> A::Number {
+impl<N, A: Atomic<N>> Gauge<N, A> {
+    /// Increase the [`Gauge`] by 1, returning the previous value.
+    pub fn inc(&self) -> N {
         self.value.inc()
     }
 
-    pub fn inc_by(&self, v: A::Number) -> A::Number {
+    /// Increase the [`Gauge`] by `v`, returning the previous value.
+    pub fn inc_by(&self, v: N) -> N {
         self.value.inc_by(v)
     }
 
-    pub fn set(&self, v: A::Number) -> A::Number {
+    /// Sets the [`Gauge`] to `v`, returning the previous value.
+    pub fn set(&self, v: N) -> N {
         self.value.set(v)
     }
 
-    pub fn get(&self) -> A::Number {
+    /// Get the current value of the [`Gauge`].
+    pub fn get(&self) -> N {
         self.value.get()
     }
 
-    /// Exposes the inner atomic type.
+    /// Exposes the inner atomic type of the [`Gauge`].
     ///
     /// This should only be used for advanced use-cases which are not directly
     /// supported by the library.
@@ -64,59 +89,82 @@ impl<A: Atomic> Gauge<A> {
     }
 }
 
-pub trait Atomic {
-    type Number;
+pub trait Atomic<N> {
+    fn inc(&self) -> N;
 
-    fn inc(&self) -> Self::Number;
+    fn inc_by(&self, v: N) -> N;
 
-    fn inc_by(&self, v: Self::Number) -> Self::Number;
+    fn set(&self, v: N) -> N;
 
-    fn set(&self, v: Self::Number) -> Self::Number;
-
-    fn get(&self) -> Self::Number;
+    fn get(&self) -> N;
 }
 
-impl Atomic for AtomicU64 {
-    type Number = u64;
-
-    fn inc(&self) -> Self::Number {
+impl Atomic<u64> for AtomicU64 {
+    fn inc(&self) -> u64 {
         self.inc_by(1)
     }
 
-    fn inc_by(&self, v: Self::Number) -> Self::Number {
+    fn inc_by(&self, v: u64) -> u64 {
         self.fetch_add(v, Ordering::Relaxed)
     }
 
-    fn set(&self, v: Self::Number) -> Self::Number {
+    fn set(&self, v: u64) -> u64 {
         self.swap(v, Ordering::Relaxed)
     }
 
-    fn get(&self) -> Self::Number {
+    fn get(&self) -> u64 {
         self.load(Ordering::Relaxed)
     }
 }
 
-impl Atomic for AtomicU32 {
-    type Number = u32;
-
-    fn inc(&self) -> Self::Number {
+impl Atomic<u32> for AtomicU32 {
+    fn inc(&self) -> u32 {
         self.inc_by(1)
     }
 
-    fn inc_by(&self, v: Self::Number) -> Self::Number {
+    fn inc_by(&self, v: u32) -> u32 {
         self.fetch_add(v, Ordering::Relaxed)
     }
 
-    fn set(&self, v: Self::Number) -> Self::Number {
+    fn set(&self, v: u32) -> u32 {
         self.swap(v, Ordering::Relaxed)
     }
 
-    fn get(&self) -> Self::Number {
+    fn get(&self) -> u32 {
         self.load(Ordering::Relaxed)
     }
 }
 
-impl<A> TypedMetric for Gauge<A> {
+impl Atomic<f64> for AtomicU64 {
+    fn inc(&self) -> f64 {
+        self.inc_by(1.0)
+    }
+
+    fn inc_by(&self, v: f64) -> f64 {
+        let mut old_u64 = self.load(Ordering::Relaxed);
+        let mut old_f64;
+        loop {
+            old_f64 = f64::from_bits(old_u64);
+            let new = f64::to_bits(old_f64 + v);
+            match self.compare_exchange_weak(old_u64, new, Ordering::Relaxed, Ordering::Relaxed) {
+                Ok(_) => break,
+                Err(x) => old_u64 = x,
+            }
+        }
+
+        old_f64
+    }
+
+    fn set(&self, v: f64) -> f64 {
+        f64::from_bits(self.swap(f64::to_bits(v), Ordering::Relaxed))
+    }
+
+    fn get(&self) -> f64 {
+        f64::from_bits(self.load(Ordering::Relaxed))
+    }
+}
+
+impl<N, A> TypedMetric for Gauge<N, A> {
     const TYPE: MetricType = MetricType::Gauge;
 }
 

@@ -328,10 +328,10 @@ impl Encode for Unit {
     }
 }
 
-impl<A> EncodeMetric for Counter<A>
+impl<N, A> EncodeMetric for Counter<N, A>
 where
-    A: counter::Atomic,
-    <A as counter::Atomic>::Number: Encode,
+    N: Encode,
+    A: counter::Atomic<N>,
 {
     fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         encoder
@@ -347,10 +347,10 @@ where
     }
 }
 
-impl<A> EncodeMetric for Gauge<A>
+impl<N, A> EncodeMetric for Gauge<N, A>
 where
-    A: gauge::Atomic,
-    <A as gauge::Atomic>::Number: Encode,
+    N: Encode,
+    A: gauge::Atomic<N>,
 {
     fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         encoder.no_suffix()?.no_bucket()?.encode_value(self.get())?;
