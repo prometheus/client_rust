@@ -1,5 +1,9 @@
 # Open Metrics Client Library
 
+[![Test Status](https://github.com/mxinden/rust-open-metrics-client/actions/workflows/rust.yml/badge.svg?event=push)](https://github.com/mxinden/rust-open-metrics-client/actions)
+[![Crate](https://img.shields.io/crates/v/open-metrics-client.svg)](https://crates.io/crates/open-metrics-client)
+[![API](https://docs.rs/open-metrics-client/badge.svg)](https://docs.rs/open-metrics-client)
+
 [Rust](https://github.com/rust-lang/) client library implementation of the [Open
 Metrics specification](https://github.com/OpenObservability/OpenMetrics). Allows
 developers to instrument applications and thus enables operators to monitor said
@@ -53,6 +57,10 @@ be fixed in the future. Contributions in all forms are most welcome.
   value called Created".
 
 - Summary metric.
+
+## Related Libraries
+
+- [rust-prometheus](https://github.com/tikv/rust-prometheus/): See [tikv/rust-prometheus/#392](https://github.com/tikv/rust-prometheus/issues/392) for a high-level comparison.
 
 ## License
 
