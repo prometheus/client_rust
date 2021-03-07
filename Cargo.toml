@@ -25,6 +25,7 @@ criterion = "0.3"
 http-types = "2"
 pyo3 = "0.13"
 tide = "0.16"
+quickcheck = "1"
 
 [[bench]]
 name = "family"
