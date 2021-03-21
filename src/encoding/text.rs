@@ -487,11 +487,14 @@ impl EncodeMetric for Histogram {
             .encode_value(count)?
             .no_exemplar()?;
 
+
+        let mut cummulative = 0;
         for (upper_bound, count) in buckets.iter() {
+            cummulative += count;
             encoder
                 .encode_suffix("bucket")?
                 .encode_bucket(*upper_bound)?
-                .encode_value(*count)?
+                .encode_value(cummulative)?
                 .no_exemplar()?;
         }
 

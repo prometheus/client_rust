@@ -55,10 +55,13 @@ impl Histogram {
         let mut inner = self.inner.lock().unwrap();
         inner.sum += v;
         inner.count += 1;
-        for (upper_bound, count) in inner.buckets.iter_mut() {
-            if *upper_bound >= v {
-                *count += 1;
-            }
+
+        if let Some((_upper_bound, value)) = inner
+            .buckets
+            .iter_mut()
+            .find(|(upper_bound, _value)| upper_bound >= &v)
+        {
+            *value += 1;
         }
     }
 
