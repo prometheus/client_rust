@@ -1,5 +1,7 @@
 use super::counter::{self, Counter};
+use super::histogram::Histogram;
 use owning_ref::OwningRef;
+use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
@@ -81,5 +83,55 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
     pub fn inner(&self) -> OwningRef<RwLockReadGuard<CounterWithExemplarInner<S, N, A>>, A> {
         OwningRef::new(self.inner.read().expect("Lock not to be poisoned."))
             .map(|inner| inner.counter.inner())
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// Histogram
+
+pub struct HistogramWithExemplars<S> {
+    // TODO: Not ideal, as Histogram has a Mutex as well.
+    pub(crate) inner: Arc<RwLock<HistogramWithExemplarsInner<S>>>,
+}
+
+impl<S> Clone for HistogramWithExemplars<S> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+pub struct HistogramWithExemplarsInner<S> {
+    pub(crate) exemplars: HashMap<usize, Exemplar<S, f64>>,
+    pub(crate) histogram: Histogram,
+}
+
+impl<S> HistogramWithExemplars<S> {
+    pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(HistogramWithExemplarsInner {
+                exemplars: Default::default(),
+                histogram: Histogram::new(buckets),
+            })),
+        }
+    }
+
+    pub fn observe(&self, v: f64, label_set: Option<S>) {
+        let mut inner = self.inner.write().expect("Lock not to be poisoned.");
+        let bucket = inner.histogram.observe_and_bucket(v);
+        if let (Some(bucket), Some(label_set)) = (bucket, label_set) {
+            inner.exemplars.insert(
+                bucket,
+                Exemplar {
+                    label_set,
+                    value: v,
+                },
+            );
+        }
+    }
+
+    pub(crate) fn inner(&self) -> RwLockReadGuard<HistogramWithExemplarsInner<S>> {
+        self.inner.read().expect("Lock not to be poisoned.")
     }
 }

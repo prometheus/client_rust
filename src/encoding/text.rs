@@ -25,13 +25,14 @@
 //! ```
 
 use crate::metrics::counter::{self, Counter};
-use crate::metrics::exemplar::{CounterWithExemplar, Exemplar};
+use crate::metrics::exemplar::{CounterWithExemplar, Exemplar, HistogramWithExemplars};
 use crate::metrics::family::Family;
 use crate::metrics::gauge::{self, Gauge};
 use crate::metrics::histogram::Histogram;
 use crate::metrics::{MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
@@ -380,6 +381,7 @@ where
     A: counter::Atomic<N>,
 {
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
+        // TODO: Would be better to use never type instead of `()`.
         encode_counter_with_maybe_exemplar::<(), _>(self.get(), None, encoder)
     }
 
@@ -474,36 +476,61 @@ where
 // Histogram
 
 impl EncodeMetric for Histogram {
-    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
         let (sum, count, buckets) = self.get();
-        encoder
-            .encode_suffix("sum")?
-            .no_bucket()?
-            .encode_value(sum)?
-            .no_exemplar()?;
-        encoder
-            .encode_suffix("count")?
-            .no_bucket()?
-            .encode_value(count)?
-            .no_exemplar()?;
-
-
-        let mut cummulative = 0;
-        for (upper_bound, count) in buckets.iter() {
-            cummulative += count;
-            encoder
-                .encode_suffix("bucket")?
-                .encode_bucket(*upper_bound)?
-                .encode_value(cummulative)?
-                .no_exemplar()?;
-        }
-
-        Ok(())
+        // TODO: Would be better to use never type instead of `()`.
+        encode_histogram_with_maybe_exemplars::<()>(sum, count, &buckets, None, encoder)
     }
 
     fn metric_type(&self) -> MetricType {
         Self::TYPE
     }
+}
+
+impl<S: Encode> EncodeMetric for HistogramWithExemplars<S> {
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
+        let inner = self.inner();
+        let (sum, count, buckets) = inner.histogram.get();
+        encode_histogram_with_maybe_exemplars(sum, count, &buckets, Some(&inner.exemplars), encoder)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Histogram::TYPE
+    }
+}
+
+fn encode_histogram_with_maybe_exemplars<S: Encode>(
+    sum: f64,
+    count: u64,
+    buckets: &Vec<(f64, u64)>,
+    exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
+    mut encoder: Encoder,
+) -> Result<(), std::io::Error> {
+    encoder
+        .encode_suffix("sum")?
+        .no_bucket()?
+        .encode_value(sum)?
+        .no_exemplar()?;
+    encoder
+        .encode_suffix("count")?
+        .no_bucket()?
+        .encode_value(count)?
+        .no_exemplar()?;
+
+    let mut cummulative = 0;
+    for (i, (upper_bound, count)) in buckets.iter().enumerate() {
+        cummulative += count;
+        let mut bucket_encoder = encoder.encode_suffix("bucket")?;
+        let mut value_encoder = bucket_encoder.encode_bucket(*upper_bound)?;
+        let mut exemplar_encoder = value_encoder.encode_value(cummulative)?;
+
+        match exemplars.map(|es| es.get(&i)).flatten() {
+            Some(exemplar) => exemplar_encoder.encode_exemplar(exemplar)?,
+            None => exemplar_encoder.no_exemplar()?,
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -615,6 +642,37 @@ mod tests {
         let mut encoded = Vec::new();
 
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_histogram_with_exemplars() {
+        let mut registry = Registry::default();
+        let histogram = HistogramWithExemplars::new(exponential_series(1.0, 2.0, 10));
+        registry.register("my_histogram", "My histogram", histogram.clone());
+        histogram.observe(1.0, Some(("user_id".to_string(), 42u64)));
+
+        let mut encoded = Vec::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_histogram My histogram.\n".to_owned()
+            + "# TYPE my_histogram histogram\n"
+            + "my_histogram_sum 1.0\n"
+            + "my_histogram_count 1\n"
+            + "my_histogram_bucket{le=\"1.0\"} 1 # {user_id=\"42\"} 1.0\n"
+            + "my_histogram_bucket{le=\"2.0\"} 1\n"
+            + "my_histogram_bucket{le=\"4.0\"} 1\n"
+            + "my_histogram_bucket{le=\"8.0\"} 1\n"
+            + "my_histogram_bucket{le=\"16.0\"} 1\n"
+            + "my_histogram_bucket{le=\"32.0\"} 1\n"
+            + "my_histogram_bucket{le=\"64.0\"} 1\n"
+            + "my_histogram_bucket{le=\"128.0\"} 1\n"
+            + "my_histogram_bucket{le=\"256.0\"} 1\n"
+            + "my_histogram_bucket{le=\"512.0\"} 1\n"
+            + "my_histogram_bucket{le=\"+Inf\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
