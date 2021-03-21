@@ -1,6 +1,7 @@
 //! Metric type implementations.
 
 pub mod counter;
+pub mod exemplar;
 pub mod family;
 pub mod gauge;
 pub mod histogram;
