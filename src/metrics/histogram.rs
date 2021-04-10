@@ -75,7 +75,7 @@ impl Histogram {
             Some((i, (_upper_bound, value))) => {
                 *value += 1;
                 Some(i)
-            },
+            }
             None => None,
         }
     }
