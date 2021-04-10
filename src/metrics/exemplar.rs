@@ -1,3 +1,7 @@
+//! Module implementing an Open Metrics exemplars for counters and histograms.
+//!
+//! See [`CounterWithExemplar`] and [`HistogramWithExemplars`] for details.
+
 use super::counter::{self, Counter};
 use super::histogram::Histogram;
 use owning_ref::OwningRef;
@@ -13,6 +17,15 @@ pub struct Exemplar<S, V> {
 /////////////////////////////////////////////////////////////////////////////////
 // Counter
 
+/// Open Metrics [`Counter`] with an [`Exemplar`] to both measure discrete
+/// events and track references to data outside of the metric set.
+///
+/// ```
+/// # use open_metrics_client::metrics::exemplar::CounterWithExemplar;
+/// let counter_with_exemplar = CounterWithExemplar::<Vec<(String, String)>>::default();
+/// counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), "42".to_string())]));
+/// let _value: (u64, _) = counter_with_exemplar.get();
+/// ```
 pub struct CounterWithExemplar<S, N = u64, A = AtomicU64> {
     pub(crate) inner: Arc<RwLock<CounterWithExemplarInner<S, N, A>>>,
 }
@@ -87,6 +100,15 @@ type RwLockGuardedCounterWithExemplar<'a, S, N, A> =
 /////////////////////////////////////////////////////////////////////////////////
 // Histogram
 
+/// Open Metrics [`Histogram`] to both measure distributions of discrete events.
+/// and track references to data outside of the metric set.
+///
+/// ```
+/// # use open_metrics_client::metrics::exemplar::HistogramWithExemplars;
+/// # use open_metrics_client::metrics::histogram::exponential_series;
+/// let histogram = HistogramWithExemplars::new(exponential_series(1.0, 2.0, 10));
+/// histogram.observe(4.2, Some(vec![("user_id".to_string(), "42".to_string())]));
+/// ```
 pub struct HistogramWithExemplars<S> {
     // TODO: Not ideal, as Histogram has a Mutex as well.
     pub(crate) inner: Arc<RwLock<HistogramWithExemplarsInner<S>>>,
