@@ -25,12 +25,14 @@
 //! ```
 
 use crate::metrics::counter::{self, Counter};
+use crate::metrics::exemplar::{CounterWithExemplar, Exemplar, HistogramWithExemplars};
 use crate::metrics::family::Family;
 use crate::metrics::gauge::{self, Gauge};
 use crate::metrics::histogram::Histogram;
 use crate::metrics::{MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
@@ -85,6 +87,111 @@ where
     writer.write_all(b"# EOF\n")?;
 
     Ok(())
+}
+
+pub trait Encode {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error>;
+}
+
+impl Encode for f64 {
+    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        dtoa::write(&mut writer, *self)?;
+        Ok(())
+    }
+}
+
+impl Encode for u64 {
+    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        itoa::write(&mut writer, *self)?;
+        Ok(())
+    }
+}
+
+impl Encode for &str {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        // TODO: Can we do better?
+        writer.write_all(self.as_bytes())?;
+        Ok(())
+    }
+}
+
+impl<T: Encode> Encode for Vec<T> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        let mut iter = self.iter().peekable();
+        while let Some(x) = iter.next() {
+            x.encode(writer)?;
+
+            if iter.peek().is_some() {
+                writer.write_all(b",")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<K: Encode, V: Encode> Encode for (K, V) {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        let (key, value) = self;
+
+        key.encode(writer)?;
+        writer.write_all(b"=\"")?;
+
+        value.encode(writer)?;
+        writer.write_all(b"\"")?;
+
+        Ok(())
+    }
+}
+
+impl Encode for String {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(self.as_bytes()).map(|_| ())
+    }
+}
+
+impl Encode for MetricType {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        let t = match self {
+            MetricType::Counter => "counter",
+            MetricType::Gauge => "gauge",
+            MetricType::Histogram => "histogram",
+            MetricType::Unknown => "unknown",
+        };
+
+        writer.write_all(t.as_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for Unit {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        let u = match self {
+            Unit::Amperes => "amperes",
+            Unit::Bytes => "bytes",
+            Unit::Celsius => "celsius",
+            Unit::Grams => "grams",
+            Unit::Joules => "joules",
+            Unit::Meters => "meters",
+            Unit::Ratios => "ratios",
+            Unit::Seconds => "seconds",
+            Unit::Volts => "volts",
+            Unit::Other(other) => other.as_str(),
+        };
+
+        writer.write_all(u.as_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for () {
+    fn encode(&self, _writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        Ok(())
+    }
 }
 
 // `Encoder` does not take a trait parameter for `writer` and `labels` because
@@ -200,9 +307,34 @@ pub struct ValueEncoder<'a> {
 }
 
 impl<'a> ValueEncoder<'a> {
-    fn encode_value<V: Encode>(&mut self, v: V) -> Result<(), std::io::Error> {
+    fn encode_value<V: Encode>(&mut self, v: V) -> Result<ExemplarEncoder, std::io::Error> {
         self.writer.write_all(b" ")?;
         v.encode(self.writer)?;
+        Ok(ExemplarEncoder {
+            writer: self.writer,
+        })
+    }
+}
+
+#[must_use]
+pub struct ExemplarEncoder<'a> {
+    writer: &'a mut dyn Write,
+}
+
+impl<'a> ExemplarEncoder<'a> {
+    fn encode_exemplar<S: Encode, V: Encode>(
+        &mut self,
+        exemplar: &Exemplar<S, V>,
+    ) -> Result<(), std::io::Error> {
+        self.writer.write_all(b" # {")?;
+        exemplar.label_set.encode(self.writer)?;
+        self.writer.write_all(b"} ")?;
+        exemplar.value.encode(self.writer)?;
+        self.writer.write_all(b"\n")?;
+        Ok(())
+    }
+
+    fn no_exemplar(&mut self) -> Result<(), std::io::Error> {
         self.writer.write_all(b"\n")?;
         Ok(())
     }
@@ -240,112 +372,64 @@ impl EncodeMetric for Box<dyn SendEncodeMetric> {
     }
 }
 
-pub trait Encode {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error>;
-}
-
-impl Encode for f64 {
-    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        dtoa::write(&mut writer, *self)?;
-        Ok(())
-    }
-}
-
-impl Encode for u64 {
-    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        itoa::write(&mut writer, *self)?;
-        Ok(())
-    }
-}
-
-impl Encode for &str {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        // TODO: Can we do better?
-        writer.write_all(self.as_bytes())?;
-        Ok(())
-    }
-}
-
-impl<T: Encode> Encode for Vec<(T, T)> {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        if self.is_empty() {
-            return Ok(());
-        }
-
-        let mut iter = self.iter().peekable();
-        while let Some((key, value)) = iter.next() {
-            key.encode(writer)?;
-            writer.write_all(b"=\"")?;
-            value.encode(writer)?;
-            writer.write_all(b"\"")?;
-
-            if iter.peek().is_some() {
-                writer.write_all(b",")?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl Encode for String {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        writer.write_all(self.as_bytes()).map(|_| ())
-    }
-}
-
-impl Encode for MetricType {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        let t = match self {
-            MetricType::Counter => "counter",
-            MetricType::Gauge => "gauge",
-            MetricType::Histogram => "histogram",
-            MetricType::Unknown => "unknown",
-        };
-
-        writer.write_all(t.as_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for Unit {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        let u = match self {
-            Unit::Amperes => "amperes",
-            Unit::Bytes => "bytes",
-            Unit::Celsius => "celsius",
-            Unit::Grams => "grams",
-            Unit::Joules => "joules",
-            Unit::Meters => "meters",
-            Unit::Ratios => "ratios",
-            Unit::Seconds => "seconds",
-            Unit::Volts => "volts",
-            Unit::Other(other) => other.as_str(),
-        };
-
-        writer.write_all(u.as_bytes())?;
-        Ok(())
-    }
-}
+/////////////////////////////////////////////////////////////////////////////////
+// Counter
 
 impl<N, A> EncodeMetric for Counter<N, A>
 where
     N: Encode,
     A: counter::Atomic<N>,
 {
-    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
-        encoder
-            .encode_suffix("total")?
-            .no_bucket()?
-            .encode_value(self.get())?;
-
-        Ok(())
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
+        // TODO: Would be better to use never type instead of `()`.
+        encode_counter_with_maybe_exemplar::<(), _>(self.get(), None, encoder)
     }
 
     fn metric_type(&self) -> MetricType {
         Self::TYPE
     }
 }
+
+// TODO: S, V, N, A are hard to grasp.
+impl<S, N, A> EncodeMetric for CounterWithExemplar<S, N, A>
+where
+    S: Encode,
+    N: Encode + Clone,
+    A: counter::Atomic<N>,
+{
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
+        let (value, exemplar) = self.get();
+        encode_counter_with_maybe_exemplar(value, exemplar.as_ref().as_ref(), encoder)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Counter::<N, A>::TYPE
+    }
+}
+
+fn encode_counter_with_maybe_exemplar<S, N>(
+    value: N,
+    exemplar: Option<&Exemplar<S, N>>,
+    mut encoder: Encoder,
+) -> Result<(), std::io::Error>
+where
+    S: Encode,
+    N: Encode,
+{
+    let mut bucket_encoder = encoder.encode_suffix("total")?;
+    let mut value_encoder = bucket_encoder.no_bucket()?;
+    let mut exemplar_encoder = value_encoder.encode_value(value)?;
+
+    match exemplar {
+        Some(exemplar) => exemplar_encoder.encode_exemplar(exemplar)?,
+        None => exemplar_encoder.no_exemplar()?,
+    }
+
+    Ok(())
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// Gauge
 
 impl<N, A> EncodeMetric for Gauge<N, A>
 where
@@ -353,7 +437,11 @@ where
     A: gauge::Atomic<N>,
 {
     fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
-        encoder.no_suffix()?.no_bucket()?.encode_value(self.get())?;
+        encoder
+            .no_suffix()?
+            .no_bucket()?
+            .encode_value(self.get())?
+            .no_exemplar()?;
 
         Ok(())
     }
@@ -361,6 +449,9 @@ where
         Self::TYPE
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////
+// Family
 
 impl<S, M> EncodeMetric for Family<S, M>
 where
@@ -381,31 +472,65 @@ where
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+// Histogram
+
 impl EncodeMetric for Histogram {
-    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
         let (sum, count, buckets) = self.get();
-        encoder
-            .encode_suffix("sum")?
-            .no_bucket()?
-            .encode_value(sum)?;
-        encoder
-            .encode_suffix("count")?
-            .no_bucket()?
-            .encode_value(count)?;
-
-        for (upper_bound, count) in buckets.iter() {
-            encoder
-                .encode_suffix("bucket")?
-                .encode_bucket(*upper_bound)?
-                .encode_value(*count)?;
-        }
-
-        Ok(())
+        // TODO: Would be better to use never type instead of `()`.
+        encode_histogram_with_maybe_exemplars::<()>(sum, count, &buckets, None, encoder)
     }
 
     fn metric_type(&self) -> MetricType {
         Self::TYPE
     }
+}
+
+impl<S: Encode> EncodeMetric for HistogramWithExemplars<S> {
+    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
+        let inner = self.inner();
+        let (sum, count, buckets) = inner.histogram.get();
+        encode_histogram_with_maybe_exemplars(sum, count, &buckets, Some(&inner.exemplars), encoder)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Histogram::TYPE
+    }
+}
+
+fn encode_histogram_with_maybe_exemplars<S: Encode>(
+    sum: f64,
+    count: u64,
+    buckets: &[(f64, u64)],
+    exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
+    mut encoder: Encoder,
+) -> Result<(), std::io::Error> {
+    encoder
+        .encode_suffix("sum")?
+        .no_bucket()?
+        .encode_value(sum)?
+        .no_exemplar()?;
+    encoder
+        .encode_suffix("count")?
+        .no_bucket()?
+        .encode_value(count)?
+        .no_exemplar()?;
+
+    let mut cummulative = 0;
+    for (i, (upper_bound, count)) in buckets.iter().enumerate() {
+        cummulative += count;
+        let mut bucket_encoder = encoder.encode_suffix("bucket")?;
+        let mut value_encoder = bucket_encoder.encode_bucket(*upper_bound)?;
+        let mut exemplar_encoder = value_encoder.encode_value(cummulative)?;
+
+        match exemplars.map(|es| es.get(&i)).flatten() {
+            Some(exemplar) => exemplar_encoder.encode_exemplar(exemplar)?,
+            None => exemplar_encoder.no_exemplar()?,
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -442,6 +567,35 @@ mod tests {
             + "# TYPE my_counter_seconds counter\n"
             + "# UNIT my_counter_seconds seconds\n"
             + "my_counter_seconds_total 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_counter_with_exemplar() {
+        let mut registry = Registry::default();
+
+        let counter_with_exemplar: CounterWithExemplar<(String, u64)> =
+            CounterWithExemplar::default();
+        registry.register_with_unit(
+            "my_counter_with_exemplar",
+            "My counter with exemplar",
+            Unit::Seconds,
+            counter_with_exemplar.clone(),
+        );
+
+        counter_with_exemplar.inc_by(1, Some(("user_id".to_string(), 42)));
+
+        let mut encoded = Vec::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_counter_with_exemplar_seconds My counter with exemplar.\n"
+            .to_owned()
+            + "# TYPE my_counter_with_exemplar_seconds counter\n"
+            + "# UNIT my_counter_with_exemplar_seconds seconds\n"
+            + "my_counter_with_exemplar_seconds_total 1 # {user_id=\"42\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
 
@@ -488,6 +642,37 @@ mod tests {
         let mut encoded = Vec::new();
 
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_histogram_with_exemplars() {
+        let mut registry = Registry::default();
+        let histogram = HistogramWithExemplars::new(exponential_series(1.0, 2.0, 10));
+        registry.register("my_histogram", "My histogram", histogram.clone());
+        histogram.observe(1.0, Some(("user_id".to_string(), 42u64)));
+
+        let mut encoded = Vec::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_histogram My histogram.\n".to_owned()
+            + "# TYPE my_histogram histogram\n"
+            + "my_histogram_sum 1.0\n"
+            + "my_histogram_count 1\n"
+            + "my_histogram_bucket{le=\"1.0\"} 1 # {user_id=\"42\"} 1.0\n"
+            + "my_histogram_bucket{le=\"2.0\"} 1\n"
+            + "my_histogram_bucket{le=\"4.0\"} 1\n"
+            + "my_histogram_bucket{le=\"8.0\"} 1\n"
+            + "my_histogram_bucket{le=\"16.0\"} 1\n"
+            + "my_histogram_bucket{le=\"32.0\"} 1\n"
+            + "my_histogram_bucket{le=\"64.0\"} 1\n"
+            + "my_histogram_bucket{le=\"128.0\"} 1\n"
+            + "my_histogram_bucket{le=\"256.0\"} 1\n"
+            + "my_histogram_bucket{le=\"512.0\"} 1\n"
+            + "my_histogram_bucket{le=\"+Inf\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }

@@ -52,13 +52,31 @@ impl Histogram {
     }
 
     pub fn observe(&self, v: f64) {
+        self.observe_and_bucket(v);
+    }
+
+    /// Observes the given value, returning the index of the first bucket the
+    /// value is added to.
+    ///
+    /// Needed in
+    /// [`HistogramWithExemplars`](crate::metrics::exemplar::HistogramWithExemplars).
+    pub(crate) fn observe_and_bucket(&self, v: f64) -> Option<usize> {
         let mut inner = self.inner.lock().unwrap();
         inner.sum += v;
         inner.count += 1;
-        for (upper_bound, count) in inner.buckets.iter_mut() {
-            if *upper_bound >= v {
-                *count += 1;
+
+        let first_bucket = inner
+            .buckets
+            .iter_mut()
+            .enumerate()
+            .find(|(_i, (upper_bound, _value))| upper_bound >= &v);
+
+        match first_bucket {
+            Some((i, (_upper_bound, value))) => {
+                *value += 1;
+                Some(i)
             }
+            None => None,
         }
     }
 
@@ -71,7 +89,7 @@ impl Histogram {
     }
 }
 
-type MutexGuardedBuckets<'a> = OwningRef<MutexGuard<'a, Inner>, Vec<(f64, u64)>>;
+pub(crate) type MutexGuardedBuckets<'a> = OwningRef<MutexGuard<'a, Inner>, Vec<(f64, u64)>>;
 
 impl TypedMetric for Histogram {
     const TYPE: MetricType = MetricType::Histogram;

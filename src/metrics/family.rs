@@ -167,7 +167,7 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
     /// ```
     pub fn get_or_create(&self, label_set: &S) -> OwningRef<RwLockReadGuard<HashMap<S, M>>, M> {
-        let read_guard = self.metrics.read().unwrap();
+        let read_guard = self.metrics.read().expect("Lock not to be poisoned.");
         if let Ok(metric) =
             OwningRef::new(read_guard).try_map(|metrics| metrics.get(label_set).ok_or(()))
         {
