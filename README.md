@@ -49,8 +49,6 @@ be fixed in the future. Contributions in all forms are most welcome.
 - Protobuf wire format. (Follow [spec
   issue](https://github.com/OpenObservability/OpenMetrics/issues/183).)
 
-- Exemplars
-
 - Gauge histogram metric.
 
 - Allow "A MetricPoint in a Metric with the type [Counter, Histogram] SHOULD have a Timestamp
