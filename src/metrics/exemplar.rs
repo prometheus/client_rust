@@ -60,12 +60,7 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
 
     /// Get the current value of the [`CounterWithExemplar`] as well as its
     /// [`Exemplar`] if any.
-    pub fn get(
-        &self,
-    ) -> (
-        N,
-        OwningRef<RwLockReadGuard<CounterWithExemplarInner<S, N, A>>, Option<Exemplar<S, N>>>,
-    ) {
+    pub fn get(&self) -> (N, RwLockGuardedCounterWithExemplar<S, N, A>) {
         let inner = self.inner.read().expect("Lock not to be poisoned.");
         let value = inner.counter.get();
         let exemplar = OwningRef::new(inner).map(|inner| &inner.exemplar);
@@ -85,6 +80,9 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
             .map(|inner| inner.counter.inner())
     }
 }
+
+type RwLockGuardedCounterWithExemplar<'a, S, N, A> =
+    OwningRef<RwLockReadGuard<'a, CounterWithExemplarInner<S, N, A>>, Option<Exemplar<S, N>>>;
 
 /////////////////////////////////////////////////////////////////////////////////
 // Histogram
