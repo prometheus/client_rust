@@ -32,8 +32,8 @@ jobs:
 
       - uses: actions-rs/cargo@v1
         with:
-          command: bench
-          args: --no-run
+          command: test
+          args: --benches
 
   test:
     name: Test Suite
