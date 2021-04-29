@@ -538,7 +538,7 @@ mod tests {
     use super::*;
     use crate::metrics::counter::Counter;
     use crate::metrics::gauge::Gauge;
-    use crate::metrics::histogram::exponential_series;
+    use crate::metrics::histogram::exponential_buckets;
     use pyo3::{prelude::*, types::PyModule};
 
     #[test]
@@ -635,7 +635,7 @@ mod tests {
     #[test]
     fn encode_histogram() {
         let mut registry = Registry::default();
-        let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
+        let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0);
 
@@ -649,7 +649,7 @@ mod tests {
     #[test]
     fn encode_histogram_with_exemplars() {
         let mut registry = Registry::default();
-        let histogram = HistogramWithExemplars::new(exponential_series(1.0, 2.0, 10));
+        let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0, Some(("user_id".to_string(), 42u64)));
 

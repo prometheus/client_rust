@@ -4,7 +4,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use open_metrics_client::encoding::text::{encode, Encode, EncodeMetric};
 use open_metrics_client::metrics::counter::Counter;
 use open_metrics_client::metrics::family::Family;
-use open_metrics_client::metrics::histogram::{exponential_series, Histogram};
+use open_metrics_client::metrics::histogram::{exponential_buckets, Histogram};
 use open_metrics_client::registry::Registry;
 use std::io::Write;
 use std::sync::atomic::AtomicU64;
@@ -51,7 +51,7 @@ pub fn text(c: &mut Criterion) {
         for i in 0..100 {
             let counter_family = Family::<Labels, Counter>::default();
             let histogram_family = Family::<Labels, Histogram>::new_with_constructor(|| {
-                Histogram::new(exponential_series(1.0, 2.0, 10))
+                Histogram::new(exponential_buckets(1.0, 2.0, 10))
             });
 
             registry.register(
