@@ -4,14 +4,14 @@
 
 use super::{MetricType, TypedMetric};
 use owning_ref::OwningRef;
-use std::iter::once;
+use std::iter::{self, once};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 /// Open Metrics [`Histogram`] to measure distributions of discrete events.
 ///
 /// ```
-/// # use open_metrics_client::metrics::histogram::{Histogram, exponential_series};
-/// let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
+/// # use open_metrics_client::metrics::histogram::{Histogram, exponential_buckets};
+/// let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
 /// histogram.observe(4.2);
 /// ```
 // TODO: Consider using atomics. See
@@ -95,14 +95,18 @@ impl TypedMetric for Histogram {
     const TYPE: MetricType = MetricType::Histogram;
 }
 
-// TODO: consider renaming to exponential_buckets
-pub fn exponential_series(start: f64, factor: f64, length: u16) -> impl Iterator<Item = f64> {
-    let mut current = start;
-    (0..length).map(move |_| {
-        let to_return = current;
-        current *= factor;
-        to_return
-    })
+pub fn exponential_buckets(start: f64, factor: f64, length: u16) -> impl Iterator<Item = f64> {
+    iter::repeat(())
+        .enumerate()
+        .map(move |(i, _)| start * factor.powf(i as f64))
+        .take(length.into())
+}
+
+pub fn linear_buckets(start: f64, width: f64, length: u16) -> impl Iterator<Item = f64> {
+    iter::repeat(())
+        .enumerate()
+        .map(move |(i, _)| start + (width * (i as f64)))
+        .take(length.into())
 }
 
 #[cfg(test)]
@@ -111,7 +115,23 @@ mod tests {
 
     #[test]
     fn histogram() {
-        let histogram = Histogram::new(exponential_series(1.0, 2.0, 10));
+        let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
         histogram.observe(1.0);
+    }
+
+    #[test]
+    fn exponential() {
+        assert_eq!(
+            vec![1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0],
+            exponential_buckets(1.0, 2.0, 10).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn linear() {
+        assert_eq!(
+            vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+            linear_buckets(0.0, 1.0, 10).collect::<Vec<_>>()
+        );
     }
 }

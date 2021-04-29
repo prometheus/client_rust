@@ -105,8 +105,8 @@ type RwLockGuardedCounterWithExemplar<'a, S, N, A> =
 ///
 /// ```
 /// # use open_metrics_client::metrics::exemplar::HistogramWithExemplars;
-/// # use open_metrics_client::metrics::histogram::exponential_series;
-/// let histogram = HistogramWithExemplars::new(exponential_series(1.0, 2.0, 10));
+/// # use open_metrics_client::metrics::histogram::exponential_buckets;
+/// let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
 /// histogram.observe(4.2, Some(vec![("user_id".to_string(), "42".to_string())]));
 /// ```
 pub struct HistogramWithExemplars<S> {
