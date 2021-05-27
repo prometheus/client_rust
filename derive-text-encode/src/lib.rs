@@ -17,6 +17,12 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                 .enumerate()
                 .map(|(i, f)| {
                     let ident = f.ident.unwrap();
+                    let ident_string = KEYWORD_IDENTIFIERS
+                        .iter()
+                        .find(|pair| ident == pair.1)
+                        .map(|pair| pair.0.to_string())
+                        .unwrap_or_else(|| ident.to_string());
+
                     let maybe_comma = if i == 0 {
                         TokenStream2::default()
                     } else {
@@ -24,7 +30,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                     };
                     quote! {
                         #maybe_comma
-                        writer.write_all(concat!(stringify!(#ident), "=\"").as_bytes())?;
+                        writer.write_all(concat!(#ident_string, "=\"").as_bytes())?;
                         open_metrics_client::encoding::text::Encode::encode(&self.#ident, writer)?;
                         writer.write_all(b"\"")?;
                     }
@@ -66,3 +72,56 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
     };
     gen.into()
 }
+
+// Copied from https://github.com/djc/askama (MIT and APACHE licensed) and
+// modified.
+static KEYWORD_IDENTIFIERS: [(&str, &str); 48] = [
+    ("as", "r#as"),
+    ("break", "r#break"),
+    ("const", "r#const"),
+    ("continue", "r#continue"),
+    ("crate", "r#crate"),
+    ("else", "r#else"),
+    ("enum", "r#enum"),
+    ("extern", "r#extern"),
+    ("false", "r#false"),
+    ("fn", "r#fn"),
+    ("for", "r#for"),
+    ("if", "r#if"),
+    ("impl", "r#impl"),
+    ("in", "r#in"),
+    ("let", "r#let"),
+    ("loop", "r#loop"),
+    ("match", "r#match"),
+    ("mod", "r#mod"),
+    ("move", "r#move"),
+    ("mut", "r#mut"),
+    ("pub", "r#pub"),
+    ("ref", "r#ref"),
+    ("return", "r#return"),
+    ("static", "r#static"),
+    ("struct", "r#struct"),
+    ("trait", "r#trait"),
+    ("true", "r#true"),
+    ("type", "r#type"),
+    ("unsafe", "r#unsafe"),
+    ("use", "r#use"),
+    ("where", "r#where"),
+    ("while", "r#while"),
+    ("async", "r#async"),
+    ("await", "r#await"),
+    ("dyn", "r#dyn"),
+    ("abstract", "r#abstract"),
+    ("become", "r#become"),
+    ("box", "r#box"),
+    ("do", "r#do"),
+    ("final", "r#final"),
+    ("macro", "r#macro"),
+    ("override", "r#override"),
+    ("priv", "r#priv"),
+    ("typeof", "r#typeof"),
+    ("unsized", "r#unsized"),
+    ("virtual", "r#virtual"),
+    ("yield", "r#yield"),
+    ("try", "r#try"),
+];
