@@ -1,6 +1,6 @@
 [package]
 name = "open-metrics-client-derive-text-encode"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
 description = "Auxiliary crate to derive text Encode trait from open-metrics-client."
