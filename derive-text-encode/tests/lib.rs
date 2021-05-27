@@ -40,3 +40,28 @@ fn basic_flow() {
         + "# EOF\n";
     assert_eq!(expected, String::from_utf8(buffer).unwrap());
 }
+
+#[test]
+fn remap_keyword_identifiers() {
+    #[derive(Encode, Hash, Clone, Eq, PartialEq)]
+    struct Labels {
+        // `r#type` is problematic as `r#` is not a valid OpenMetrics label name
+        // but one needs to use keyword identifier syntax (aka. raw identifiers)
+        // as `type` is a keyword.
+        //
+        // Test makes sure `r#type` is replaced by `type` in the OpenMetrics
+        // output.
+        r#type: u64,
+    };
+
+    let labels = Labels { r#type: 42 };
+
+    let mut buffer = vec![];
+
+    labels.encode(&mut buffer);
+
+    assert_eq!(
+        "type=\"42\"".to_string(),
+        String::from_utf8(buffer).unwrap()
+    );
+}
