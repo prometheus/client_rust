@@ -107,6 +107,13 @@ impl Encode for u64 {
     }
 }
 
+impl Encode for u32 {
+    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        itoa::write(&mut writer, *self)?;
+        Ok(())
+    }
+}
+
 impl Encode for &str {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         // TODO: Can we do better?
