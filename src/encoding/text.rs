@@ -29,6 +29,7 @@ use crate::metrics::exemplar::{CounterWithExemplar, Exemplar, HistogramWithExemp
 use crate::metrics::family::Family;
 use crate::metrics::gauge::{self, Gauge};
 use crate::metrics::histogram::Histogram;
+use crate::metrics::info::Info;
 use crate::metrics::{MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
 
@@ -167,6 +168,7 @@ impl Encode for MetricType {
             MetricType::Counter => "counter",
             MetricType::Gauge => "gauge",
             MetricType::Histogram => "histogram",
+            MetricType::Info => "info",
             MetricType::Unknown => "unknown",
         };
 
@@ -540,6 +542,28 @@ fn encode_histogram_with_maybe_exemplars<S: Encode>(
     Ok(())
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+// Info
+
+impl<S> EncodeMetric for Info<S>
+where
+    S: Clone + std::hash::Hash + Eq + Encode,
+{
+    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
+        encoder
+            .encode_suffix("info")?
+            .no_bucket()?
+            .encode_value(1u32)?
+            .no_exemplar()?;
+
+        Ok(())
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -635,6 +659,24 @@ mod tests {
         let mut encoded = Vec::new();
 
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_info() {
+        let mut registry = Registry::default();
+        let info = Info::new(vec![("os".to_string(), "GNU/linux".to_string())]);
+        registry.register("my_info_metric", "My info metric", info);
+
+        let mut encoded = Vec::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_info_metric My info metric.\n".to_owned()
+            + "# TYPE my_info_metric info\n"
+            + "my_info_metric_info 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }

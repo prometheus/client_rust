@@ -28,8 +28,6 @@ behind the Open Metrics specification. Not being compliant with all requirements
 (`MUST` and `MUST NOT`) of the specification is considered a bug and likely to
 be fixed in the future. Contributions in all forms are most welcome.
 
-- Info metric.
-
 - State set metric.
 
 - Enforce "A Histogram MetricPoint MUST contain at least one bucket".
