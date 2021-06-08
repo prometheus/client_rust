@@ -551,6 +551,7 @@ where
 {
     fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         encoder
+            .with_label_set(&self.0)
             .encode_suffix("info")?
             .no_bucket()?
             .encode_value(1u32)?
@@ -674,7 +675,7 @@ mod tests {
 
         let expected = "# HELP my_info_metric My info metric.\n".to_owned()
             + "# TYPE my_info_metric info\n"
-            + "my_info_metric_info 1\n"
+            + "my_info_metric_info{os=\"GNU/linux\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
 
