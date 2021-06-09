@@ -244,7 +244,7 @@ impl<'a, 'b> Encoder<'a, 'b> {
 
     // TODO: Consider caching the encoded labels for Histograms as they stay the
     // same but are currently encoded multiple times.
-    pub(self) fn encode_labels(&mut self) -> Result<BucketEncoder, std::io::Error> {
+    fn encode_labels(&mut self) -> Result<BucketEncoder, std::io::Error> {
         if let Some(labels) = &self.labels {
             self.writer.write_all(b"{")?;
             labels.encode(self.writer)?;
@@ -282,7 +282,7 @@ pub struct BucketEncoder<'a> {
 impl<'a> BucketEncoder<'a> {
     fn encode_bucket(&mut self, upper_bound: f64) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
-            self.writer.write_all(b", ")?;
+            self.writer.write_all(b",")?;
         } else {
             self.writer.write_all(b"{")?;
         }
@@ -654,7 +654,10 @@ mod tests {
         registry.register("my_counter_family", "My counter family", family.clone());
 
         family
-            .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+            .get_or_create(&vec![
+                ("method".to_string(), "GET".to_string()),
+                ("status".to_string(), "200".to_string()),
+            ])
             .inc();
 
         let mut encoded = Vec::new();
@@ -688,6 +691,26 @@ mod tests {
         let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0);
+
+        let mut encoded = Vec::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_histogram_family() {
+        let mut registry = Registry::default();
+        let family =
+            Family::new_with_constructor(|| Histogram::new(exponential_buckets(1.0, 2.0, 10)));
+        registry.register("my_histogram", "My histogram", family.clone());
+        family
+            .get_or_create(&vec![
+                ("method".to_string(), "GET".to_string()),
+                ("status".to_string(), "200".to_string()),
+            ])
+            .observe(1.0);
 
         let mut encoded = Vec::new();
 
