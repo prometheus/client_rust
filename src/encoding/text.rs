@@ -751,6 +751,8 @@ mod tests {
     }
 
     fn parse_with_python_client(input: String) {
+        pyo3::prepare_freethreaded_python();
+
         println!("{:?}", input);
         Python::with_gil(|py| {
             let parser = PyModule::from_code(
@@ -767,8 +769,11 @@ def parse(input):
             )
             .map_err(|e| e.to_string())
             .unwrap();
+
             parser
-                .call1("parse", (input,))
+                .getattr("parse")
+                .expect("`parse` to exist.")
+                .call1((input,))
                 .map_err(|e| e.to_string())
                 .unwrap();
         })
