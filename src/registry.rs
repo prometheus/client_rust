@@ -2,6 +2,7 @@
 //!
 //! See [`Registry`] for details.
 
+use std::borrow::Cow;
 use std::ops::Add;
 
 /// A metric registry.
@@ -59,6 +60,7 @@ use std::ops::Add;
 /// ```
 pub struct Registry<M = Box<dyn crate::encoding::text::SendEncodeMetric>> {
     prefix: Option<Prefix>,
+    labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
     metrics: Vec<(Descriptor, M)>,
     sub_registries: Vec<Registry<M>>,
 }
@@ -67,6 +69,7 @@ impl<M> Default for Registry<M> {
     fn default() -> Self {
         Self {
             prefix: None,
+            labels: Default::default(),
             metrics: Default::default(),
             sub_registries: vec![],
         }
@@ -150,11 +153,13 @@ impl<M> Registry<M> {
                 .unwrap_or(name),
             help,
             unit,
+            labels: self.labels.clone(),
         };
 
         self.metrics.push((descriptor, metric));
     }
 
+    // TODO: Update doc.
     /// Create a sub-registry to register metrics with a common prefix.
     ///
     /// Say you would like to prefix one set of metrics with `subsystem_a` and
@@ -175,28 +180,53 @@ impl<M> Registry<M> {
     /// let subsystem_a_counter_1 = Counter::default();
     /// let subsystem_a_counter_2 = Counter::default();
     ///
-    /// let subsystem_a_registry = registry.sub_registry("subsystem_a");
+    /// let subsystem_a_registry = registry.sub_registry_with_prefix("subsystem_a");
     /// registry.register("counter_1", "", subsystem_a_counter_1.clone());
     /// registry.register("counter_2", "", subsystem_a_counter_2.clone());
     ///
     /// let subsystem_b_counter_1 = Counter::default();
     /// let subsystem_b_counter_2 = Counter::default();
     ///
-    /// let subsystem_a_registry = registry.sub_registry("subsystem_b");
+    /// let subsystem_a_registry = registry.sub_registry_with_prefix("subsystem_b");
     /// registry.register("counter_1", "", subsystem_b_counter_1.clone());
     /// registry.register("counter_2", "", subsystem_b_counter_2.clone());
     /// ```
-    pub fn sub_registry<P: AsRef<str>>(&mut self, prefix: P) -> &mut Self {
-        let prefix = self
-            .prefix
-            .clone()
-            .map(|p| p + "_")
-            .unwrap_or_else(|| String::new().into())
-            + prefix.as_ref();
+    ///
+    /// See [`Registry::sub_registry_with_label`] for the same functionality,
+    /// but namespacing with a label instead of a metric name prefix.
+    pub fn sub_registry_with_prefix<P: AsRef<str>>(&mut self, prefix: P) -> &mut Self {
         let sub_registry = Registry {
-            prefix: Some(prefix),
+            prefix: Some(
+                self.prefix
+                    .clone()
+                    .map(|p| p + "_")
+                    .unwrap_or_else(|| String::new().into())
+                    + prefix.as_ref(),
+            ),
+            labels: self.labels.clone(),
             ..Default::default()
         };
+
+        self.priv_sub_registry(sub_registry)
+    }
+
+    /// Like [`Registry::sub_registry_with_prefix`] but with a label instead.
+    pub fn sub_registry_with_label(
+        &mut self,
+        label: (Cow<'static, str>, Cow<'static, str>),
+    ) -> &mut Self {
+        let mut labels = self.labels.clone();
+        labels.push(label);
+        let sub_registry = Registry {
+            prefix: self.prefix.clone(),
+            labels,
+            ..Default::default()
+        };
+
+        self.priv_sub_registry(sub_registry)
+    }
+
+    fn priv_sub_registry(&mut self, sub_registry: Self) -> &mut Self {
         self.sub_registries.push(sub_registry);
 
         self.sub_registries
@@ -280,6 +310,7 @@ pub struct Descriptor {
     name: String,
     help: String,
     unit: Option<Unit>,
+    labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
 }
 
 impl Descriptor {
@@ -293,6 +324,10 @@ impl Descriptor {
 
     pub fn unit(&self) -> &Option<Unit> {
         &self.unit
+    }
+
+    pub fn labels(&self) -> &[(Cow<'static, str>, Cow<'static, str>)] {
+        &self.labels
     }
 }
 
@@ -327,42 +362,74 @@ mod tests {
     }
 
     #[test]
-    fn sub_registry() {
+    fn sub_registry_with_prefix_and_label() {
         let top_level_metric_name = "my_top_level_metric";
         let mut registry = Registry::<Counter>::default();
         registry.register(top_level_metric_name, "some help", Default::default());
 
         let prefix_1 = "prefix_1";
         let prefix_1_metric_name = "my_prefix_1_metric";
-        let sub_registry = registry.sub_registry(prefix_1);
+        let sub_registry = registry.sub_registry_with_prefix(prefix_1);
         sub_registry.register(prefix_1_metric_name, "some help", Default::default());
 
         let prefix_1_1 = "prefix_1_1";
         let prefix_1_1_metric_name = "my_prefix_1_1_metric";
-        let sub_sub_registry = sub_registry.sub_registry(prefix_1_1);
+        let sub_sub_registry = sub_registry.sub_registry_with_prefix(prefix_1_1);
         sub_sub_registry.register(prefix_1_1_metric_name, "some help", Default::default());
 
+        let label_1_2 = (Cow::Borrowed("registry"), Cow::Borrowed("1_2"));
+        let prefix_1_2_metric_name = "my_prefix_1_2_metric";
+        let sub_sub_registry = sub_registry.sub_registry_with_label(label_1_2.clone());
+        sub_sub_registry.register(prefix_1_2_metric_name, "some help", Default::default());
+
+        let prefix_1_2_1 = "prefix_1_2_1";
+        let prefix_1_2_1_metric_name = "my_prefix_1_2_1_metric";
+        let sub_sub_sub_registry = sub_sub_registry.sub_registry_with_prefix(prefix_1_2_1);
+        sub_sub_sub_registry.register(prefix_1_2_1_metric_name, "some help", Default::default());
+
         let prefix_2 = "prefix_2";
-        let _ = registry.sub_registry(prefix_2);
+        let _ = registry.sub_registry_with_prefix(prefix_2);
 
         let prefix_3 = "prefix_3";
         let prefix_3_metric_name = "my_prefix_3_metric";
-        let sub_registry = registry.sub_registry(prefix_3);
+        let sub_registry = registry.sub_registry_with_prefix(prefix_3);
         sub_registry.register(prefix_3_metric_name, "some help", Default::default());
 
-        let mut metric_iter = registry.iter().map(|(desc, _)| desc.name.clone());
-        assert_eq!(Some(top_level_metric_name.to_string()), metric_iter.next());
+        let mut metric_iter = registry
+            .iter()
+            .map(|(desc, _)| (desc.name.clone(), desc.labels.clone()));
         assert_eq!(
-            Some(prefix_1.to_string() + "_" + prefix_1_metric_name),
+            Some((top_level_metric_name.to_string(), vec![])),
             metric_iter.next()
         );
         assert_eq!(
-            Some(prefix_1.to_string() + "_" + prefix_1_1 + "_" + prefix_1_1_metric_name),
+            Some((prefix_1.to_string() + "_" + prefix_1_metric_name, vec![])),
+            metric_iter.next()
+        );
+        assert_eq!(
+            Some((
+                prefix_1.to_string() + "_" + prefix_1_1 + "_" + prefix_1_1_metric_name,
+                vec![]
+            )),
+            metric_iter.next()
+        );
+        assert_eq!(
+            Some((
+                prefix_1.to_string() + "_" + prefix_1_2_metric_name,
+                vec![label_1_2.clone()]
+            )),
+            metric_iter.next()
+        );
+        assert_eq!(
+            Some((
+                prefix_1.to_string() + "_" + prefix_1_2_1 + "_" + prefix_1_2_1_metric_name,
+                vec![label_1_2]
+            )),
             metric_iter.next()
         );
         // No metric was registered with prefix 2.
         assert_eq!(
-            Some(prefix_3.to_string() + "_" + prefix_3_metric_name),
+            Some((prefix_3.to_string() + "_" + prefix_3_metric_name, vec![])),
             metric_iter.next()
         );
     }

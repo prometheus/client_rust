@@ -33,6 +33,7 @@ use crate::metrics::info::Info;
 use crate::metrics::{MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
@@ -77,8 +78,9 @@ where
 
         let encoder = Encoder {
             writer,
-            name: &desc.name(),
+            name: desc.name(),
             unit: desc.unit(),
+            const_labels: desc.labels(),
             labels: None,
         };
 
@@ -115,15 +117,7 @@ impl Encode for u32 {
     }
 }
 
-impl Encode for &str {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        // TODO: Can we do better?
-        writer.write_all(self.as_bytes())?;
-        Ok(())
-    }
-}
-
-impl<T: Encode> Encode for Vec<T> {
+impl<T: Encode> Encode for &[T] {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         if self.is_empty() {
             return Ok(());
@@ -142,6 +136,12 @@ impl<T: Encode> Encode for Vec<T> {
     }
 }
 
+impl<T: Encode> Encode for Vec<T> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        self.as_slice().encode(writer)
+    }
+}
+
 impl<K: Encode, V: Encode> Encode for (K, V) {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         let (key, value) = self;
@@ -156,9 +156,23 @@ impl<K: Encode, V: Encode> Encode for (K, V) {
     }
 }
 
+impl Encode for &str {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        // TODO: Can we do better?
+        writer.write_all(self.as_bytes())?;
+        Ok(())
+    }
+}
+
 impl Encode for String {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        writer.write_all(self.as_bytes()).map(|_| ())
+        self.as_str().encode(writer)
+    }
+}
+
+impl<'a> Encode for Cow<'a, str> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        self.as_ref().encode(writer)
     }
 }
 
@@ -213,6 +227,7 @@ pub struct Encoder<'a, 'b> {
     writer: &'a mut dyn Write,
     name: &'a str,
     unit: &'a Option<Unit>,
+    const_labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
     labels: Option<&'b dyn Encode>,
 }
 
@@ -245,20 +260,29 @@ impl<'a, 'b> Encoder<'a, 'b> {
     // TODO: Consider caching the encoded labels for Histograms as they stay the
     // same but are currently encoded multiple times.
     fn encode_labels(&mut self) -> Result<BucketEncoder, std::io::Error> {
-        if let Some(labels) = &self.labels {
-            self.writer.write_all(b"{")?;
-            labels.encode(self.writer)?;
+        let mut opened_curly_brackets = false;
 
-            Ok(BucketEncoder {
-                opened_curly_brackets: true,
-                writer: self.writer,
-            })
-        } else {
-            Ok(BucketEncoder {
-                opened_curly_brackets: false,
-                writer: self.writer,
-            })
+        if !self.const_labels.is_empty() {
+            self.writer.write_all(b"{")?;
+            opened_curly_brackets = true;
+
+            self.const_labels.encode(self.writer)?;
         }
+
+        if let Some(labels) = &self.labels {
+            if opened_curly_brackets {
+                self.writer.write_all(b",")?;
+            } else {
+                opened_curly_brackets = true;
+                self.writer.write_all(b"{")?;
+            }
+            labels.encode(self.writer)?;
+        }
+
+        Ok(BucketEncoder {
+            opened_curly_brackets,
+            writer: self.writer,
+        })
     }
 
     pub fn with_label_set<'c, 'd>(&'c mut self, label_set: &'d dyn Encode) -> Encoder<'c, 'd> {
@@ -268,6 +292,7 @@ impl<'a, 'b> Encoder<'a, 'b> {
             writer: self.writer,
             name: self.name,
             unit: self.unit,
+            const_labels: self.const_labels,
             labels: Some(label_set),
         }
     }
@@ -572,6 +597,7 @@ mod tests {
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::exponential_buckets;
     use pyo3::{prelude::*, types::PyModule};
+    use std::borrow::Cow;
 
     #[test]
     fn encode_counter() {
@@ -663,6 +689,36 @@ mod tests {
         let mut encoded = Vec::new();
 
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_counter_family_with_prefix_with_label() {
+        let mut registry = Registry::default();
+        let sub_registry = registry.sub_registry_with_prefix("my_prefix");
+        let sub_sub_registry = sub_registry
+            .sub_registry_with_label((Cow::Borrowed("my_key"), Cow::Borrowed("my_value")));
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+        sub_sub_registry.register("my_counter_family", "My counter family", family.clone());
+
+        family
+            .get_or_create(&vec![
+                ("method".to_string(), "GET".to_string()),
+                ("status".to_string(), "200".to_string()),
+            ])
+            .inc();
+
+        let mut encoded = Vec::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_prefix_my_counter_family My counter family.\n"
+            .to_owned()
+            + "# TYPE my_prefix_my_counter_family counter\n"
+            + "my_prefix_my_counter_family_total{my_key=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
