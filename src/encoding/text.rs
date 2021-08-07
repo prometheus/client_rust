@@ -170,7 +170,7 @@ impl Encode for String {
     }
 }
 
-impl<'a> Encode for Cow<'a, str>{
+impl<'a> Encode for Cow<'a, str> {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         self.as_ref().encode(writer)
     }
