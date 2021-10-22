@@ -97,7 +97,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 // TODO: Consider exposing hash algorithm.
-pub struct Family<S, M, C: Fn() -> M = fn() -> M> {
+pub struct Family<S, M, C: MetricConstructor<M> = fn() -> M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
     /// Function that when called constructs a new metric.
     ///
@@ -110,6 +110,16 @@ pub struct Family<S, M, C: Fn() -> M = fn() -> M> {
     constructor: C,
 }
 
+pub trait MetricConstructor<M> {
+    fn new(&self) -> M;
+}
+
+impl<M, F: Fn() -> M> MetricConstructor<M> for F {
+    fn new(&self) -> M {
+        self()
+    }
+}
+
 impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
     fn default() -> Self {
         Self {
@@ -119,7 +129,7 @@ impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M, C: Fn() -> M> Family<S, M, C> {
+impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C> {
     /// Create a metric family using a custom constructor to construct new
     /// metrics.
     ///
@@ -139,19 +149,6 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: Fn() -> M> Family<S, M, C> {
     /// Family::<Vec<(String, String)>, Histogram>::new_with_constructor(|| {
     ///     Histogram::new(exponential_buckets(1.0, 2.0, 10))
     /// });
-    ///
-    /// ```
-    /// // Set the generic constructor parameter to _ if the given constructor
-    /// captures variables.
-    ///
-    /// ```
-    /// # use open_metrics_client::metrics::family::Family;
-    /// # use open_metrics_client::metrics::histogram::{exponential_buckets, Histogram};
-    /// let start_parameter = 1.0;
-    /// let length_parameter = 10;
-    /// Family::<Vec<(String, String)>, Histogram, _>::new_with_constructor(|| {
-    ///     Histogram::new(exponential_buckets(start_parameter, 2.0, length_parameter))
-    /// });
     /// ```
     pub fn new_with_constructor(constructor: C) -> Self {
         Self {
@@ -161,7 +158,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: Fn() -> M> Family<S, M, C> {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M, C: Fn() -> M> Family<S, M, C> {
+impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C> {
     /// Access a metric with the given label set, creating it if one does not
     /// yet exist.
     ///
@@ -188,7 +185,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: Fn() -> M> Family<S, M, C> {
         }
 
         let mut write_guard = self.metrics.write().unwrap();
-        write_guard.insert(label_set.clone(), (self.constructor)());
+        write_guard.insert(label_set.clone(), self.constructor.new());
 
         drop(write_guard);
 
@@ -205,7 +202,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: Fn() -> M> Family<S, M, C> {
     }
 }
 
-impl<S, M, C: Fn() -> M + Clone> Clone for Family<S, M, C> {
+impl<S, M, C: MetricConstructor<M> + Clone> Clone for Family<S, M, C> {
     fn clone(&self) -> Self {
         Family {
             metrics: self.metrics.clone(),
@@ -214,7 +211,7 @@ impl<S, M, C: Fn() -> M + Clone> Clone for Family<S, M, C> {
     }
 }
 
-impl<S, M: TypedMetric, C: Fn() -> M> TypedMetric for Family<S, M, C> {
+impl<S, M: TypedMetric, C: MetricConstructor<M>> TypedMetric for Family<S, M, C> {
     const TYPE: MetricType = <M as TypedMetric>::TYPE;
 }
 
@@ -242,9 +239,23 @@ mod tests {
 
     #[test]
     fn histogram_family() {
-        let captured_var = vec![3.4, 5.5];
-        Family::<(), Histogram, _>::new_with_constructor(|| {
-            Histogram::new(exponential_buckets(captured_var[0], captured_var[1], 10))
+        Family::<(), Histogram>::new_with_constructor(|| {
+            Histogram::new(exponential_buckets(1.0, 2.0, 10))
         });
+    }
+
+    #[test]
+    fn histogram_family_with_struct_constructor() {
+        struct CustomBuilder {
+            custom_start: f64,
+        }
+        impl MetricConstructor<Histogram> for CustomBuilder {
+            fn new(&self) -> Histogram {
+                Histogram::new(exponential_buckets(self.custom_start, 2.0, 10))
+            }
+        }
+
+        let custom_builder = CustomBuilder { custom_start: 1.0 };
+        Family::<(), Histogram, CustomBuilder>::new_with_constructor(custom_builder);
     }
 }

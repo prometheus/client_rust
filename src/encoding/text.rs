@@ -26,7 +26,7 @@
 
 use crate::metrics::counter::{self, Counter};
 use crate::metrics::exemplar::{CounterWithExemplar, Exemplar, HistogramWithExemplars};
-use crate::metrics::family::Family;
+use crate::metrics::family::{Family, MetricConstructor};
 use crate::metrics::gauge::{self, Gauge};
 use crate::metrics::histogram::Histogram;
 use crate::metrics::info::Info;
@@ -491,7 +491,7 @@ impl<S, M, C> EncodeMetric for Family<S, M, C>
 where
     S: Clone + std::hash::Hash + Eq + Encode,
     M: EncodeMetric + TypedMetric,
-    C: Fn() -> M,
+    C: MetricConstructor<M>,
 {
     fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
         let guard = self.read();
