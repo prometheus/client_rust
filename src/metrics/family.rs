@@ -97,7 +97,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 // TODO: Consider exposing hash algorithm.
-pub struct Family<S, M> {
+pub struct Family<S, M, C: MetricConstructor<M> = fn() -> M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
     /// Function that when called constructs a new metric.
     ///
@@ -107,7 +107,17 @@ pub struct Family<S, M> {
     /// [`Histogram`](crate::metrics::histogram::Histogram) in order to set
     /// specific buckets, a custom constructor is set via
     /// [`Family::new_with_constructor`].
-    constructor: fn() -> M,
+    constructor: C,
+}
+
+pub trait MetricConstructor<M> {
+    fn new(&self) -> M;
+}
+
+impl<M, F: Fn() -> M> MetricConstructor<M> for F {
+    fn new(&self) -> M {
+        self()
+    }
 }
 
 impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
@@ -119,7 +129,7 @@ impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
+impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C> {
     /// Create a metric family using a custom constructor to construct new
     /// metrics.
     ///
@@ -140,7 +150,7 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     ///     Histogram::new(exponential_buckets(1.0, 2.0, 10))
     /// });
     /// ```
-    pub fn new_with_constructor(constructor: fn() -> M) -> Self {
+    pub fn new_with_constructor(constructor: C) -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Default::default())),
             constructor,
@@ -148,7 +158,7 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
+impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C> {
     /// Access a metric with the given label set, creating it if one does not
     /// yet exist.
     ///
@@ -175,7 +185,7 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
         }
 
         let mut write_guard = self.metrics.write().unwrap();
-        write_guard.insert(label_set.clone(), (self.constructor)());
+        write_guard.insert(label_set.clone(), self.constructor.new());
 
         drop(write_guard);
 
@@ -192,16 +202,16 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     }
 }
 
-impl<S, M> Clone for Family<S, M> {
+impl<S, M, C: MetricConstructor<M> + Clone> Clone for Family<S, M, C> {
     fn clone(&self) -> Self {
         Family {
             metrics: self.metrics.clone(),
-            constructor: self.constructor,
+            constructor: self.constructor.clone(),
         }
     }
 }
 
-impl<S, M: TypedMetric> TypedMetric for Family<S, M> {
+impl<S, M: TypedMetric, C: MetricConstructor<M>> TypedMetric for Family<S, M, C> {
     const TYPE: MetricType = <M as TypedMetric>::TYPE;
 }
 
@@ -232,5 +242,20 @@ mod tests {
         Family::<(), Histogram>::new_with_constructor(|| {
             Histogram::new(exponential_buckets(1.0, 2.0, 10))
         });
+    }
+
+    #[test]
+    fn histogram_family_with_struct_constructor() {
+        struct CustomBuilder {
+            custom_start: f64,
+        }
+        impl MetricConstructor<Histogram> for CustomBuilder {
+            fn new(&self) -> Histogram {
+                Histogram::new(exponential_buckets(self.custom_start, 2.0, 10))
+            }
+        }
+
+        let custom_builder = CustomBuilder { custom_start: 1.0 };
+        Family::<(), Histogram, CustomBuilder>::new_with_constructor(custom_builder);
     }
 }
