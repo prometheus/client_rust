@@ -125,7 +125,7 @@ pub struct Family<S, M, C = fn() -> M> {
 /// }
 ///
 /// impl MetricConstructor<Histogram> for CustomBuilder {
-///     fn new(&self) -> Histogram {
+///     fn new_metric(&self) -> Histogram {
 ///         // When a new histogram is created, this function will be called.
 ///         Histogram::new(self.buckets.iter().cloned())
 ///     }
@@ -135,7 +135,7 @@ pub struct Family<S, M, C = fn() -> M> {
 /// let metric = Family::<(), Histogram, CustomBuilder>::new_with_constructor(custom_builder);
 /// ```
 pub trait MetricConstructor<M> {
-    fn new(&self) -> M;
+    fn new_metric(&self) -> M;
 }
 
 /// In cases in which the explicit type of the metric is not required, it is
@@ -151,7 +151,7 @@ pub trait MetricConstructor<M> {
 /// # metric.get_or_create(&());
 /// ```
 impl<M, F: Fn() -> M> MetricConstructor<M> for F {
-    fn new(&self) -> M {
+    fn new_metric(&self) -> M {
         self()
     }
 }
@@ -222,7 +222,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         }
 
         let mut write_guard = self.metrics.write().unwrap();
-        write_guard.insert(label_set.clone(), self.constructor.new());
+        write_guard.insert(label_set.clone(), self.constructor.new_metric());
 
         drop(write_guard);
 
@@ -287,7 +287,7 @@ mod tests {
             custom_start: f64,
         }
         impl MetricConstructor<Histogram> for CustomBuilder {
-            fn new(&self) -> Histogram {
+            fn new_metric(&self) -> Histogram {
                 Histogram::new(exponential_buckets(self.custom_start, 2.0, 10))
             }
         }
