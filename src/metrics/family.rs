@@ -110,10 +110,46 @@ pub struct Family<S, M, C = fn() -> M> {
     constructor: C,
 }
 
+/// A constructor for creating new metrics in a [`Family`] when calling
+/// [`Family::get_or_create`]. Such constructor is provided via
+/// [`Family::new_with_constructor`].
+///
+/// This is mostly used when creating histograms using constructors that need to
+/// capture variables.
+///
+/// ```
+/// # use open_metrics_client::metrics::family::{Family, MetricConstructor};
+/// # use open_metrics_client::metrics::histogram::Histogram;
+/// struct CustomBuilder {
+///     buckets: Vec<f64>,
+/// }
+///
+/// impl MetricConstructor<Histogram> for CustomBuilder {
+///     fn new(&self) -> Histogram {
+///         // When a new histogram is created, this function will be called.
+///         Histogram::new(self.buckets.iter().cloned())
+///     }
+/// }
+///
+/// let custom_builder = CustomBuilder { buckets: vec![0.0, 10.0, 100.0] };
+/// let metric = Family::<(), Histogram, CustomBuilder>::new_with_constructor(custom_builder);
+/// ```
 pub trait MetricConstructor<M> {
     fn new(&self) -> M;
 }
 
+/// In cases in which the explicit type of the metric is not required, it is
+/// posible to directly provide a closure even if it captures variables.
+///
+/// ```
+/// # use open_metrics_client::metrics::family::{Family};
+/// # use open_metrics_client::metrics::histogram::Histogram;
+/// let custom_buckets = vec![0.0, 10.0, 100.0];
+/// let metric = Family::<(), Histogram, _>::new_with_constructor(|| {
+///     Histogram::new(custom_buckets.clone().into_iter())
+/// });
+/// # metric.get_or_create(&());
+/// ```
 impl<M, F: Fn() -> M> MetricConstructor<M> for F {
     fn new(&self) -> M {
         self()
@@ -141,7 +177,8 @@ impl<S: Clone + std::hash::Hash + Eq, M, C> Family<S, M, C> {
     /// [`Histogram`](crate::metrics::histogram::Histogram) one might want
     /// [`Family`] to construct a
     /// [`Histogram`](crate::metrics::histogram::Histogram) with custom buckets
-    /// (see example below). For such case one can use this method.
+    /// (see example below). For such case one can use this method. For more
+    /// involved constructors see [`MetricConstructor`].
     ///
     /// ```
     /// # use open_metrics_client::metrics::family::Family;
