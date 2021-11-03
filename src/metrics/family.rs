@@ -97,7 +97,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 // TODO: Consider exposing hash algorithm.
-pub struct Family<S, M, C: MetricConstructor<M> = fn() -> M> {
+pub struct Family<S, M, C = fn() -> M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
     /// Function that when called constructs a new metric.
     ///
@@ -129,7 +129,7 @@ impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C> {
+impl<S: Clone + std::hash::Hash + Eq, M, C> Family<S, M, C> {
     /// Create a metric family using a custom constructor to construct new
     /// metrics.
     ///
@@ -202,7 +202,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     }
 }
 
-impl<S, M, C: MetricConstructor<M> + Clone> Clone for Family<S, M, C> {
+impl<S, M, C: Clone> Clone for Family<S, M, C> {
     fn clone(&self) -> Self {
         Family {
             metrics: self.metrics.clone(),
@@ -211,7 +211,7 @@ impl<S, M, C: MetricConstructor<M> + Clone> Clone for Family<S, M, C> {
     }
 }
 
-impl<S, M: TypedMetric, C: MetricConstructor<M>> TypedMetric for Family<S, M, C> {
+impl<S, M: TypedMetric, C> TypedMetric for Family<S, M, C> {
     const TYPE: MetricType = <M as TypedMetric>::TYPE;
 }
 
