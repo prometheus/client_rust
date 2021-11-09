@@ -97,7 +97,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 // TODO: Consider exposing hash algorithm.
-pub struct Family<S, M> {
+pub struct Family<S, M, C = fn() -> M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
     /// Function that when called constructs a new metric.
     ///
@@ -107,7 +107,53 @@ pub struct Family<S, M> {
     /// [`Histogram`](crate::metrics::histogram::Histogram) in order to set
     /// specific buckets, a custom constructor is set via
     /// [`Family::new_with_constructor`].
-    constructor: fn() -> M,
+    constructor: C,
+}
+
+/// A constructor for creating new metrics in a [`Family`] when calling
+/// [`Family::get_or_create`]. Such constructor is provided via
+/// [`Family::new_with_constructor`].
+///
+/// This is mostly used when creating histograms using constructors that need to
+/// capture variables.
+///
+/// ```
+/// # use open_metrics_client::metrics::family::{Family, MetricConstructor};
+/// # use open_metrics_client::metrics::histogram::Histogram;
+/// struct CustomBuilder {
+///     buckets: Vec<f64>,
+/// }
+///
+/// impl MetricConstructor<Histogram> for CustomBuilder {
+///     fn new_metric(&self) -> Histogram {
+///         // When a new histogram is created, this function will be called.
+///         Histogram::new(self.buckets.iter().cloned())
+///     }
+/// }
+///
+/// let custom_builder = CustomBuilder { buckets: vec![0.0, 10.0, 100.0] };
+/// let metric = Family::<(), Histogram, CustomBuilder>::new_with_constructor(custom_builder);
+/// ```
+pub trait MetricConstructor<M> {
+    fn new_metric(&self) -> M;
+}
+
+/// In cases in which the explicit type of the metric is not required, it is
+/// posible to directly provide a closure even if it captures variables.
+///
+/// ```
+/// # use open_metrics_client::metrics::family::{Family};
+/// # use open_metrics_client::metrics::histogram::Histogram;
+/// let custom_buckets = vec![0.0, 10.0, 100.0];
+/// let metric = Family::<(), Histogram, _>::new_with_constructor(|| {
+///     Histogram::new(custom_buckets.clone().into_iter())
+/// });
+/// # metric.get_or_create(&());
+/// ```
+impl<M, F: Fn() -> M> MetricConstructor<M> for F {
+    fn new_metric(&self) -> M {
+        self()
+    }
 }
 
 impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
@@ -119,7 +165,7 @@ impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
+impl<S: Clone + std::hash::Hash + Eq, M, C> Family<S, M, C> {
     /// Create a metric family using a custom constructor to construct new
     /// metrics.
     ///
@@ -131,7 +177,8 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     /// [`Histogram`](crate::metrics::histogram::Histogram) one might want
     /// [`Family`] to construct a
     /// [`Histogram`](crate::metrics::histogram::Histogram) with custom buckets
-    /// (see example below). For such case one can use this method.
+    /// (see example below). For such case one can use this method. For more
+    /// involved constructors see [`MetricConstructor`].
     ///
     /// ```
     /// # use open_metrics_client::metrics::family::Family;
@@ -140,7 +187,7 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     ///     Histogram::new(exponential_buckets(1.0, 2.0, 10))
     /// });
     /// ```
-    pub fn new_with_constructor(constructor: fn() -> M) -> Self {
+    pub fn new_with_constructor(constructor: C) -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Default::default())),
             constructor,
@@ -148,7 +195,7 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
+impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C> {
     /// Access a metric with the given label set, creating it if one does not
     /// yet exist.
     ///
@@ -175,7 +222,7 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
         }
 
         let mut write_guard = self.metrics.write().unwrap();
-        write_guard.insert(label_set.clone(), (self.constructor)());
+        write_guard.insert(label_set.clone(), self.constructor.new_metric());
 
         drop(write_guard);
 
@@ -192,16 +239,16 @@ impl<S: Clone + std::hash::Hash + Eq, M> Family<S, M> {
     }
 }
 
-impl<S, M> Clone for Family<S, M> {
+impl<S, M, C: Clone> Clone for Family<S, M, C> {
     fn clone(&self) -> Self {
         Family {
             metrics: self.metrics.clone(),
-            constructor: self.constructor,
+            constructor: self.constructor.clone(),
         }
     }
 }
 
-impl<S, M: TypedMetric> TypedMetric for Family<S, M> {
+impl<S, M: TypedMetric, C> TypedMetric for Family<S, M, C> {
     const TYPE: MetricType = <M as TypedMetric>::TYPE;
 }
 
@@ -232,5 +279,20 @@ mod tests {
         Family::<(), Histogram>::new_with_constructor(|| {
             Histogram::new(exponential_buckets(1.0, 2.0, 10))
         });
+    }
+
+    #[test]
+    fn histogram_family_with_struct_constructor() {
+        struct CustomBuilder {
+            custom_start: f64,
+        }
+        impl MetricConstructor<Histogram> for CustomBuilder {
+            fn new_metric(&self) -> Histogram {
+                Histogram::new(exponential_buckets(self.custom_start, 2.0, 10))
+            }
+        }
+
+        let custom_builder = CustomBuilder { custom_start: 1.0 };
+        Family::<(), Histogram, CustomBuilder>::new_with_constructor(custom_builder);
     }
 }
