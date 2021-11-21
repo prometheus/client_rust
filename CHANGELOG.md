@@ -4,13 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.1] - 2021-11-09
+## [0.13.0] - 2021-11-21
+
+_Note: This was initially released as `v0.12.1` but later on yanked due to it
+including a breaking change. See [PR 24] for details._
 
 ### Added
 
 - Allow family to use constructors that do not coerce to function pointers. See [PR 21].
 
 [PR 21]: https://github.com/mxinden/rust-open-metrics-client/pull/21
+[PR 24]: https://github.com/mxinden/rust-open-metrics-client/pull/24
 
 ## [0.12.0] - 2021-08-07
 
