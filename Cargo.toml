@@ -15,7 +15,7 @@ members = ["derive-text-encode"]
 
 [dependencies]
 dtoa = "0.4"
-itoa = "0.4"
+itoa = "1.0"
 owning_ref = "0.4"
 open-metrics-client-derive-text-encode = { version = "0.1.1", path = "derive-text-encode" }
 
