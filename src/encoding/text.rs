@@ -104,15 +104,15 @@ impl Encode for f64 {
 }
 
 impl Encode for u64 {
-    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        itoa::write(&mut writer, *self)?;
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(itoa::Buffer::new().format(*self).as_bytes())?;
         Ok(())
     }
 }
 
 impl Encode for u32 {
-    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        itoa::write(&mut writer, *self)?;
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(itoa::Buffer::new().format(*self).as_bytes())?;
         Ok(())
     }
 }
