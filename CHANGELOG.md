@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Update to `itoa` `v1`. See [PR 28].
+- Update to `dtoa` `v1`. See [PR 27].
 
 [PR 28]: https://github.com/mxinden/rust-open-metrics-client/pull/28
+[PR 27]: https://github.com/mxinden/rust-open-metrics-client/pull/27
 
 ## [0.13.0] - 2021-11-21
 
