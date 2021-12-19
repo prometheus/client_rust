@@ -97,8 +97,8 @@ pub trait Encode {
 }
 
 impl Encode for f64 {
-    fn encode(&self, mut writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        dtoa::write(&mut writer, *self)?;
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(dtoa::Buffer::new().format(*self).as_bytes())?;
         Ok(())
     }
 }
