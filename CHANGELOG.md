@@ -4,15 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.13.1] - unreleased
+## [0.14.0] - unreleased
 
 ### Changed
 
 - Update to `itoa` `v1`. See [PR 28].
 - Update to `dtoa` `v1`. See [PR 27].
 
+### Added
+
+- Implement `Gauge::dec` and `Gauge::dec_by`. See [PR 30].
+
 [PR 28]: https://github.com/mxinden/rust-open-metrics-client/pull/28
 [PR 27]: https://github.com/mxinden/rust-open-metrics-client/pull/27
+[PR 30]: https://github.com/mxinden/rust-open-metrics-client/pull/30
 
 ## [0.13.0] - 2021-11-21
 

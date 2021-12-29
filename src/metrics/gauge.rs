@@ -70,6 +70,16 @@ impl<N, A: Atomic<N>> Gauge<N, A> {
         self.value.inc_by(v)
     }
 
+    /// Decrease the [`Gauge`] by 1, returning the previous value.
+    pub fn dec(&self) -> N {
+        self.value.dec()
+    }
+
+    /// Decrease the [`Gauge`] by `v`, returning the previous value.
+    pub fn dec_by(&self, v: N) -> N {
+        self.value.dec_by(v)
+    }
+
     /// Sets the [`Gauge`] to `v`, returning the previous value.
     pub fn set(&self, v: N) -> N {
         self.value.set(v)
@@ -94,6 +104,10 @@ pub trait Atomic<N> {
 
     fn inc_by(&self, v: N) -> N;
 
+    fn dec(&self) -> N;
+
+    fn dec_by(&self, v: N) -> N;
+
     fn set(&self, v: N) -> N;
 
     fn get(&self) -> N;
@@ -106,6 +120,14 @@ impl Atomic<u64> for AtomicU64 {
 
     fn inc_by(&self, v: u64) -> u64 {
         self.fetch_add(v, Ordering::Relaxed)
+    }
+
+    fn dec(&self) -> u64 {
+        self.dec_by(1)
+    }
+
+    fn dec_by(&self, v: u64) -> u64 {
+        self.fetch_sub(v, Ordering::Relaxed)
     }
 
     fn set(&self, v: u64) -> u64 {
@@ -124,6 +146,14 @@ impl Atomic<u32> for AtomicU32 {
 
     fn inc_by(&self, v: u32) -> u32 {
         self.fetch_add(v, Ordering::Relaxed)
+    }
+
+    fn dec(&self) -> u32 {
+        self.dec_by(1)
+    }
+
+    fn dec_by(&self, v: u32) -> u32 {
+        self.fetch_sub(v, Ordering::Relaxed)
     }
 
     fn set(&self, v: u32) -> u32 {
@@ -155,6 +185,25 @@ impl Atomic<f64> for AtomicU64 {
         old_f64
     }
 
+    fn dec(&self) -> f64 {
+        self.dec_by(1.0)
+    }
+
+    fn dec_by(&self, v: f64) -> f64 {
+        let mut old_u64 = self.load(Ordering::Relaxed);
+        let mut old_f64;
+        loop {
+            old_f64 = f64::from_bits(old_u64);
+            let new = f64::to_bits(old_f64 - v);
+            match self.compare_exchange_weak(old_u64, new, Ordering::Relaxed, Ordering::Relaxed) {
+                Ok(_) => break,
+                Err(x) => old_u64 = x,
+            }
+        }
+
+        old_f64
+    }
+
     fn set(&self, v: f64) -> f64 {
         f64::from_bits(self.swap(f64::to_bits(v), Ordering::Relaxed))
     }
@@ -173,11 +222,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn inc_and_get() {
+    fn inc_dec_and_get() {
         let gauge: Gauge = Gauge::default();
         assert_eq!(0, gauge.inc());
         assert_eq!(1, gauge.get());
-        assert_eq!(1, gauge.set(10));
+
+        assert_eq!(1, gauge.dec());
+        assert_eq!(0, gauge.get());
+
+        assert_eq!(0, gauge.set(10));
         assert_eq!(10, gauge.get());
     }
 }
