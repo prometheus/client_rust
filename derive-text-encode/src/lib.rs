@@ -31,7 +31,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                     quote! {
                         #maybe_comma
                         writer.write_all(concat!(#ident_string, "=\"").as_bytes())?;
-                        open_metrics_client::encoding::text::Encode::encode(&self.#ident, writer)?;
+                        prometheus_client::encoding::text::Encode::encode(&self.#ident, writer)?;
                         writer.write_all(b"\"")?;
                     }
                 })
@@ -62,7 +62,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
     };
 
     let gen = quote! {
-        impl open_metrics_client::encoding::text::Encode for #name {
+        impl prometheus_client::encoding::text::Encode for #name {
             fn encode(&self, writer: &mut dyn std::io::Write) -> std::result::Result<(), std::io::Error> {
                 #body
 

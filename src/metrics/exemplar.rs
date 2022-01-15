@@ -21,7 +21,7 @@ pub struct Exemplar<S, V> {
 /// events and track references to data outside of the metric set.
 ///
 /// ```
-/// # use open_metrics_client::metrics::exemplar::CounterWithExemplar;
+/// # use prometheus_client::metrics::exemplar::CounterWithExemplar;
 /// let counter_with_exemplar = CounterWithExemplar::<Vec<(String, String)>>::default();
 /// counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), "42".to_string())]));
 /// let _value: (u64, _) = counter_with_exemplar.get();
@@ -104,8 +104,8 @@ type RwLockGuardedCounterWithExemplar<'a, S, N, A> =
 /// and track references to data outside of the metric set.
 ///
 /// ```
-/// # use open_metrics_client::metrics::exemplar::HistogramWithExemplars;
-/// # use open_metrics_client::metrics::histogram::exponential_buckets;
+/// # use prometheus_client::metrics::exemplar::HistogramWithExemplars;
+/// # use prometheus_client::metrics::histogram::exponential_buckets;
 /// let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
 /// histogram.observe(4.2, Some(vec![("user_id".to_string(), "42".to_string())]));
 /// ```

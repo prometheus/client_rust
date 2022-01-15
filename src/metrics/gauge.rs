@@ -21,7 +21,7 @@ use std::sync::Arc;
 /// ## Using [`AtomicU64`] as storage and [`u64`] on the interface
 ///
 /// ```
-/// # use open_metrics_client::metrics::gauge::Gauge;
+/// # use prometheus_client::metrics::gauge::Gauge;
 /// let gauge: Gauge = Gauge::default();
 /// gauge.set(42u64);
 /// let _value: u64 = gauge.get();
@@ -30,7 +30,7 @@ use std::sync::Arc;
 /// ## Using [`AtomicU64`] as storage and [`f64`] on the interface
 ///
 /// ```
-/// # use open_metrics_client::metrics::gauge::Gauge;
+/// # use prometheus_client::metrics::gauge::Gauge;
 /// # use std::sync::atomic::AtomicU64;
 /// let gauge = Gauge::<f64, AtomicU64>::default();
 /// gauge.set(42.0);

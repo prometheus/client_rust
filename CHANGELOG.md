@@ -15,9 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Implement `Gauge::dec` and `Gauge::dec_by`. See [PR 30].
 
-[PR 28]: https://github.com/mxinden/rust-open-metrics-client/pull/28
-[PR 27]: https://github.com/mxinden/rust-open-metrics-client/pull/27
-[PR 30]: https://github.com/mxinden/rust-open-metrics-client/pull/30
+[PR 28]: https://github.com/prometheus/client_rust/pull/28
+[PR 27]: https://github.com/prometheus/client_rust/pull/27
+[PR 30]: https://github.com/prometheus/client_rust/pull/30
 
 ## [0.13.0] - 2021-11-21
 
@@ -28,8 +28,8 @@ including a breaking change. See [PR 24] for details._
 
 - Allow family to use constructors that do not coerce to function pointers. See [PR 21].
 
-[PR 21]: https://github.com/mxinden/rust-open-metrics-client/pull/21
-[PR 24]: https://github.com/mxinden/rust-open-metrics-client/pull/24
+[PR 21]: https://github.com/prometheus/client_rust/pull/21
+[PR 24]: https://github.com/prometheus/client_rust/pull/24
 
 ## [0.12.0] - 2021-08-07
 
@@ -42,7 +42,7 @@ including a breaking change. See [PR 24] for details._
 - Rename `Registry::sub_registry` to `Registry::sub_registry_with_prefix`. See
   [PR 20].
 
-[PR 20]: https://github.com/mxinden/rust-open-metrics-client/pull/20
+[PR 20]: https://github.com/prometheus/client_rust/pull/20
 
 ## [0.11.2] - 2021-06-09
 ### Fixed
@@ -56,24 +56,24 @@ including a breaking change. See [PR 24] for details._
 ### Added
 - Add support for OpenMetrics Info metrics (see [PR 18]).
 
-[PR 18]: https://github.com/mxinden/rust-open-metrics-client/pull/18
+[PR 18]: https://github.com/prometheus/client_rust/pull/18
 
 ## [0.10.1] - 2021-05-31
 ### Added
 - Implement `Encode` for `u32`.
 
 ### Fixed
-- Update to open-metrics-client-derive-text-encode v0.1.1 which handles keyword
+- Update to prometheus-client-derive-text-encode v0.1.1 which handles keyword
   identifiers aka raw identifiers
 
-  https://github.com/mxinden/rust-open-metrics-client/pull/16
+  https://github.com/prometheus/client_rust/pull/16
 
 ## [0.10.0] - 2021-04-29
 ### Added
 - Added `metrics::histogram::linear_buckets`.
-  https://github.com/mxinden/rust-open-metrics-client/issues/13
+  https://github.com/prometheus/client_rust/issues/13
 
 ### Changed
 - Renamed `metrics::histogram::exponential_series` to
   `metrics::histogram::exponential_buckets`.
-  https://github.com/mxinden/rust-open-metrics-client/issues/13
+  https://github.com/prometheus/client_rust/issues/13

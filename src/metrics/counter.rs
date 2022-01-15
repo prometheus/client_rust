@@ -21,7 +21,7 @@ use std::sync::Arc;
 /// ## Using [`AtomicU64`] as storage and [`u64`] on the interface
 ///
 /// ```
-/// # use open_metrics_client::metrics::counter::Counter;
+/// # use prometheus_client::metrics::counter::Counter;
 /// let counter: Counter = Counter::default();
 /// counter.inc();
 /// let _value: u64 = counter.get();
@@ -30,7 +30,7 @@ use std::sync::Arc;
 /// ## Using [`AtomicU64`] as storage and [`f64`] on the interface
 ///
 /// ```
-/// # use open_metrics_client::metrics::counter::Counter;
+/// # use prometheus_client::metrics::counter::Counter;
 /// # use std::sync::atomic::AtomicU64;
 /// let counter = Counter::<f64, AtomicU64>::default();
 /// counter.inc();

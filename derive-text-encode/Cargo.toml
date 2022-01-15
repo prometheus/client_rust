@@ -1,13 +1,13 @@
 [package]
-name = "open-metrics-client-derive-text-encode"
+name = "prometheus-client-derive-text-encode"
 version = "0.1.1"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
-description = "Auxiliary crate to derive text Encode trait from open-metrics-client."
+description = "Auxiliary crate to derive text Encode trait from prometheus-client."
 license = "Apache-2.0 OR MIT"
-repository = "https://github.com/mxinden/rust-open-metrics-client"
-homepage = "https://github.com/mxinden/rust-open-metrics-client"
-documentation = "https://docs.rs/open-metrics-client-derive-text-encode"
+repository = "https://github.com/prometheus/client_rust"
+homepage = "https://github.com/prometheus/client_rust"
+documentation = "https://docs.rs/prometheus-client-derive-text-encode"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,7 +17,7 @@ quote = "1"
 syn = "1"
 
 [dev-dependencies]
-open-metrics-client = { path = "../" }
+prometheus-client = { path = "../" }
 
 [lib]
 proc-macro = true
