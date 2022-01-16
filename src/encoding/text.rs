@@ -1,9 +1,9 @@
 //! Open Metrics text format implementation.
 //!
 //! ```
-//! # use open_metrics_client::encoding::text::encode;
-//! # use open_metrics_client::metrics::counter::Counter;
-//! # use open_metrics_client::registry::Registry;
+//! # use prometheus_client::encoding::text::encode;
+//! # use prometheus_client::metrics::counter::Counter;
+//! # use prometheus_client::registry::Registry;
 //! #
 //! # // Create registry and counter and register the latter with the former.
 //! # let mut registry = Registry::default();
@@ -38,7 +38,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
-pub use open_metrics_client_derive_text_encode::*;
+pub use prometheus_client_derive_text_encode::*;
 
 pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where

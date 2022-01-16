@@ -1,14 +1,14 @@
 [package]
-name = "open-metrics-client"
+name = "prometheus-client"
 version = "0.14.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
 description = "Open Metrics client library allowing users to natively instrument applications."
 license = "Apache-2.0 OR MIT"
 keywords = ["openmetrics", "prometheus", "metrics", "instrumentation", "monitoring"]
-repository = "https://github.com/mxinden/rust-open-metrics-client"
-homepage = "https://github.com/mxinden/rust-open-metrics-client"
-documentation = "https://docs.rs/open-metrics-client"
+repository = "https://github.com/prometheus/client_rust"
+homepage = "https://github.com/prometheus/client_rust"
+documentation = "https://docs.rs/prometheus-client"
 
 [workspace]
 members = ["derive-text-encode"]
@@ -17,7 +17,7 @@ members = ["derive-text-encode"]
 dtoa = "1.0"
 itoa = "1.0"
 owning_ref = "0.4"
-open-metrics-client-derive-text-encode = { version = "0.1.1", path = "derive-text-encode" }
+prometheus-client-derive-text-encode = { version = "0.1.1", path = "derive-text-encode" }
 
 [dev-dependencies]
 async-std = { version = "1", features = ["attributes"] }

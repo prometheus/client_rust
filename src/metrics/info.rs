@@ -8,7 +8,7 @@ use crate::metrics::{MetricType, TypedMetric};
 /// change during process lifetime".
 ///
 /// ```
-/// # use open_metrics_client::metrics::info::Info;
+/// # use prometheus_client::metrics::info::Info;
 ///
 /// let _info = Info::new(vec![("os", "GNU/linux")]);
 /// ```
