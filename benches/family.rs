@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use open_metrics_client::metrics::counter::Counter;
-use open_metrics_client::metrics::family::Family;
+use prometheus_client::metrics::counter::Counter;
+use prometheus_client::metrics::family::Family;
 
 pub fn family(c: &mut Criterion) {
     c.bench_function("counter family with Vec<(String, String)> label set", |b| {

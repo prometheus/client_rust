@@ -1,15 +1,15 @@
-# Open Metrics Client Library
+# Prometheus Rust client library
 
-[![Test Status](https://github.com/mxinden/rust-open-metrics-client/actions/workflows/rust.yml/badge.svg?event=push)](https://github.com/mxinden/rust-open-metrics-client/actions)
-[![Crate](https://img.shields.io/crates/v/open-metrics-client.svg)](https://crates.io/crates/open-metrics-client)
-[![API](https://docs.rs/open-metrics-client/badge.svg)](https://docs.rs/open-metrics-client)
+[![Test Status](https://github.com/prometheus/client_rust/actions/workflows/rust.yml/badge.svg?event=push)](https://github.com/prometheus/client_rust/actions)
+[![Crate](https://img.shields.io/crates/v/prometheus-client.svg)](https://crates.io/crates/prometheus-client)
+[![API](https://docs.rs/prometheus-client/badge.svg)](https://docs.rs/prometheus-client)
 
 [Rust](https://github.com/rust-lang/) client library implementation of the [Open
 Metrics specification](https://github.com/OpenObservability/OpenMetrics). Allows
 developers to instrument applications and thus enables operators to monitor said
 applications with monitoring systems like [Prometheus](https://prometheus.io/).
 
-**Documentation**: https://docs.rs/open-metrics-client/
+**Documentation**: https://docs.rs/prometheus-client/
 
 ## Goals
 

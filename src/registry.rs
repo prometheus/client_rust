@@ -20,10 +20,10 @@ use std::ops::Add;
 /// users might want to use their custom types.
 ///
 /// ```
-/// # use open_metrics_client::encoding::text::{encode, EncodeMetric};
-/// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
-/// # use open_metrics_client::metrics::gauge::{Atomic as _, Gauge};
-/// # use open_metrics_client::registry::Registry;
+/// # use prometheus_client::encoding::text::{encode, EncodeMetric};
+/// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
+/// # use prometheus_client::metrics::gauge::{Atomic as _, Gauge};
+/// # use prometheus_client::registry::Registry;
 /// #
 /// // Create a metric registry.
 /// //
@@ -92,8 +92,8 @@ impl<M> Registry<M> {
     /// metric is known.
     ///
     /// ```
-    /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
-    /// # use open_metrics_client::registry::{Registry, Unit};
+    /// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
+    /// # use prometheus_client::registry::{Registry, Unit};
     /// #
     /// let mut registry: Registry<Counter> = Registry::default();
     /// let counter = Counter::default();
@@ -113,8 +113,8 @@ impl<M> Registry<M> {
     /// unit to the name manually.
     ///
     /// ```
-    /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
-    /// # use open_metrics_client::registry::{Registry, Unit};
+    /// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
+    /// # use prometheus_client::registry::{Registry, Unit};
     /// #
     /// let mut registry: Registry<Counter> = Registry::default();
     /// let counter = Counter::default();
@@ -172,8 +172,8 @@ impl<M> Registry<M> {
     /// subsystem registers.
     ///
     /// ```
-    /// # use open_metrics_client::metrics::counter::{Atomic as _, Counter};
-    /// # use open_metrics_client::registry::{Registry, Unit};
+    /// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
+    /// # use prometheus_client::registry::{Registry, Unit};
     /// #
     /// let mut registry: Registry<Counter> = Registry::default();
     ///

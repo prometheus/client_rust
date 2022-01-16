@@ -11,11 +11,11 @@
 //! # Examples
 //!
 //! ```
-//! # use open_metrics_client::encoding::text::Encode;
-//! # use open_metrics_client::encoding::text::encode;
-//! # use open_metrics_client::metrics::counter::{Atomic, Counter};
-//! # use open_metrics_client::metrics::family::Family;
-//! # use open_metrics_client::registry::Registry;
+//! # use prometheus_client::encoding::text::Encode;
+//! # use prometheus_client::encoding::text::encode;
+//! # use prometheus_client::metrics::counter::{Atomic, Counter};
+//! # use prometheus_client::metrics::family::Family;
+//! # use prometheus_client::registry::Registry;
 //! # use std::io::Write;
 //! #
 //! // Create a metric registry.
@@ -74,7 +74,7 @@
 //! ```
 //! See [examples] directory for more.
 //!
-//! [examples]: https://github.com/mxinden/rust-open-metrics-client/tree/master/examples
+//! [examples]: https://github.com/prometheus/client_rust/tree/master/examples
 
 pub mod encoding;
 pub mod metrics;

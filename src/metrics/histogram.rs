@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 /// Open Metrics [`Histogram`] to measure distributions of discrete events.
 ///
 /// ```
-/// # use open_metrics_client::metrics::histogram::{Histogram, exponential_buckets};
+/// # use prometheus_client::metrics::histogram::{Histogram, exponential_buckets};
 /// let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
 /// histogram.observe(4.2);
 /// ```

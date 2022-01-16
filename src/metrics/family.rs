@@ -24,10 +24,10 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// ### [`Family`] with `Vec<(String, String)>` for convenience
 ///
 /// ```
-/// # use open_metrics_client::encoding::text::encode;
-/// # use open_metrics_client::metrics::counter::{Atomic, Counter};
-/// # use open_metrics_client::metrics::family::Family;
-/// # use open_metrics_client::registry::{Descriptor, Registry};
+/// # use prometheus_client::encoding::text::encode;
+/// # use prometheus_client::metrics::counter::{Atomic, Counter};
+/// # use prometheus_client::metrics::family::Family;
+/// # use prometheus_client::registry::{Descriptor, Registry};
 /// #
 /// # let mut registry = Registry::default();
 /// let family = Family::<Vec<(String, String)>, Counter>::default();
@@ -57,11 +57,11 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// [`Encode`](crate::encoding::text::Encode) implementation.
 ///
 /// ```
-/// # use open_metrics_client::encoding::text::Encode;
-/// # use open_metrics_client::encoding::text::encode;
-/// # use open_metrics_client::metrics::counter::{Atomic, Counter};
-/// # use open_metrics_client::metrics::family::Family;
-/// # use open_metrics_client::registry::{Descriptor, Registry};
+/// # use prometheus_client::encoding::text::Encode;
+/// # use prometheus_client::encoding::text::encode;
+/// # use prometheus_client::metrics::counter::{Atomic, Counter};
+/// # use prometheus_client::metrics::family::Family;
+/// # use prometheus_client::registry::{Descriptor, Registry};
 /// # use std::io::Write;
 /// #
 /// # let mut registry = Registry::default();
@@ -118,8 +118,8 @@ pub struct Family<S, M, C = fn() -> M> {
 /// capture variables.
 ///
 /// ```
-/// # use open_metrics_client::metrics::family::{Family, MetricConstructor};
-/// # use open_metrics_client::metrics::histogram::Histogram;
+/// # use prometheus_client::metrics::family::{Family, MetricConstructor};
+/// # use prometheus_client::metrics::histogram::Histogram;
 /// struct CustomBuilder {
 ///     buckets: Vec<f64>,
 /// }
@@ -142,8 +142,8 @@ pub trait MetricConstructor<M> {
 /// posible to directly provide a closure even if it captures variables.
 ///
 /// ```
-/// # use open_metrics_client::metrics::family::{Family};
-/// # use open_metrics_client::metrics::histogram::Histogram;
+/// # use prometheus_client::metrics::family::{Family};
+/// # use prometheus_client::metrics::histogram::Histogram;
 /// let custom_buckets = vec![0.0, 10.0, 100.0];
 /// let metric = Family::<(), Histogram, _>::new_with_constructor(|| {
 ///     Histogram::new(custom_buckets.clone().into_iter())
@@ -181,8 +181,8 @@ impl<S: Clone + std::hash::Hash + Eq, M, C> Family<S, M, C> {
     /// involved constructors see [`MetricConstructor`].
     ///
     /// ```
-    /// # use open_metrics_client::metrics::family::Family;
-    /// # use open_metrics_client::metrics::histogram::{exponential_buckets, Histogram};
+    /// # use prometheus_client::metrics::family::Family;
+    /// # use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
     /// Family::<Vec<(String, String)>, Histogram>::new_with_constructor(|| {
     ///     Histogram::new(exponential_buckets(1.0, 2.0, 10))
     /// });
@@ -200,8 +200,8 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     /// yet exist.
     ///
     /// ```
-    /// # use open_metrics_client::metrics::counter::{Atomic, Counter};
-    /// # use open_metrics_client::metrics::family::Family;
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
     /// #
     /// let family = Family::<Vec<(String, String)>, Counter>::default();
     ///

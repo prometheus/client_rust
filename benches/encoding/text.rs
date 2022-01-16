@@ -1,11 +1,11 @@
 // Benchmark inspired by https://github.com/tikv/rust-prometheus/blob/ab1ca7285d3463504381a5025ae1951e020d6796/benches/text_encoder.rs
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use open_metrics_client::encoding::text::{encode, Encode, EncodeMetric};
-use open_metrics_client::metrics::counter::Counter;
-use open_metrics_client::metrics::family::Family;
-use open_metrics_client::metrics::histogram::{exponential_buckets, Histogram};
-use open_metrics_client::registry::Registry;
+use prometheus_client::encoding::text::{encode, Encode, EncodeMetric};
+use prometheus_client::metrics::counter::Counter;
+use prometheus_client::metrics::family::Family;
+use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
+use prometheus_client::registry::Registry;
 use std::io::Write;
 use std::sync::atomic::AtomicU64;
 
