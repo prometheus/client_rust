@@ -1,6 +1,6 @@
 [package]
 name = "prometheus-client-derive-text-encode"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
 description = "Auxiliary crate to derive text Encode trait from prometheus-client."
