@@ -11,13 +11,13 @@
 //! # Examples
 //!
 //! ```
-//! # use prometheus_client::encoding::text::Encode;
-//! # use prometheus_client::encoding::text::encode;
-//! # use prometheus_client::metrics::counter::{Atomic, Counter};
-//! # use prometheus_client::metrics::family::Family;
-//! # use prometheus_client::registry::Registry;
-//! # use std::io::Write;
-//! #
+//! use prometheus_client::encoding::text::Encode;
+//! use prometheus_client::encoding::text::encode;
+//! use prometheus_client::metrics::counter::{Atomic, Counter};
+//! use prometheus_client::metrics::family::Family;
+//! use prometheus_client::registry::Registry;
+//! use std::io::Write;
+//!
 //! // Create a metric registry.
 //! //
 //! // Note the angle brackets to make sure to use the default (dynamic
