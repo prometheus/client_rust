@@ -4,9 +4,9 @@
 
 use super::counter::{self, Counter};
 use super::histogram::Histogram;
+use atomic_shim::AtomicU64;
 use owning_ref::OwningRef;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 pub struct Exemplar<S, V> {

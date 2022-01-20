@@ -3,8 +3,9 @@
 //! See [`Gauge`] for details.
 
 use super::{MetricType, TypedMetric};
+use atomic_shim::AtomicU64;
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 /// Open Metrics [`Gauge`] to record current measurements.
