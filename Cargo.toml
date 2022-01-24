@@ -24,8 +24,9 @@ async-std = { version = "1", features = ["attributes"] }
 criterion = "0.3"
 http-types = "2"
 pyo3 = "0.15"
-tide = "0.16"
 quickcheck = "1"
+rand = "0.8.4"
+tide = "0.16"
 
 [[bench]]
 name = "family"
