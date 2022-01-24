@@ -8,7 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Expose `Encoder` methods.
+- Expose `Encoder` methods. See [PR 41].
+
+[PR 41]: https://github.com/prometheus/client_rust/pull/41
 
 ## [0.15.0] - 2022-01-16
 
