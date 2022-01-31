@@ -4,7 +4,9 @@
 
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 /// Open Metrics [`Gauge`] to record current measurements.
@@ -36,7 +38,14 @@ use std::sync::Arc;
 /// gauge.set(42.0);
 /// let _value: f64 = gauge.get();
 /// ```
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 pub struct Gauge<N = u64, A = AtomicU64> {
+    value: Arc<A>,
+    phantom: PhantomData<N>,
+}
+
+#[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
+pub struct Gauge<N = u32, A = AtomicU32> {
     value: Arc<A>,
     phantom: PhantomData<N>,
 }
@@ -113,6 +122,7 @@ pub trait Atomic<N> {
     fn get(&self) -> N;
 }
 
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 impl Atomic<u64> for AtomicU64 {
     fn inc(&self) -> u64 {
         self.inc_by(1)
@@ -165,6 +175,7 @@ impl Atomic<u32> for AtomicU32 {
     }
 }
 
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 impl Atomic<f64> for AtomicU64 {
     fn inc(&self) -> f64 {
         self.inc_by(1.0)
