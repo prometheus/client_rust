@@ -217,6 +217,8 @@ impl Encode for () {
     }
 }
 
+/// Helper type for [`EncodeMetric`], see [`EncodeMetric::encode`].
+///
 // `Encoder` does not take a trait parameter for `writer` and `labels` because
 // `EncodeMetric` which uses `Encoder` needs to be usable as a trait object in
 // order to be able to register different metric types with a `Registry`. Trait
@@ -232,6 +234,7 @@ pub struct Encoder<'a, 'b> {
 }
 
 impl<'a, 'b> Encoder<'a, 'b> {
+    /// Encode a metric suffix, e.g. in the case of [`Counter`] the suffic `_total`.
     pub fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder, std::io::Error> {
         self.write_name_and_unit()?;
 
@@ -241,6 +244,7 @@ impl<'a, 'b> Encoder<'a, 'b> {
         self.encode_labels()
     }
 
+    /// Signal that the metric has no suffix.
     pub fn no_suffix(&mut self) -> Result<BucketEncoder, std::io::Error> {
         self.write_name_and_unit()?;
 
@@ -285,6 +289,7 @@ impl<'a, 'b> Encoder<'a, 'b> {
         })
     }
 
+    /// Encode a set of labels. Used by wrapper metric types like [`Family`].
     pub fn with_label_set<'c, 'd>(&'c mut self, label_set: &'d dyn Encode) -> Encoder<'c, 'd> {
         debug_assert!(self.labels.is_none());
 
@@ -305,7 +310,8 @@ pub struct BucketEncoder<'a> {
 }
 
 impl<'a> BucketEncoder<'a> {
-    fn encode_bucket(&mut self, upper_bound: f64) -> Result<ValueEncoder, std::io::Error> {
+    /// Encode a bucket. Used for the [`Histogram`] metric type.
+    pub fn encode_bucket(&mut self, upper_bound: f64) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
             self.writer.write_all(b",")?;
         } else {
@@ -325,7 +331,8 @@ impl<'a> BucketEncoder<'a> {
         })
     }
 
-    fn no_bucket(&mut self) -> Result<ValueEncoder, std::io::Error> {
+    /// Signal that the metric type has no bucket.
+    pub fn no_bucket(&mut self) -> Result<ValueEncoder, std::io::Error> {
         if self.opened_curly_brackets {
             self.writer.write_all(b"}")?;
         }
@@ -341,7 +348,9 @@ pub struct ValueEncoder<'a> {
 }
 
 impl<'a> ValueEncoder<'a> {
-    fn encode_value<V: Encode>(&mut self, v: V) -> Result<ExemplarEncoder, std::io::Error> {
+    /// Encode the metric value. E.g. in the case of [`Counter`] the
+    /// monotonically increasing counter value.
+    pub fn encode_value<V: Encode>(&mut self, v: V) -> Result<ExemplarEncoder, std::io::Error> {
         self.writer.write_all(b" ")?;
         v.encode(self.writer)?;
         Ok(ExemplarEncoder {
@@ -356,7 +365,8 @@ pub struct ExemplarEncoder<'a> {
 }
 
 impl<'a> ExemplarEncoder<'a> {
-    fn encode_exemplar<S: Encode, V: Encode>(
+    /// Encode an exemplar for the given metric.
+    pub fn encode_exemplar<S: Encode, V: Encode>(
         &mut self,
         exemplar: &Exemplar<S, V>,
     ) -> Result<(), std::io::Error> {
@@ -368,12 +378,14 @@ impl<'a> ExemplarEncoder<'a> {
         Ok(())
     }
 
-    fn no_exemplar(&mut self) -> Result<(), std::io::Error> {
+    /// Signal that the metric type has no exemplar.
+    pub fn no_exemplar(&mut self) -> Result<(), std::io::Error> {
         self.writer.write_all(b"\n")?;
         Ok(())
     }
 }
 
+/// Trait implemented by each metric type, e.g. [`Counter`], to implement its encoding.
 pub trait EncodeMetric {
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error>;
 
