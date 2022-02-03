@@ -10,7 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Expose `Encoder` methods. See [PR 41].
 
+### Changed
+
+- Use `AtomicU32` on platforms that don't support `AtomicU64`. See [PR 42].
+
 [PR 41]: https://github.com/prometheus/client_rust/pull/41
+[PR 42]: https://github.com/prometheus/client_rust/pull/42
 
 ## [0.15.0] - 2022-01-16
 

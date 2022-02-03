@@ -6,6 +6,9 @@ use super::counter::{self, Counter};
 use super::histogram::Histogram;
 use owning_ref::OwningRef;
 use std::collections::HashMap;
+#[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
+use std::sync::atomic::AtomicU32;
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
@@ -26,7 +29,13 @@ pub struct Exemplar<S, V> {
 /// counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), "42".to_string())]));
 /// let _value: (u64, _) = counter_with_exemplar.get();
 /// ```
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 pub struct CounterWithExemplar<S, N = u64, A = AtomicU64> {
+    pub(crate) inner: Arc<RwLock<CounterWithExemplarInner<S, N, A>>>,
+}
+
+#[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
+pub struct CounterWithExemplar<S, N = u32, A = AtomicU32> {
     pub(crate) inner: Arc<RwLock<CounterWithExemplarInner<S, N, A>>>,
 }
 
