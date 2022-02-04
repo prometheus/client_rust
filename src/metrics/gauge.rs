@@ -175,54 +175,72 @@ impl Atomic<u32> for AtomicU32 {
     }
 }
 
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
-impl Atomic<f64> for AtomicU64 {
-    fn inc(&self) -> f64 {
-        self.inc_by(1.0)
-    }
+macro_rules! atomic_float {
+    ($F:ty, $A:ty) => {
+        impl Atomic<$F> for $A {
+            fn inc(&self) -> $F {
+                self.inc_by(1.0)
+            }
 
-    fn inc_by(&self, v: f64) -> f64 {
-        let mut old_u64 = self.load(Ordering::Relaxed);
-        let mut old_f64;
-        loop {
-            old_f64 = f64::from_bits(old_u64);
-            let new = f64::to_bits(old_f64 + v);
-            match self.compare_exchange_weak(old_u64, new, Ordering::Relaxed, Ordering::Relaxed) {
-                Ok(_) => break,
-                Err(x) => old_u64 = x,
+            fn inc_by(&self, v: $F) -> $F {
+                let mut old_atom = self.load(Ordering::Relaxed);
+                let mut old_flt;
+                loop {
+                    old_flt = <$F>::from_bits(old_atom);
+                    let new = <$F>::to_bits(old_flt + v);
+                    match self.compare_exchange_weak(
+                        old_atom,
+                        new,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => break,
+                        Err(x) => old_atom = x,
+                    }
+                }
+
+                old_flt
+            }
+
+            fn dec(&self) -> $F {
+                self.dec_by(1.0)
+            }
+
+            fn dec_by(&self, v: $F) -> $F {
+                let mut old_atom = self.load(Ordering::Relaxed);
+                let mut old_flt;
+                loop {
+                    old_flt = <$F>::from_bits(old_atom);
+                    let new = <$F>::to_bits(old_flt - v);
+                    match self.compare_exchange_weak(
+                        old_atom,
+                        new,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => break,
+                        Err(x) => old_atom = x,
+                    }
+                }
+
+                old_flt
+            }
+
+            fn set(&self, v: $F) -> $F {
+                <$F>::from_bits(self.swap(<$F>::to_bits(v), Ordering::Relaxed))
+            }
+
+            fn get(&self) -> $F {
+                <$F>::from_bits(self.load(Ordering::Relaxed))
             }
         }
-
-        old_f64
-    }
-
-    fn dec(&self) -> f64 {
-        self.dec_by(1.0)
-    }
-
-    fn dec_by(&self, v: f64) -> f64 {
-        let mut old_u64 = self.load(Ordering::Relaxed);
-        let mut old_f64;
-        loop {
-            old_f64 = f64::from_bits(old_u64);
-            let new = f64::to_bits(old_f64 - v);
-            match self.compare_exchange_weak(old_u64, new, Ordering::Relaxed, Ordering::Relaxed) {
-                Ok(_) => break,
-                Err(x) => old_u64 = x,
-            }
-        }
-
-        old_f64
-    }
-
-    fn set(&self, v: f64) -> f64 {
-        f64::from_bits(self.swap(f64::to_bits(v), Ordering::Relaxed))
-    }
-
-    fn get(&self) -> f64 {
-        f64::from_bits(self.load(Ordering::Relaxed))
-    }
+    };
 }
+
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc", target_arch = "xtensa")))]
+atomic_float!(f64, AtomicU64);
+
+atomic_float!(f32, AtomicU32);
 
 impl<N, A> TypedMetric for Gauge<N, A> {
     const TYPE: MetricType = MetricType::Gauge;
