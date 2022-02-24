@@ -18,6 +18,8 @@ dtoa = "1.0"
 itoa = "1.0"
 owning_ref = "0.4"
 prometheus-client-derive-text-encode = { version = "0.2.0", path = "derive-text-encode" }
+prost = "0.9.0"
+prost-types = "0.9.0"
 
 [dev-dependencies]
 async-std = { version = "1", features = ["attributes"] }
@@ -27,6 +29,9 @@ pyo3 = "0.15"
 quickcheck = "1"
 rand = "0.8.4"
 tide = "0.16"
+
+[build-dependencies]
+prost-build = "0.9.0"
 
 [[bench]]
 name = "family"
