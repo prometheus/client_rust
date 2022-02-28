@@ -3,10 +3,11 @@ pub mod openmetrics_data_model {
     include!(concat!(env!("OUT_DIR"), "/openmetrics.rs"));
 }
 
-use std::ops::Deref;
-use crate::registry::{Registry, Unit};
 use crate::metrics::counter::Counter;
+use crate::metrics::family::Family;
 use crate::metrics::MetricType;
+use crate::registry::{Registry, Unit};
+use std::ops::Deref;
 
 pub fn encode<M>(registry: &Registry<M>) -> openmetrics_data_model::MetricSet
 where
@@ -38,7 +39,8 @@ where
                 Unit::Seconds => "seconds",
                 Unit::Volts => "volts",
                 Unit::Other(other) => other.as_str(),
-            }.to_string();
+            }
+            .to_string();
         }
         // MetricFamily.help
         family.help = desc.help().to_string();
@@ -119,25 +121,45 @@ impl EncodeMetric for Counter {
     }
 }
 
+impl<S, M, C> EncodeMetric for Family<S, M, C> {
+    fn encode(&self) -> openmetrics_data_model::MetricPoint {
+        todo!()
+    }
+
+    fn metric_type(&self) -> MetricType {
+        todo!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
+    use super::*;
     use crate::metrics::counter::Counter;
     use crate::metrics::family::Family;
     use crate::registry::Unit;
-    use super::*;
+    use std::borrow::Cow;
 
     #[test]
     fn test_encode() {
-        let mut registry = <Registry>::default();
+        let mut registry: Registry<Box<dyn EncodeMetric>> = Registry::default();
 
         let counter: Counter = Counter::default();
-        registry.register_with_unit("my_counter", "My counter", Unit::Seconds, Box::new(counter.clone()));
+        registry.register_with_unit(
+            "my_counter",
+            "My counter",
+            Unit::Seconds,
+            Box::new(counter.clone()),
+        );
         counter.inc();
 
         let family = Family::<Vec<(String, String)>, Counter>::default();
-        let sub_registry = registry.sub_registry_with_label((Cow::Borrowed("my_key"), Cow::Borrowed("my_value")));
-        sub_registry.register("my_counter_family", "My counter family", Box::new(family.clone()));
+        let sub_registry =
+            registry.sub_registry_with_label((Cow::Borrowed("my_key"), Cow::Borrowed("my_value")));
+        sub_registry.register(
+            "my_counter_family",
+            "My counter family",
+            Box::new(family.clone()),
+        );
         family
             .get_or_create(&vec![
                 ("method".to_string(), "GET".to_string()),
