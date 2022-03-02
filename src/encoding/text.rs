@@ -558,7 +558,7 @@ fn encode_histogram_with_maybe_exemplars<S: Encode>(
         let mut value_encoder = bucket_encoder.encode_bucket(*upper_bound)?;
         let mut exemplar_encoder = value_encoder.encode_value(cummulative)?;
 
-        match exemplars.map(|es| es.get(&i)).flatten() {
+        match exemplars.and_then(|es| es.get(&i)) {
             Some(exemplar) => exemplar_encoder.encode_exemplar(exemplar)?,
             None => exemplar_encoder.no_exemplar()?,
         }
