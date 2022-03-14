@@ -4,8 +4,8 @@ pub mod openmetrics_data_model {
 }
 
 use crate::metrics::counter::Counter;
-use crate::metrics::family::Family;
-use crate::metrics::MetricType;
+use crate::metrics::family::{Family, MetricConstructor};
+use crate::metrics::{MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
 use std::ops::Deref;
 
@@ -44,19 +44,9 @@ where
         }
         // MetricFamily.help
         family.help = desc.help().to_string();
-        // Metric
-        let mut m = openmetrics_data_model::Metric::default();
-        // Metric.labels
-        for l in desc.labels() {
-            let mut label = openmetrics_data_model::Label::default();
-            label.name = l.0.to_string();
-            label.value = l.1.to_string();
-            m.labels.push(label);
-        }
-        // Metric.metric_points
-        m.metric_points.push(metric.encode());
-
-        family.metrics.push(m);
+        println!("family.help: {}", family.help);
+        // MetricFamily.Metric
+        family.metrics = metric.encode(desc.labels().encode());
         metric_set.metric_families.push(family);
     }
 
@@ -77,14 +67,20 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
 
 /// Trait implemented by each metric type, e.g. [`Counter`], to implement its encoding.
 pub trait EncodeMetric {
-    fn encode(&self) -> openmetrics_data_model::MetricPoint;
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+    ) -> Vec<openmetrics_data_model::Metric>;
 
     fn metric_type(&self) -> MetricType;
 }
 
 impl EncodeMetric for Box<dyn EncodeMetric> {
-    fn encode(&self) -> openmetrics_data_model::MetricPoint {
-        self.deref().encode()
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+    ) -> Vec<openmetrics_data_model::Metric> {
+        self.deref().encode(labels)
     }
 
     fn metric_type(&self) -> MetricType {
@@ -97,8 +93,11 @@ pub trait SendEncodeMetric: EncodeMetric + Send {}
 impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
 
 impl EncodeMetric for Box<dyn SendEncodeMetric> {
-    fn encode(&self) -> openmetrics_data_model::MetricPoint {
-        self.deref().encode()
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+    ) -> Vec<openmetrics_data_model::Metric> {
+        self.deref().encode(labels)
     }
 
     fn metric_type(&self) -> MetricType {
@@ -106,14 +105,66 @@ impl EncodeMetric for Box<dyn SendEncodeMetric> {
     }
 }
 
+pub trait EncodeLabel {
+    fn encode(&self) -> Vec<openmetrics_data_model::Label>;
+}
+
+impl<K: ToString, V: ToString> EncodeLabel for (K, V) {
+    fn encode(&self) -> Vec<openmetrics_data_model::Label> {
+        let mut label = openmetrics_data_model::Label::default();
+        label.name = self.0.to_string();
+        label.value = self.1.to_string();
+        vec![label]
+    }
+}
+
+impl<T: EncodeLabel> EncodeLabel for Vec<T> {
+    fn encode(&self) -> Vec<openmetrics_data_model::Label> {
+        let mut label = vec![];
+        for t in self {
+            label.append(&mut t.encode());
+        }
+        label
+    }
+}
+
+impl<T: EncodeLabel> EncodeLabel for &[T] {
+    fn encode(&self) -> Vec<openmetrics_data_model::Label> {
+        let mut label = vec![];
+        for t in self.iter() {
+            label.append(&mut t.encode());
+        }
+        label
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 // Counter
 
 impl EncodeMetric for Counter {
-    fn encode(&self) -> openmetrics_data_model::MetricPoint {
-        let metric_point = openmetrics_data_model::MetricPoint::default();
-        // TODO: value
-        metric_point
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+    ) -> Vec<openmetrics_data_model::Metric> {
+        let mut metric = openmetrics_data_model::Metric::default();
+        metric.labels = labels;
+
+        metric.metric_points = {
+            let mut metric_point = openmetrics_data_model::MetricPoint::default();
+            metric_point.value = {
+                let mut counter_value = openmetrics_data_model::CounterValue::default();
+                counter_value.total = Some(openmetrics_data_model::counter_value::Total::IntValue(
+                    self.get(),
+                ));
+                Some(openmetrics_data_model::metric_point::Value::CounterValue(
+                    counter_value,
+                ))
+            };
+
+            vec![metric_point]
+        };
+
+        vec![metric]
     }
 
     fn metric_type(&self) -> MetricType {
@@ -121,13 +172,33 @@ impl EncodeMetric for Counter {
     }
 }
 
-impl<S, M, C> EncodeMetric for Family<S, M, C> {
-    fn encode(&self) -> openmetrics_data_model::MetricPoint {
-        todo!()
+/////////////////////////////////////////////////////////////////////////////////
+// Family
+
+impl<S, M, C> EncodeMetric for Family<S, M, C>
+where
+    S: Clone + std::hash::Hash + Eq + EncodeLabel,
+    M: EncodeMetric + TypedMetric,
+    C: MetricConstructor<M>,
+{
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+    ) -> Vec<openmetrics_data_model::Metric> {
+        let mut metrics = vec![];
+
+        let guard = self.read();
+        for (label_set, metric) in guard.iter() {
+            let mut label = label_set.encode();
+            label.append(&mut labels.clone());
+            metrics.extend(metric.encode(label));
+        }
+
+        metrics
     }
 
     fn metric_type(&self) -> MetricType {
-        todo!()
+        M::TYPE
     }
 }
 
