@@ -71,7 +71,7 @@ impl MetricsCollector {
     }
 }
 
-pub async fn metrics_view(
+pub async fn metrics_handler(
     metrics_collector: web::Data<Mutex<MetricsCollector>>,
 ) -> Result<HttpResponse> {
     // TODO: find the way without locking the mutex
@@ -87,14 +87,14 @@ pub async fn some_handler(metrics: web::Data<Metrics>) -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let metrics = web::Data::new(Metrics::new());
-    // We have to wrap it with Mutex because Registry doens't implement Copy-trait
+    // We have to wrap it with Mutex because `Registry` doesn't implement Copy-trait
     let metrics_collector = web::Data::new(Mutex::new(MetricsCollector::new(&metrics)));
 
     HttpServer::new(move || {
         App::new()
             .app_data(metrics.clone())
             .app_data(metrics_collector.clone())
-            .service(web::resource("/metrics").route(web::get().to(metrics_view)))
+            .service(web::resource("/metrics").route(web::get().to(metrics_handler)))
             .service(web::resource("/handler").route(web::get().to(some_handler)))
     })
     .bind(("127.0.0.1", 8080))?
