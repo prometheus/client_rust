@@ -6,7 +6,8 @@ pub mod openmetrics_data_model {
 use crate::metrics::counter::Counter;
 use crate::metrics::exemplar::{CounterWithExemplar, Exemplar};
 use crate::metrics::family::{Family, MetricConstructor};
-use crate::metrics::{counter, MetricType, TypedMetric};
+use crate::metrics::gauge::Gauge;
+use crate::metrics::{counter, gauge, MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
 use std::ops::Deref;
 
@@ -45,7 +46,6 @@ where
         }
         // MetricFamily.help
         family.help = desc.help().to_string();
-        println!("family.help: {}", family.help);
         // MetricFamily.Metric
         family.metrics = metric.encode(desc.labels().encode());
         metric_set.metric_families.push(family);
@@ -249,6 +249,60 @@ where
 }
 
 /////////////////////////////////////////////////////////////////////////////////
+// Gauge
+
+pub trait EncodeGaugeValue {
+    fn encode(&self) -> openmetrics_data_model::gauge_value::Value;
+}
+
+// GaugeValue.int_value is defined as `int64` in protobuf
+impl EncodeGaugeValue for i64 {
+    fn encode(&self) -> openmetrics_data_model::gauge_value::Value {
+        openmetrics_data_model::gauge_value::Value::IntValue(*self)
+    }
+}
+
+impl EncodeGaugeValue for f64 {
+    fn encode(&self) -> openmetrics_data_model::gauge_value::Value {
+        openmetrics_data_model::gauge_value::Value::DoubleValue(*self)
+    }
+}
+
+impl<N, A> EncodeMetric for Gauge<N, A>
+where
+    N: EncodeGaugeValue,
+    A: gauge::Atomic<N>,
+{
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+    ) -> Vec<openmetrics_data_model::Metric> {
+        let mut metric = openmetrics_data_model::Metric::default();
+
+        metric.metric_points = {
+            let mut metric_point = openmetrics_data_model::MetricPoint::default();
+            metric_point.value = {
+                let mut gauge_value = openmetrics_data_model::GaugeValue::default();
+                gauge_value.value = Some(self.get().encode());
+
+                Some(openmetrics_data_model::metric_point::Value::GaugeValue(
+                    gauge_value,
+                ))
+            };
+
+            vec![metric_point]
+        };
+
+        metric.labels = labels;
+        vec![metric]
+    }
+
+    fn metric_type(&self) -> MetricType {
+        MetricType::Gauge
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////
 // Family
 
 impl<S, M, C> EncodeMetric for Family<S, M, C>
@@ -284,8 +338,10 @@ mod tests {
     use crate::metrics::counter::Counter;
     use crate::metrics::exemplar::CounterWithExemplar;
     use crate::metrics::family::Family;
+    use crate::metrics::gauge::Gauge;
     use crate::registry::Unit;
     use std::borrow::Cow;
+    use std::sync::atomic::AtomicI64;
 
     #[test]
     fn test_encode() {
@@ -339,5 +395,39 @@ mod tests {
 
         counter_with_exemplar.inc_by(1.0, Some(("user_id".to_string(), 42.0)));
         println!("{:?}", encode(&registry));
+    }
+
+    #[test]
+    fn encode_gauge() {
+        let mut registry = Registry::default();
+        let gauge = Gauge::<i64, AtomicI64>::default();
+        registry.register("my_gauge", "My gauge", gauge.clone());
+        gauge.inc();
+
+        let metric_set = encode(&registry);
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_gauge", family.name);
+        assert_eq!(
+            openmetrics_data_model::MetricType::Gauge as i32,
+            family.r#type
+        );
+        assert_eq!("My gauge.", family.help);
+
+        let metric = family.metrics.first().unwrap();
+        let gauge_value = openmetrics_data_model::metric_point::Value::GaugeValue({
+            let mut v = openmetrics_data_model::GaugeValue::default();
+            v.value = Some(openmetrics_data_model::gauge_value::Value::IntValue(1));
+            v
+        });
+        assert_eq!(
+            &gauge_value,
+            metric
+                .metric_points
+                .first()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap()
+        );
     }
 }
