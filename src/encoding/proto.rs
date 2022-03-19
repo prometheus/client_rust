@@ -139,6 +139,9 @@ impl<T: EncodeLabel> EncodeLabel for &[T] {
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+// Counter
+
 pub trait EncodeCounterValue {
     fn encode(&self) -> openmetrics_data_model::counter_value::Total;
 }
@@ -154,9 +157,6 @@ impl EncodeCounterValue for f64 {
         openmetrics_data_model::counter_value::Total::DoubleValue(*self)
     }
 }
-
-/////////////////////////////////////////////////////////////////////////////////
-// Counter
 
 impl<N, A> EncodeMetric for Counter<N, A>
 where
