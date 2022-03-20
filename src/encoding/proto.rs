@@ -8,6 +8,7 @@ use crate::metrics::exemplar::{CounterWithExemplar, Exemplar, HistogramWithExemp
 use crate::metrics::family::{Family, MetricConstructor};
 use crate::metrics::gauge::Gauge;
 use crate::metrics::histogram::Histogram;
+use crate::metrics::info::Info;
 use crate::metrics::{counter, gauge, MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
 use std::collections::HashMap;
@@ -148,10 +149,10 @@ impl EncodeLabel for () {
 }
 
 fn encode_exemplar<S, N>(exemplar: &Exemplar<S, N>) -> openmetrics_data_model::Exemplar
-    where
-        N: Clone,
-        S: EncodeLabel,
-        f64: From<N>, // required because Exemplar.value is defined as `double` in protobuf
+where
+    N: Clone,
+    S: EncodeLabel,
+    f64: From<N>, // required because Exemplar.value is defined as `double` in protobuf
 {
     let mut exemplar_proto = openmetrics_data_model::Exemplar::default();
     exemplar_proto.value = exemplar.value.clone().into();
@@ -421,6 +422,44 @@ fn encode_histogram_with_maybe_exemplars<S: EncodeLabel>(
     metric
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+// Info
+
+impl<S> EncodeMetric for Info<S>
+where
+    S: EncodeLabel,
+{
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+    ) -> Vec<openmetrics_data_model::Metric> {
+        let mut metric = openmetrics_data_model::Metric::default();
+
+        metric.metric_points = {
+            let mut metric_point = openmetrics_data_model::MetricPoint::default();
+            metric_point.value = {
+                let mut label = self.0.encode();
+                label.append(&mut labels.clone());
+
+                let mut info_value = openmetrics_data_model::InfoValue::default();
+                info_value.info = label;
+
+                Some(openmetrics_data_model::metric_point::Value::InfoValue(
+                    info_value,
+                ))
+            };
+
+            vec![metric_point]
+        };
+
+        vec![metric]
+    }
+
+    fn metric_type(&self) -> MetricType {
+        MetricType::Info
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,6 +468,7 @@ mod tests {
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{exponential_buckets, Histogram};
+    use crate::metrics::info::Info;
     use crate::registry::Unit;
     use std::borrow::Cow;
     use std::sync::atomic::AtomicI64;
@@ -593,6 +633,39 @@ mod tests {
                     label
                 };
                 assert_eq!(vec![expected_label], exemplar.label);
+            }
+            _ => assert!(false, "wrong value type"),
+        }
+    }
+
+    #[test]
+    fn encode_info() {
+        let mut registry = Registry::default();
+        let info = Info::new(vec![("os".to_string(), "GNU/linux".to_string())]);
+        registry.register("my_info_metric", "My info metric", info);
+
+        let metric_set = encode(&registry);
+        let metric = metric_set
+            .metric_families
+            .first()
+            .unwrap()
+            .metrics
+            .first()
+            .unwrap();
+        let metric_point_value = metric
+            .metric_points
+            .first()
+            .unwrap()
+            .value
+            .as_ref()
+            .unwrap();
+
+        match metric_point_value {
+            openmetrics_data_model::metric_point::Value::InfoValue(value) => {
+                assert_eq!(1, value.info.len());
+                let info = value.info.first().unwrap();
+                assert_eq!("os", info.name);
+                assert_eq!("GNU/linux", info.value);
             }
             _ => assert!(false, "wrong value type"),
         }
