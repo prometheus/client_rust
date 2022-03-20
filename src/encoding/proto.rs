@@ -168,7 +168,7 @@ where
         &self,
         labels: Vec<openmetrics_data_model::Label>,
     ) -> Vec<openmetrics_data_model::Metric> {
-        let mut metric = encode_counter(self.get(), None);
+        let mut metric = encode_counter_with_maybe_exemplar(self.get(), None);
         metric.labels = labels;
 
         vec![metric]
@@ -198,7 +198,7 @@ where
             None
         };
 
-        let mut metric = encode_counter(value.clone(), exemplar_proto);
+        let mut metric = encode_counter_with_maybe_exemplar(value.clone(), exemplar_proto);
         metric.labels = labels;
 
         vec![metric]
@@ -209,7 +209,7 @@ where
     }
 }
 
-fn encode_counter<N>(
+fn encode_counter_with_maybe_exemplar<N>(
     value: N,
     exemplar: Option<openmetrics_data_model::Exemplar>,
 ) -> openmetrics_data_model::Metric
