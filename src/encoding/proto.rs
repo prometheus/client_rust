@@ -147,6 +147,19 @@ impl EncodeLabel for () {
     }
 }
 
+fn encode_exemplar<S, N>(exemplar: &Exemplar<S, N>) -> openmetrics_data_model::Exemplar
+    where
+        N: Clone,
+        S: EncodeLabel,
+        f64: From<N>, // required because Exemplar.value is defined as `double` in protobuf
+{
+    let mut exemplar_proto = openmetrics_data_model::Exemplar::default();
+    exemplar_proto.value = exemplar.value.clone().into();
+    exemplar_proto.label = exemplar.label_set.encode();
+
+    exemplar_proto
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 // Counter
 
@@ -241,19 +254,6 @@ where
     };
 
     metric
-}
-
-fn encode_exemplar<S, N>(exemplar: &Exemplar<S, N>) -> openmetrics_data_model::Exemplar
-where
-    N: Clone,
-    S: EncodeLabel,
-    f64: From<N>, // required because Exemplar.value is defined as `double` in protobuf
-{
-    let mut exemplar_proto = openmetrics_data_model::Exemplar::default();
-    exemplar_proto.value = exemplar.value.clone().into();
-    exemplar_proto.label = exemplar.label_set.encode();
-
-    exemplar_proto
 }
 
 /////////////////////////////////////////////////////////////////////////////////
