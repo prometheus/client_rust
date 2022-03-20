@@ -7,6 +7,7 @@ use crate::metrics::counter::Counter;
 use crate::metrics::exemplar::{CounterWithExemplar, Exemplar};
 use crate::metrics::family::{Family, MetricConstructor};
 use crate::metrics::gauge::Gauge;
+use crate::metrics::histogram::Histogram;
 use crate::metrics::{counter, gauge, MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
 use std::ops::Deref;
@@ -332,6 +333,51 @@ where
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+// Histogram
+
+impl EncodeMetric for Histogram {
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+    ) -> Vec<openmetrics_data_model::Metric> {
+        let mut metric = openmetrics_data_model::Metric::default();
+
+        metric.metric_points = {
+            let mut metric_point = openmetrics_data_model::MetricPoint::default();
+            metric_point.value = {
+                let mut histogram_value = openmetrics_data_model::HistogramValue::default();
+                let (sum, count, buckets) = self.get();
+                histogram_value.sum = Some(
+                    openmetrics_data_model::histogram_value::Sum::DoubleValue(sum),
+                );
+                histogram_value.count = count;
+
+                let mut cummulative = 0;
+                for (_i, (upper_bound, count)) in buckets.iter().enumerate() {
+                    cummulative += count;
+                    let mut bucket = openmetrics_data_model::histogram_value::Bucket::default();
+                    bucket.count = cummulative;
+                    bucket.upper_bound = *upper_bound;
+                    histogram_value.buckets.push(bucket);
+                }
+                Some(openmetrics_data_model::metric_point::Value::HistogramValue(
+                    histogram_value,
+                ))
+            };
+
+            vec![metric_point]
+        };
+
+        metric.labels = labels;
+        vec![metric]
+    }
+
+    fn metric_type(&self) -> MetricType {
+        MetricType::Histogram
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,6 +385,7 @@ mod tests {
     use crate::metrics::exemplar::CounterWithExemplar;
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
+    use crate::metrics::histogram::{exponential_buckets, Histogram};
     use crate::registry::Unit;
     use std::borrow::Cow;
     use std::sync::atomic::AtomicI64;
@@ -429,5 +476,42 @@ mod tests {
                 .as_ref()
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn encode_histogram() {
+        let mut registry = Registry::default();
+        let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
+        registry.register("my_histogram", "My histogram", histogram.clone());
+        histogram.observe(1.0);
+
+        let metric_set = encode(&registry);
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!(
+            openmetrics_data_model::MetricType::Histogram as i32,
+            family.r#type
+        );
+
+        let metric = family.metrics.first().unwrap();
+        let metric_point_value = metric
+            .metric_points
+            .first()
+            .unwrap()
+            .value
+            .as_ref()
+            .unwrap();
+        match metric_point_value {
+            openmetrics_data_model::metric_point::Value::HistogramValue(value) => {
+                assert_eq!(
+                    Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
+                        1.0
+                    )),
+                    value.sum
+                );
+                assert_eq!(1, value.count);
+                assert_eq!(11, value.buckets.len());
+            }
+            _ => assert!(false, "wrong value type"),
+        }
     }
 }
