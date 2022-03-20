@@ -4,12 +4,13 @@ pub mod openmetrics_data_model {
 }
 
 use crate::metrics::counter::Counter;
-use crate::metrics::exemplar::{CounterWithExemplar, Exemplar};
+use crate::metrics::exemplar::{CounterWithExemplar, Exemplar, HistogramWithExemplars};
 use crate::metrics::family::{Family, MetricConstructor};
 use crate::metrics::gauge::Gauge;
 use crate::metrics::histogram::Histogram;
 use crate::metrics::{counter, gauge, MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
+use std::collections::HashMap;
 use std::ops::Deref;
 
 pub fn encode<M>(registry: &Registry<M>) -> openmetrics_data_model::MetricSet
@@ -137,6 +138,12 @@ impl<T: EncodeLabel> EncodeLabel for &[T] {
             label.append(&mut t.encode());
         }
         label
+    }
+}
+
+impl EncodeLabel for () {
+    fn encode(&self) -> Vec<openmetrics_data_model::Label> {
+        vec![]
     }
 }
 
@@ -341,34 +348,9 @@ impl EncodeMetric for Histogram {
         &self,
         labels: Vec<openmetrics_data_model::Label>,
     ) -> Vec<openmetrics_data_model::Metric> {
-        let mut metric = openmetrics_data_model::Metric::default();
-
-        metric.metric_points = {
-            let mut metric_point = openmetrics_data_model::MetricPoint::default();
-            metric_point.value = {
-                let mut histogram_value = openmetrics_data_model::HistogramValue::default();
-                let (sum, count, buckets) = self.get();
-                histogram_value.sum = Some(
-                    openmetrics_data_model::histogram_value::Sum::DoubleValue(sum),
-                );
-                histogram_value.count = count;
-
-                let mut cummulative = 0;
-                for (_i, (upper_bound, count)) in buckets.iter().enumerate() {
-                    cummulative += count;
-                    let mut bucket = openmetrics_data_model::histogram_value::Bucket::default();
-                    bucket.count = cummulative;
-                    bucket.upper_bound = *upper_bound;
-                    histogram_value.buckets.push(bucket);
-                }
-                Some(openmetrics_data_model::metric_point::Value::HistogramValue(
-                    histogram_value,
-                ))
-            };
-
-            vec![metric_point]
-        };
-
+        let (sum, count, buckets) = self.get();
+        // TODO: Would be better to use never type instead of `()`.
+        let mut metric = encode_histogram_with_maybe_exemplars::<()>(sum, count, &buckets, None);
         metric.labels = labels;
         vec![metric]
     }
@@ -378,11 +360,72 @@ impl EncodeMetric for Histogram {
     }
 }
 
+impl<S> EncodeMetric for HistogramWithExemplars<S>
+where
+    S: EncodeLabel,
+{
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+    ) -> Vec<openmetrics_data_model::Metric> {
+        let inner = self.inner();
+        let (sum, count, buckets) = inner.histogram.get();
+        let mut metric =
+            encode_histogram_with_maybe_exemplars(sum, count, &buckets, Some(&inner.exemplars));
+        metric.labels = labels;
+        vec![metric]
+    }
+
+    fn metric_type(&self) -> MetricType {
+        MetricType::Histogram
+    }
+}
+
+fn encode_histogram_with_maybe_exemplars<S: EncodeLabel>(
+    sum: f64,
+    count: u64,
+    buckets: &[(f64, u64)],
+    exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
+) -> openmetrics_data_model::Metric {
+    let mut metric = openmetrics_data_model::Metric::default();
+
+    metric.metric_points = {
+        let mut metric_point = openmetrics_data_model::MetricPoint::default();
+        metric_point.value = {
+            let mut histogram_value = openmetrics_data_model::HistogramValue::default();
+            histogram_value.sum = Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
+                sum,
+            ));
+            histogram_value.count = count;
+
+            let mut cummulative = 0;
+            for (i, (upper_bound, count)) in buckets.iter().enumerate() {
+                cummulative += count;
+                let mut bucket = openmetrics_data_model::histogram_value::Bucket::default();
+                bucket.count = cummulative;
+                bucket.upper_bound = *upper_bound;
+                bucket.exemplar = exemplars
+                    .map(|es| es.get(&i))
+                    .flatten()
+                    .map(|exemplar| encode_exemplar(exemplar));
+                histogram_value.buckets.push(bucket);
+            }
+            Some(openmetrics_data_model::metric_point::Value::HistogramValue(
+                histogram_value,
+            ))
+        };
+
+        vec![metric_point]
+    };
+
+    metric
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::metrics::counter::Counter;
-    use crate::metrics::exemplar::CounterWithExemplar;
+    use crate::metrics::exemplar::{CounterWithExemplar, HistogramWithExemplars};
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{exponential_buckets, Histogram};
@@ -510,6 +553,46 @@ mod tests {
                 );
                 assert_eq!(1, value.count);
                 assert_eq!(11, value.buckets.len());
+            }
+            _ => assert!(false, "wrong value type"),
+        }
+    }
+
+    #[test]
+    fn encode_histogram_with_exemplars() {
+        let mut registry = Registry::default();
+        let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
+        registry.register("my_histogram", "My histogram", histogram.clone());
+        histogram.observe(1.0, Some(("user_id".to_string(), 42u64)));
+
+        let metric_set = encode(&registry);
+        let metric = metric_set
+            .metric_families
+            .first()
+            .unwrap()
+            .metrics
+            .first()
+            .unwrap();
+        let metric_point_value = metric
+            .metric_points
+            .first()
+            .unwrap()
+            .value
+            .as_ref()
+            .unwrap();
+
+        match metric_point_value {
+            openmetrics_data_model::metric_point::Value::HistogramValue(value) => {
+                let exemplar = value.buckets.first().unwrap().exemplar.as_ref().unwrap();
+                assert_eq!(1.0, exemplar.value);
+
+                let expected_label = {
+                    let mut label = openmetrics_data_model::Label::default();
+                    label.name = "user_id".to_string();
+                    label.value = "42".to_string();
+                    label
+                };
+                assert_eq!(vec![expected_label], exemplar.label);
             }
             _ => assert!(false, "wrong value type"),
         }
