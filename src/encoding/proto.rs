@@ -596,7 +596,25 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        // TODO: test the exemplar
+        match extract_metric_point_value(metric_set) {
+            openmetrics_data_model::metric_point::Value::CounterValue(value) => {
+                // The counter should be encoded  as `DoubleValue`
+                let expected = openmetrics_data_model::counter_value::Total::DoubleValue(1.0);
+                assert_eq!(Some(expected), value.total);
+
+                let exemplar = value.exemplar.as_ref().unwrap();
+                assert_eq!(1.0, exemplar.value);
+
+                let expected_label = {
+                    let mut label = openmetrics_data_model::Label::default();
+                    label.name = "user_id".to_string();
+                    label.value = "42".to_string();
+                    label
+                };
+                assert_eq!(vec![expected_label], exemplar.label);
+            }
+            _ => assert!(false, "wrong value type"),
+        }
     }
 
     #[test]
