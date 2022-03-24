@@ -519,6 +519,10 @@ mod tests {
 
         let metric_set = encode(&registry);
 
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_counter", family.name);
+        assert_eq!("My counter.", family.help);
+
         assert_eq!(
             openmetrics_data_model::MetricType::Counter as i32,
             extract_metric_type(&metric_set)
@@ -544,6 +548,10 @@ mod tests {
         counter.inc();
 
         let metric_set = encode(&registry);
+
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_counter", family.name);
+        assert_eq!("My counter.", family.help);
 
         assert_eq!(
             openmetrics_data_model::MetricType::Counter as i32,
@@ -578,6 +586,10 @@ mod tests {
         counter_with_exemplar.inc_by(1.0, Some(("user_id".to_string(), 42.0)));
 
         let metric_set = encode(&registry);
+
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_counter_with_exemplar", family.name);
+        assert_eq!("My counter with exemplar.", family.help);
 
         assert_eq!(
             openmetrics_data_model::MetricType::Counter as i32,
@@ -622,6 +634,10 @@ mod tests {
 
         let metric_set = encode(&registry);
 
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_histogram", family.name);
+        assert_eq!("My histogram.", family.help);
+
         assert_eq!(
             openmetrics_data_model::MetricType::Histogram as i32,
             extract_metric_type(&metric_set)
@@ -650,6 +666,10 @@ mod tests {
         histogram.observe(1.0, Some(("user_id".to_string(), 42u64)));
 
         let metric_set = encode(&registry);
+
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_histogram", family.name);
+        assert_eq!("My histogram.", family.help);
 
         assert_eq!(
             openmetrics_data_model::MetricType::Histogram as i32,
@@ -680,6 +700,10 @@ mod tests {
         registry.register("my_info_metric", "My info metric", info);
 
         let metric_set = encode(&registry);
+
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_info_metric", family.name);
+        assert_eq!("My info metric.", family.help);
 
         assert_eq!(
             openmetrics_data_model::MetricType::Info as i32,
