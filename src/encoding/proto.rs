@@ -639,6 +639,95 @@ mod tests {
     }
 
     #[test]
+    fn encode_counter_family() {
+        let mut registry = Registry::default();
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+        registry.register("my_counter_family", "My counter family", family.clone());
+
+        family
+            .get_or_create(&vec![
+                ("method".to_string(), "GET".to_string()),
+                ("status".to_string(), "200".to_string()),
+            ])
+            .inc();
+
+        let metric_set = encode(&registry);
+
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_counter_family", family.name);
+        assert_eq!("My counter family.", family.help);
+
+        assert_eq!(
+            openmetrics_data_model::MetricType::Counter as i32,
+            extract_metric_type(&metric_set)
+        );
+
+        let metric = family.metrics.first().unwrap();
+        assert_eq!(2, metric.labels.len());
+        assert_eq!("method", metric.labels[0].name);
+        assert_eq!("GET", metric.labels[0].value);
+        assert_eq!("status", metric.labels[1].name);
+        assert_eq!("200", metric.labels[1].value);
+
+        match extract_metric_point_value(metric_set) {
+            openmetrics_data_model::metric_point::Value::CounterValue(value) => {
+                let expected = openmetrics_data_model::counter_value::Total::IntValue(1);
+                assert_eq!(Some(expected), value.total);
+                assert_eq!(None, value.exemplar);
+                assert_eq!(None, value.created);
+            }
+            _ => assert!(false, "wrong value type"),
+        }
+    }
+
+    #[test]
+    fn encode_counter_family_with_prefix_with_label() {
+        let mut registry = Registry::default();
+        let sub_registry = registry.sub_registry_with_prefix("my_prefix");
+        let sub_sub_registry = sub_registry
+            .sub_registry_with_label((Cow::Borrowed("my_key"), Cow::Borrowed("my_value")));
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+        sub_sub_registry.register("my_counter_family", "My counter family", family.clone());
+
+        family
+            .get_or_create(&vec![
+                ("method".to_string(), "GET".to_string()),
+                ("status".to_string(), "200".to_string()),
+            ])
+            .inc();
+
+        let metric_set = encode(&registry);
+
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_prefix_my_counter_family", family.name);
+        assert_eq!("My counter family.", family.help);
+
+        assert_eq!(
+            openmetrics_data_model::MetricType::Counter as i32,
+            extract_metric_type(&metric_set)
+        );
+
+        let metric = family.metrics.first().unwrap();
+        assert_eq!(3, metric.labels.len());
+        assert_eq!("method", metric.labels[0].name);
+        assert_eq!("GET", metric.labels[0].value);
+        assert_eq!("status", metric.labels[1].name);
+        assert_eq!("200", metric.labels[1].value);
+        assert_eq!("my_key", metric.labels[2].name);
+        assert_eq!("my_value", metric.labels[2].value);
+
+        match extract_metric_point_value(metric_set) {
+            openmetrics_data_model::metric_point::Value::CounterValue(value) => {
+                let expected = openmetrics_data_model::counter_value::Total::IntValue(1);
+                assert_eq!(Some(expected), value.total);
+                assert_eq!(None, value.exemplar);
+                assert_eq!(None, value.created);
+            }
+            _ => assert!(false, "wrong value type"),
+        }
+    }
+
+    #[test]
     fn encode_histogram() {
         let mut registry = Registry::default();
         let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
