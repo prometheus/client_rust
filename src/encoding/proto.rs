@@ -571,15 +571,28 @@ mod tests {
     }
 
     #[test]
+    fn encode_counter_with_unit() {
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter.clone());
+
+        let metric_set = encode(&registry);
+
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_counter", family.name);
+        assert_eq!("My counter.", family.help);
+        assert_eq!("seconds", family.unit);
+    }
+
+    #[test]
     fn encode_counter_with_exemplar() {
         let mut registry = Registry::default();
 
         let counter_with_exemplar: CounterWithExemplar<(String, f64), f64> =
             CounterWithExemplar::default();
-        registry.register_with_unit(
+        registry.register(
             "my_counter_with_exemplar",
             "My counter with exemplar",
-            Unit::Seconds,
             counter_with_exemplar.clone(),
         );
 
