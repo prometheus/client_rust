@@ -597,28 +597,20 @@ mod tests {
         let metric_set = encode(&registry);
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_gauge", family.name);
+        assert_eq!("My gauge.", family.help);
+
         assert_eq!(
             openmetrics_data_model::MetricType::Gauge as i32,
             extract_metric_type(&metric_set)
         );
-        assert_eq!("My gauge.", family.help);
 
-        let metric = family.metrics.first().unwrap();
-        let gauge_value = openmetrics_data_model::metric_point::Value::GaugeValue({
-            let mut v = openmetrics_data_model::GaugeValue::default();
-            v.value = Some(openmetrics_data_model::gauge_value::Value::IntValue(1));
-            v
-        });
-        assert_eq!(
-            &gauge_value,
-            metric
-                .metric_points
-                .first()
-                .unwrap()
-                .value
-                .as_ref()
-                .unwrap()
-        );
+        match extract_metric_point_value(metric_set) {
+            openmetrics_data_model::metric_point::Value::GaugeValue(value) => {
+                let expected = openmetrics_data_model::gauge_value::Value::IntValue(1);
+                assert_eq!(Some(expected), value.value);
+            }
+            _ => assert!(false, "wrong value type"),
+        }
     }
 
     #[test]
@@ -629,21 +621,13 @@ mod tests {
         histogram.observe(1.0);
 
         let metric_set = encode(&registry);
-        let family = metric_set.metric_families.first().unwrap();
+
         assert_eq!(
             openmetrics_data_model::MetricType::Histogram as i32,
             extract_metric_type(&metric_set)
         );
 
-        let metric = family.metrics.first().unwrap();
-        let metric_point_value = metric
-            .metric_points
-            .first()
-            .unwrap()
-            .value
-            .as_ref()
-            .unwrap();
-        match metric_point_value {
+        match extract_metric_point_value(metric_set) {
             openmetrics_data_model::metric_point::Value::HistogramValue(value) => {
                 assert_eq!(
                     Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
@@ -672,22 +656,7 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        let metric = metric_set
-            .metric_families
-            .first()
-            .unwrap()
-            .metrics
-            .first()
-            .unwrap();
-        let metric_point_value = metric
-            .metric_points
-            .first()
-            .unwrap()
-            .value
-            .as_ref()
-            .unwrap();
-
-        match metric_point_value {
+        match extract_metric_point_value(metric_set) {
             openmetrics_data_model::metric_point::Value::HistogramValue(value) => {
                 let exemplar = value.buckets.first().unwrap().exemplar.as_ref().unwrap();
                 assert_eq!(1.0, exemplar.value);
@@ -717,24 +686,10 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        let metric = metric_set
-            .metric_families
-            .first()
-            .unwrap()
-            .metrics
-            .first()
-            .unwrap();
-        let metric_point_value = metric
-            .metric_points
-            .first()
-            .unwrap()
-            .value
-            .as_ref()
-            .unwrap();
-
-        match metric_point_value {
+        match extract_metric_point_value(metric_set) {
             openmetrics_data_model::metric_point::Value::InfoValue(value) => {
                 assert_eq!(1, value.info.len());
+
                 let info = value.info.first().unwrap();
                 assert_eq!("os", info.name);
                 assert_eq!("GNU/linux", info.value);
