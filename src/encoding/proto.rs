@@ -511,6 +511,48 @@ mod tests {
     }
 
     #[test]
+    fn encode_counter_int() {
+        let counter: Counter = Counter::default();
+        let mut registry = Registry::default();
+        registry.register("my_counter", "My counter", counter.clone());
+        counter.inc();
+
+        let metric_point_value = extract_metric_point_value(encode(&registry));
+
+        match metric_point_value {
+            openmetrics_data_model::metric_point::Value::CounterValue(value) => {
+                let expected = openmetrics_data_model::counter_value::Total::IntValue(1);
+                assert_eq!(Some(expected), value.total);
+                assert_eq!(None, value.exemplar);
+                assert_eq!(None, value.created);
+            }
+            _ => assert!(false, "wrong value type"),
+        }
+    }
+
+    #[test]
+    fn encode_counter_double() {
+        // Using `f64`
+        let counter: Counter<f64> = Counter::default();
+        let mut registry = Registry::default();
+        registry.register("my_counter", "My counter", counter.clone());
+        counter.inc();
+
+        let metric_point_value = extract_metric_point_value(encode(&registry));
+
+        match metric_point_value {
+            openmetrics_data_model::metric_point::Value::CounterValue(value) => {
+                // The counter should be encoded  as `DoubleValue`
+                let expected = openmetrics_data_model::counter_value::Total::DoubleValue(1.0);
+                assert_eq!(Some(expected), value.total);
+                assert_eq!(None, value.exemplar);
+                assert_eq!(None, value.created);
+            }
+            _ => assert!(false, "wrong value type"),
+        }
+    }
+
+    #[test]
     fn encode_counter_with_exemplar() {
         let mut registry = Registry::default();
 
@@ -669,5 +711,26 @@ mod tests {
             }
             _ => assert!(false, "wrong value type"),
         }
+    }
+
+    fn extract_metric_point_value(
+        metric_set: openmetrics_data_model::MetricSet,
+    ) -> openmetrics_data_model::metric_point::Value {
+        let metric = metric_set
+            .metric_families
+            .first()
+            .unwrap()
+            .metrics
+            .first()
+            .unwrap();
+
+        metric
+            .metric_points
+            .first()
+            .unwrap()
+            .value
+            .as_ref()
+            .unwrap()
+            .clone()
     }
 }
