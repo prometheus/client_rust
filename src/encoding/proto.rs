@@ -517,9 +517,14 @@ mod tests {
         registry.register("my_counter", "My counter", counter.clone());
         counter.inc();
 
-        let metric_point_value = extract_metric_point_value(encode(&registry));
+        let metric_set = encode(&registry);
 
-        match metric_point_value {
+        assert_eq!(
+            openmetrics_data_model::MetricType::Counter as i32,
+            extract_metric_type(&metric_set)
+        );
+
+        match extract_metric_point_value(metric_set) {
             openmetrics_data_model::metric_point::Value::CounterValue(value) => {
                 let expected = openmetrics_data_model::counter_value::Total::IntValue(1);
                 assert_eq!(Some(expected), value.total);
@@ -538,9 +543,14 @@ mod tests {
         registry.register("my_counter", "My counter", counter.clone());
         counter.inc();
 
-        let metric_point_value = extract_metric_point_value(encode(&registry));
+        let metric_set = encode(&registry);
 
-        match metric_point_value {
+        assert_eq!(
+            openmetrics_data_model::MetricType::Counter as i32,
+            extract_metric_type(&metric_set)
+        );
+
+        match extract_metric_point_value(metric_set) {
             openmetrics_data_model::metric_point::Value::CounterValue(value) => {
                 // The counter should be encoded  as `DoubleValue`
                 let expected = openmetrics_data_model::counter_value::Total::DoubleValue(1.0);
@@ -566,7 +576,15 @@ mod tests {
         );
 
         counter_with_exemplar.inc_by(1.0, Some(("user_id".to_string(), 42.0)));
-        println!("{:?}", encode(&registry));
+
+        let metric_set = encode(&registry);
+
+        assert_eq!(
+            openmetrics_data_model::MetricType::Counter as i32,
+            extract_metric_type(&metric_set)
+        );
+
+        // TODO: test the exemplar
     }
 
     #[test]
@@ -581,7 +599,7 @@ mod tests {
         assert_eq!("my_gauge", family.name);
         assert_eq!(
             openmetrics_data_model::MetricType::Gauge as i32,
-            family.r#type
+            extract_metric_type(&metric_set)
         );
         assert_eq!("My gauge.", family.help);
 
@@ -614,7 +632,7 @@ mod tests {
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!(
             openmetrics_data_model::MetricType::Histogram as i32,
-            family.r#type
+            extract_metric_type(&metric_set)
         );
 
         let metric = family.metrics.first().unwrap();
@@ -648,6 +666,12 @@ mod tests {
         histogram.observe(1.0, Some(("user_id".to_string(), 42u64)));
 
         let metric_set = encode(&registry);
+
+        assert_eq!(
+            openmetrics_data_model::MetricType::Histogram as i32,
+            extract_metric_type(&metric_set)
+        );
+
         let metric = metric_set
             .metric_families
             .first()
@@ -687,6 +711,12 @@ mod tests {
         registry.register("my_info_metric", "My info metric", info);
 
         let metric_set = encode(&registry);
+
+        assert_eq!(
+            openmetrics_data_model::MetricType::Info as i32,
+            extract_metric_type(&metric_set)
+        );
+
         let metric = metric_set
             .metric_families
             .first()
@@ -711,6 +741,11 @@ mod tests {
             }
             _ => assert!(false, "wrong value type"),
         }
+    }
+
+    fn extract_metric_type(metric_set: &openmetrics_data_model::MetricSet) -> i32 {
+        let family = metric_set.metric_families.first().unwrap();
+        family.r#type
     }
 
     fn extract_metric_point_value(
