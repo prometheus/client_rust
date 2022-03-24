@@ -18,27 +18,21 @@ pub fn encode<M>(registry: &Registry<M>) -> openmetrics_data_model::MetricSet
 where
     M: EncodeMetric,
 {
-    // MetricSet
     let mut metric_set = openmetrics_data_model::MetricSet::default();
 
     for (desc, metric) in registry.iter() {
-        // MetricFamily
         let mut family = openmetrics_data_model::MetricFamily::default();
-        // MetricFamily.name
         family.name = desc.name().to_string();
-        // MetricFamily.type
         family.r#type = {
             let metric_type: openmetrics_data_model::MetricType = metric.metric_type().into();
             metric_type as i32
         };
-        // MetricFamily.unit
         if let Some(unit) = desc.unit() {
             family.unit = unit.as_str().to_string();
         }
-        // MetricFamily.help
         family.help = desc.help().to_string();
-        // MetricFamily.Metric
         family.metrics = metric.encode(desc.labels().encode());
+
         metric_set.metric_families.push(family);
     }
 
