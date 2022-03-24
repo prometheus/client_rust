@@ -196,7 +196,7 @@ where
     }
 
     fn metric_type(&self) -> MetricType {
-        MetricType::Counter
+        Self::TYPE
     }
 }
 
@@ -226,7 +226,7 @@ where
     }
 
     fn metric_type(&self) -> MetricType {
-        MetricType::Counter
+        Counter::<N, A>::TYPE
     }
 }
 
@@ -307,7 +307,7 @@ where
     }
 
     fn metric_type(&self) -> MetricType {
-        MetricType::Gauge
+        Self::TYPE
     }
 }
 
@@ -357,7 +357,7 @@ impl EncodeMetric for Histogram {
     }
 
     fn metric_type(&self) -> MetricType {
-        MetricType::Histogram
+        Self::TYPE
     }
 }
 
@@ -378,7 +378,7 @@ where
     }
 
     fn metric_type(&self) -> MetricType {
-        MetricType::Histogram
+        Histogram::TYPE
     }
 }
 
@@ -456,7 +456,7 @@ where
     }
 
     fn metric_type(&self) -> MetricType {
-        MetricType::Info
+        Self::TYPE
     }
 }
 
