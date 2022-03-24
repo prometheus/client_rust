@@ -10,7 +10,7 @@ use crate::metrics::gauge::Gauge;
 use crate::metrics::histogram::Histogram;
 use crate::metrics::info::Info;
 use crate::metrics::{counter, gauge, MetricType, TypedMetric};
-use crate::registry::{Registry, Unit};
+use crate::registry::Registry;
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -33,19 +33,7 @@ where
         };
         // MetricFamily.unit
         if let Some(unit) = desc.unit() {
-            family.unit = match unit {
-                Unit::Amperes => "amperes",
-                Unit::Bytes => "bytes",
-                Unit::Celsius => "celsius",
-                Unit::Grams => "grams",
-                Unit::Joules => "joules",
-                Unit::Meters => "meters",
-                Unit::Ratios => "ratios",
-                Unit::Seconds => "seconds",
-                Unit::Volts => "volts",
-                Unit::Other(other) => other.as_str(),
-            }
-            .to_string();
+            family.unit = unit.as_str().to_string();
         }
         // MetricFamily.help
         family.help = desc.help().to_string();
