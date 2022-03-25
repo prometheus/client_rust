@@ -456,43 +456,6 @@ mod tests {
     use std::sync::atomic::AtomicI64;
 
     #[test]
-    fn test_encode() {
-        let mut registry: Registry<Box<dyn EncodeMetric>> = Registry::default();
-
-        let counter: Counter = Counter::default();
-        registry.register_with_unit(
-            "my_counter",
-            "My counter",
-            Unit::Seconds,
-            Box::new(counter.clone()),
-        );
-        counter.inc();
-
-        let family = Family::<Vec<(String, String)>, Counter>::default();
-        let sub_registry =
-            registry.sub_registry_with_label((Cow::Borrowed("my_key"), Cow::Borrowed("my_value")));
-        sub_registry.register(
-            "my_counter_family",
-            "My counter family",
-            Box::new(family.clone()),
-        );
-        family
-            .get_or_create(&vec![
-                ("method".to_string(), "GET".to_string()),
-                ("status".to_string(), "200".to_string()),
-            ])
-            .inc();
-        family
-            .get_or_create(&vec![
-                ("method".to_string(), "POST".to_string()),
-                ("status".to_string(), "503".to_string()),
-            ])
-            .inc();
-
-        println!("{:?}", encode(&registry));
-    }
-
-    #[test]
     fn encode_counter_int() {
         let counter: Counter = Counter::default();
         let mut registry = Registry::default();
