@@ -3,7 +3,7 @@ use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use tide::{Middleware, Next, Request, Result};
 
@@ -23,7 +23,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
         http_requests_total,
     };
     let mut app = tide::with_state(State {
-        registry: Arc::new(Mutex::new(registry)),
+        registry: Arc::new(registry),
     });
 
     app.with(middleware);
@@ -31,7 +31,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     app.at("/metrics")
         .get(|req: tide::Request<State>| async move {
             let mut encoded = Vec::new();
-            encode(&mut encoded, &req.state().registry.lock().unwrap()).unwrap();
+            encode(&mut encoded, &req.state().registry).unwrap();
             let response = tide::Response::builder(200)
                 .body(encoded)
                 .content_type("application/openmetrics-text; version=1.0.0; charset=utf-8")
@@ -57,7 +57,7 @@ enum Method {
 
 #[derive(Clone)]
 struct State {
-    registry: Arc<Mutex<Registry<Family<Labels, Counter>>>>,
+    registry: Arc<Registry<Family<Labels, Counter>>>,
 }
 
 #[derive(Default)]
