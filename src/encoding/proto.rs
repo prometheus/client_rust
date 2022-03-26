@@ -1,3 +1,27 @@
+//! Open Metrics protobuf implementation.
+//!
+//! ```
+//! # use prometheus_client::encoding::proto::encode;
+//! # use prometheus_client::metrics::counter::Counter;
+//! # use prometheus_client::registry::Registry;
+//! #
+//! # // Create registry and counter and register the latter with the former.
+//! # let mut registry = Registry::default();
+//! # let counter: Counter = Counter::default();
+//! # registry.register(
+//! #   "my_counter",
+//! #   "This is my counter",
+//! #   counter.clone(),
+//! # );
+//! # counter.inc();
+//! // Returns `MetricSet`, the top-level container type. Please refer to [openmetrics_data_model.proto](https://github.com/OpenObservability/OpenMetrics/blob/main/proto/openmetrics_data_model.proto) for details.
+//! let metric_set = encode(&registry);
+//!
+//! let family = metric_set.metric_families.first().unwrap();
+//! assert_eq!("my_counter", family.name);
+//! assert_eq!("My counter.", family.help);
+//! ```
+
 // Include the `openmetrics_data_model` module, which is generated from `proto/openmetrics_data_model.proto`.
 pub mod openmetrics_data_model {
     include!(concat!(env!("OUT_DIR"), "/openmetrics.rs"));
