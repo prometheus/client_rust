@@ -7,21 +7,21 @@ use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 
 #[derive(Clone, Hash, PartialEq, Eq, Encode)]
-pub enum RequestType {
+pub enum Method {
     Get,
     Post,
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Encode)]
-pub struct RequestTypeLabels {
-    pub request_type: RequestType,
+pub struct MethodLabels {
+    pub method: Method,
 }
 
 /// Holds all metrics.
 /// We shouldn't store metrics inside a MetricsCollector -
-/// overwise we would have to take a lock for each increment of any metric
+/// otherwise we would have to take a lock for each increment of any metric
 pub struct Metrics {
-    requests: Family<RequestTypeLabels, Counter>,
+    requests: Family<MethodLabels, Counter>,
 }
 
 impl Metrics {
@@ -31,12 +31,8 @@ impl Metrics {
         }
     }
 
-    pub fn inc_requests(&self, request_type: RequestType) {
-        self.requests
-            .get_or_create(&RequestTypeLabels {
-                request_type: request_type,
-            })
-            .inc();
+    pub fn inc_requests(&self, method: Method) {
+        self.requests.get_or_create(&MethodLabels { method }).inc();
     }
 }
 
@@ -80,14 +76,14 @@ pub async fn metrics_handler(
 }
 
 pub async fn some_handler(metrics: web::Data<Metrics>) -> impl Responder {
-    metrics.inc_requests(RequestType::Get);
+    metrics.inc_requests(Method::Get);
     format!("okay")
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let metrics = web::Data::new(Metrics::new());
-    // We have to wrap it with Mutex because `Registry` doesn't implement Copy-trait
+    // We have to wrap it with Mutex because `Registry` doesn't implement Clone-trait
     let metrics_collector = web::Data::new(Mutex::new(MetricsCollector::new(&metrics)));
 
     HttpServer::new(move || {
