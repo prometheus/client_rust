@@ -404,11 +404,11 @@ impl EncodeMetric for Box<dyn EncodeMetric> {
     }
 }
 
-pub trait SendEncodeMetric: EncodeMetric + Send {}
+pub trait SendSyncEncodeMetric: EncodeMetric + Send + Sync {}
 
-impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
+impl<T: EncodeMetric + Send + Sync> SendSyncEncodeMetric for T {}
 
-impl EncodeMetric for Box<dyn SendEncodeMetric> {
+impl EncodeMetric for Box<dyn SendSyncEncodeMetric> {
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
         self.deref().encode(encoder)
     }
