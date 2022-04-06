@@ -1,6 +1,6 @@
 [package]
 name = "prometheus-client"
-version = "0.15.1"
+version = "0.16.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2018"
 description = "Open Metrics client library allowing users to natively instrument applications."
