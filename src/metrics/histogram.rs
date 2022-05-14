@@ -8,6 +8,8 @@ use std::iter::{self, once};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 /// Open Metrics [`Histogram`] to measure distributions of discrete events.
+/// We do not provide default value for buckets, use predefined buckets
+/// functions or provide your own iterator to argument as constructor.
 ///
 /// ```
 /// # use prometheus_client::metrics::histogram::{Histogram, exponential_buckets};
