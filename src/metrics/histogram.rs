@@ -8,8 +8,17 @@ use std::iter::{self, once};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 /// Open Metrics [`Histogram`] to measure distributions of discrete events.
-/// We do not provide default value for buckets, use predefined buckets
-/// functions or provide your own iterator to argument as constructor.
+///
+/// [`Histogram`] does not implement [`Default`], given that the choice of bucket values depends on the situation [`Histogram`] is used in. As an example, to measure HTTP request latency, the values suggested in the Golang implementation might work for you:
+///
+/// ```
+/// # use prometheus_client::metrics::histogram::Historgam;
+/// // Default values from go client(https://github.com/prometheus/client_golang/blob/5d584e2717ef525673736d72cd1d12e304f243d7/prometheus/histogram.go#L68)
+/// let histogram = Histogram::new(IntoIterator::into_iter([
+///    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+/// ]));
+/// histogram.observe(4.2);
+/// ```
 ///
 /// ```
 /// # use prometheus_client::metrics::histogram::{Histogram, exponential_buckets};
