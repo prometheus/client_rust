@@ -2,7 +2,7 @@
 name = "prometheus-client"
 version = "0.16.0"
 authors = ["Max Inden <mail@max-inden.de>"]
-edition = "2018"
+edition = "2021"
 description = "Open Metrics client library allowing users to natively instrument applications."
 license = "Apache-2.0 OR MIT"
 keywords = ["openmetrics", "prometheus", "metrics", "instrumentation", "monitoring"]
