@@ -1,6 +1,6 @@
 [package]
 name = "prometheus-client"
-version = "0.16.0"
+version = "0.17.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2021"
 description = "Open Metrics client library allowing users to natively instrument applications."
@@ -17,7 +17,7 @@ members = ["derive-text-encode"]
 dtoa = "1.0"
 itoa = "1.0"
 owning_ref = "0.4"
-prometheus-client-derive-text-encode = { version = "0.2.0", path = "derive-text-encode" }
+prometheus-client-derive-text-encode = { version = "0.3.0", path = "derive-text-encode" }
 
 [dev-dependencies]
 async-std = { version = "1", features = ["attributes"] }
