@@ -144,9 +144,9 @@ pub trait MetricConstructor<M> {
 /// ```
 /// # use prometheus_client::metrics::family::{Family};
 /// # use prometheus_client::metrics::histogram::Histogram;
-/// let custom_buckets = vec![0.0, 10.0, 100.0];
+/// let custom_buckets = [0.0, 10.0, 100.0];
 /// let metric = Family::<(), Histogram, _>::new_with_constructor(|| {
-///     Histogram::new(custom_buckets.clone().into_iter())
+///     Histogram::new(custom_buckets.into_iter())
 /// });
 /// # metric.get_or_create(&());
 /// ```

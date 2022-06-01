@@ -23,9 +23,10 @@ use std::sync::{Arc, Mutex, MutexGuard};
 /// ```
 /// # use prometheus_client::metrics::histogram::Histogram;
 /// // Default values from go client(https://github.com/prometheus/client_golang/blob/5d584e2717ef525673736d72cd1d12e304f243d7/prometheus/histogram.go#L68)
-/// let histogram = Histogram::new(IntoIterator::into_iter([
+/// let custom_buckets = [
 ///    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
-/// ]));
+/// ];
+/// let histogram = Histogram::new(custom_buckets.into_iter());
 /// histogram.observe(4.2);
 /// ```
 // TODO: Consider using atomics. See
