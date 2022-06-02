@@ -238,8 +238,10 @@ impl<'a, 'b> Encoder<'a, 'b> {
     pub fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder, std::io::Error> {
         self.write_name_and_unit()?;
 
-        self.writer.write_all(b"_")?;
-        self.writer.write_all(suffix.as_bytes()).map(|_| ())?;
+        if !self.name.ends_with(suffix) {
+            self.writer.write_all(b"_")?;
+            self.writer.write_all(suffix.as_bytes()).map(|_| ())?;
+        }
 
         self.encode_labels()
     }
