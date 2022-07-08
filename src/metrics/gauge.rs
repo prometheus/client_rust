@@ -39,6 +39,7 @@ use std::sync::Arc;
 /// let _value: f64 = gauge.get();
 /// ```
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[derive(Debug)]
 pub struct Gauge<N = u64, A = AtomicU64> {
     value: Arc<A>,
     phantom: PhantomData<N>,

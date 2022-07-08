@@ -97,6 +97,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 // TODO: Consider exposing hash algorithm.
+#[derive(Debug)]
 pub struct Family<S, M, C = fn() -> M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
     /// Function that when called constructs a new metric.

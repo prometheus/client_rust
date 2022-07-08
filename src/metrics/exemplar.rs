@@ -12,6 +12,7 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
+#[derive(Debug)]
 pub struct Exemplar<S, V> {
     pub(crate) label_set: S,
     pub(crate) value: V,
@@ -30,6 +31,7 @@ pub struct Exemplar<S, V> {
 /// let _value: (u64, _) = counter_with_exemplar.get();
 /// ```
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[derive(Debug)]
 pub struct CounterWithExemplar<S, N = u64, A = AtomicU64> {
     pub(crate) inner: Arc<RwLock<CounterWithExemplarInner<S, N, A>>>,
 }
@@ -47,6 +49,7 @@ impl<S, N, A> Clone for CounterWithExemplar<S, N, A> {
     }
 }
 
+#[derive(Debug)]
 pub struct CounterWithExemplarInner<S, N, A> {
     pub(crate) exemplar: Option<Exemplar<S, N>>,
     pub(crate) counter: Counter<N, A>,
@@ -118,6 +121,7 @@ type RwLockGuardedCounterWithExemplar<'a, S, N, A> =
 /// let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
 /// histogram.observe(4.2, Some(vec![("user_id".to_string(), "42".to_string())]));
 /// ```
+#[derive(Debug)]
 pub struct HistogramWithExemplars<S> {
     // TODO: Not ideal, as Histogram has a Mutex as well.
     pub(crate) inner: Arc<RwLock<HistogramWithExemplarsInner<S>>>,
@@ -131,6 +135,7 @@ impl<S> Clone for HistogramWithExemplars<S> {
     }
 }
 
+#[derive(Debug)]
 pub struct HistogramWithExemplarsInner<S> {
     pub(crate) exemplars: HashMap<usize, Exemplar<S, f64>>,
     pub(crate) histogram: Histogram,
