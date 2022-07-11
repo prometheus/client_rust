@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Remove Add trait implementation for a private type. See [PR 69].
+- Remove `Add` trait implementation for a private type which lead to compile time conflicts with existing `Add` implementations e.g. on `String`. See [PR 69].
 
 [PR 65]: https://github.com/prometheus/client_rust/pull/65
 [PR 69]: https://github.com/prometheus/client_rust/pull/69
