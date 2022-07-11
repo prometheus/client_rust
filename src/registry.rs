@@ -3,7 +3,6 @@
 //! See [`Registry`] for details.
 
 use std::borrow::Cow;
-use std::ops::Add;
 
 /// A metric registry.
 ///
@@ -149,7 +148,7 @@ impl<M> Registry<M> {
             name: self
                 .prefix
                 .as_ref()
-                .map(|p| (p.clone() + "_" + name.as_str()).into())
+                .map(|p| (p.clone().0 + "_" + name.as_str()))
                 .unwrap_or(name),
             help,
             unit,
@@ -196,13 +195,9 @@ impl<M> Registry<M> {
     /// but namespacing with a label instead of a metric name prefix.
     pub fn sub_registry_with_prefix<P: AsRef<str>>(&mut self, prefix: P) -> &mut Self {
         let sub_registry = Registry {
-            prefix: Some(
-                self.prefix
-                    .clone()
-                    .map(|p| p + "_")
-                    .unwrap_or_else(|| String::new().into())
-                    + prefix.as_ref(),
-            ),
+            prefix: Some(Prefix(
+                self.prefix.clone().map(|p| p.0 + "_").unwrap_or_default() + prefix.as_ref(),
+            )),
             labels: self.labels.clone(),
             ..Default::default()
         };
@@ -289,20 +284,6 @@ impl From<String> for Prefix {
 impl From<Prefix> for String {
     fn from(p: Prefix) -> Self {
         p.0
-    }
-}
-
-impl Add<&str> for Prefix {
-    type Output = Self;
-    fn add(self, rhs: &str) -> Self::Output {
-        Prefix(self.0 + rhs)
-    }
-}
-
-impl Add<&Prefix> for String {
-    type Output = Self;
-    fn add(self, rhs: &Prefix) -> Self::Output {
-        self + rhs.0.as_str()
     }
 }
 
