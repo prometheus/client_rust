@@ -76,7 +76,7 @@ impl<M> Default for Registry<M> {
 }
 
 impl<M> Registry<M> {
-    /// Creates a new default registry with the given prefix.
+    /// Creates a new default [`Registry`] with the given prefix.
     pub fn with_prefix(prefix: impl Into<String>) -> Self {
         Self {
             prefix: Some(Prefix(prefix.into())),
