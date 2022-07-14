@@ -7,15 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.17.0] - unreleased
 
 ### Changed
-
 - Updates to Rust 2021 Edition. See [PR 65].
 
-### Removed
+### Added
+- Added a `with_prefix` method to `Registry` to allow initializing a registry with a prefix. See [PR 70].
 
+### Removed
 - Remove `Add` trait implementation for a private type which lead to compile time conflicts with existing `Add` implementations e.g. on `String`. See [PR 69].
 
 [PR 65]: https://github.com/prometheus/client_rust/pull/65
 [PR 69]: https://github.com/prometheus/client_rust/pull/69
+[PR 70]: https://github.com/prometheus/client_rust/pull/70
 
 ## [0.16.0]
 

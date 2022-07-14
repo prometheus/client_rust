@@ -76,6 +76,14 @@ impl<M> Default for Registry<M> {
 }
 
 impl<M> Registry<M> {
+    /// Creates a new default [`Registry`] with the given prefix.
+    pub fn with_prefix(prefix: impl Into<String>) -> Self {
+        Self {
+            prefix: Some(Prefix(prefix.into())),
+            ..Default::default()
+        }
+    }
+
     /// Register a metric with the [`Registry`].
     ///
     /// Note: In the Open Metrics text exposition format some metric types have
