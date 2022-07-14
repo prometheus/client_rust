@@ -36,7 +36,7 @@ fn basic_flow() {
 
     let expected = "# HELP my_counter This is my counter.\n".to_owned()
         + "# TYPE my_counter counter\n"
-        + "my_counter_total{method=\"GET\",path=\"/metrics\"} 1\n"
+        + "my_counter_total{method=\"Get\",path=\"/metrics\"} 1\n"
         + "# EOF\n";
     assert_eq!(expected, String::from_utf8(buffer).unwrap());
 }
