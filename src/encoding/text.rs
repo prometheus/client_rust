@@ -103,6 +103,13 @@ impl Encode for f64 {
     }
 }
 
+impl Encode for f32 {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(dtoa::Buffer::new().format(*self).as_bytes())?;
+        Ok(())
+    }
+}
+
 impl Encode for u64 {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         writer.write_all(itoa::Buffer::new().format(*self).as_bytes())?;
