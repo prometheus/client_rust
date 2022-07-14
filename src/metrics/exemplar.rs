@@ -37,6 +37,7 @@ pub struct CounterWithExemplar<S, N = u64, A = AtomicU64> {
 }
 
 #[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
+#[derive(Debug)]
 pub struct CounterWithExemplar<S, N = u32, A = AtomicU32> {
     pub(crate) inner: Arc<RwLock<CounterWithExemplarInner<S, N, A>>>,
 }

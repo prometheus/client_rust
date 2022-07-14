@@ -46,6 +46,7 @@ pub struct Counter<N = u64, A = AtomicU64> {
 }
 
 #[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
+#[derive(Debug)]
 pub struct Counter<N = u32, A = AtomicU32> {
     value: Arc<A>,
     phantom: PhantomData<N>,
