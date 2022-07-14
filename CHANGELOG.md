@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updates to Rust 2021 Edition. See [PR 65].
 
 ### Added
-- Added a `with_prefix` method to `Registry` to allow initializing a registry with a prefix. See [PR 70]
+- Added a `with_prefix` method to `Registry` to allow initializing a registry with a prefix. See [PR 70].
 
 ### Removed
 - Remove `Add` trait implementation for a private type which lead to compile time conflicts with existing `Add` implementations e.g. on `String`. See [PR 69].
