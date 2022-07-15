@@ -57,6 +57,7 @@ use std::borrow::Cow;
 /// #                "# EOF\n";
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
+#[derive(Debug)]
 pub struct Registry<M = Box<dyn crate::encoding::text::SendSyncEncodeMetric>> {
     prefix: Option<Prefix>,
     labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
@@ -250,6 +251,7 @@ impl<M> Registry<M> {
 
 /// Iterator iterating both the metrics registered directly with the registry as
 /// well as all metrics registered with sub-registries.
+#[derive(Debug)]
 pub struct RegistryIterator<'a, M> {
     metrics: std::slice::Iter<'a, (Descriptor, M)>,
     sub_registries: std::slice::Iter<'a, Registry<M>>,
@@ -280,7 +282,7 @@ impl<'a, M> Iterator for RegistryIterator<'a, M> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Prefix(String);
 
 impl From<String> for Prefix {
@@ -295,6 +297,7 @@ impl From<Prefix> for String {
     }
 }
 
+#[derive(Debug)]
 pub struct Descriptor {
     name: String,
     help: String,
@@ -323,6 +326,7 @@ impl Descriptor {
 /// Metric units recommended by Open Metrics.
 ///
 /// See [`Unit::Other`] to specify alternative units.
+#[derive(Debug)]
 pub enum Unit {
     Amperes,
     Bytes,
@@ -345,7 +349,7 @@ mod tests {
     fn register_and_iterate() {
         let mut registry: Registry<Counter> = Registry::default();
         let counter = Counter::default();
-        registry.register("my_counter", "My counter", counter.clone());
+        registry.register("my_counter", "My counter", counter);
 
         assert_eq!(1, registry.iter().count())
     }

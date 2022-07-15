@@ -12,6 +12,7 @@ use crate::metrics::{MetricType, TypedMetric};
 ///
 /// let _info = Info::new(vec![("os", "GNU/linux")]);
 /// ```
+#[derive(Debug)]
 pub struct Info<S>(pub(crate) S);
 
 impl<S> Info<S> {

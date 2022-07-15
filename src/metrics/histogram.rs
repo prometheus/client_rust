@@ -31,6 +31,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 /// ```
 // TODO: Consider using atomics. See
 // https://github.com/tikv/rust-prometheus/pull/314.
+#[derive(Debug)]
 pub struct Histogram {
     inner: Arc<Mutex<Inner>>,
 }
@@ -43,6 +44,7 @@ impl Clone for Histogram {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Inner {
     // TODO: Consider allowing integer observe values.
     sum: f64,
