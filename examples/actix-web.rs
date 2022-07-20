@@ -17,61 +17,25 @@ pub struct MethodLabels {
     pub method: Method,
 }
 
-/// Holds all metrics.
-/// We shouldn't store metrics inside a MetricsCollector -
-/// otherwise we would have to take a lock for each increment of any metric
 pub struct Metrics {
     requests: Family<MethodLabels, Counter>,
 }
 
 impl Metrics {
-    pub fn new() -> Self {
-        Self {
-            requests: Family::default(),
-        }
-    }
-
     pub fn inc_requests(&self, method: Method) {
         self.requests.get_or_create(&MethodLabels { method }).inc();
     }
 }
 
-/// Registers and collects metrics
-pub struct MetricsCollector {
-    registry: Registry,
+pub struct AppState {
+    pub registry: Registry,
 }
 
-impl MetricsCollector {
-    pub fn new(metrics: &Metrics) -> Self {
-        let mut collector = Self {
-            registry: Registry::default(),
-        };
-        collector.register_metrics(metrics);
-        collector
-    }
-
-    fn register_metrics(&mut self, metrics: &Metrics) {
-        self.registry.register(
-            "requests",
-            "Count of requests",
-            Box::new(metrics.requests.clone()),
-        );
-    }
-
-    pub fn collect(&self) -> Result<String, std::io::Error> {
-        let mut buf = Vec::new();
-        encode(&mut buf, &self.registry)?;
-
-        let buf_str = std::str::from_utf8(buf.as_slice()).unwrap().to_string();
-        Ok(buf_str)
-    }
-}
-
-pub async fn metrics_handler(
-    metrics_collector: web::Data<Mutex<MetricsCollector>>,
-) -> Result<HttpResponse> {
-    // TODO: find the way without locking the mutex
-    let body: String = metrics_collector.lock().unwrap().collect()?;
+pub async fn metrics_handler(state: web::Data<Mutex<AppState>>) -> Result<HttpResponse> {
+    let state = state.lock().unwrap();
+    let mut buf = Vec::new();
+    encode(&mut buf, &state.registry)?;
+    let body = std::str::from_utf8(buf.as_slice()).unwrap().to_string();
     Ok(HttpResponse::Ok().body(body))
 }
 
@@ -82,14 +46,24 @@ pub async fn some_handler(metrics: web::Data<Metrics>) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let metrics = web::Data::new(Metrics::new());
-    // We have to wrap it with Mutex because `Registry` doesn't implement Clone-trait
-    let metrics_collector = web::Data::new(Mutex::new(MetricsCollector::new(&metrics)));
+    let metrics = web::Data::new(Metrics {
+        requests: Family::default(),
+    });
+    // We have to wrap it with Mutex because `Registry` because of actix-web behaviour
+    let mut state = AppState {
+        registry: Registry::default(),
+    };
+    state.registry.register(
+        "requests",
+        "Count of requests",
+        Box::new(metrics.requests.clone()),
+    );
+    let state = web::Data::new(Mutex::new(state));
 
     HttpServer::new(move || {
         App::new()
             .app_data(metrics.clone())
-            .app_data(metrics_collector.clone())
+            .app_data(state.clone())
             .service(web::resource("/metrics").route(web::get().to(metrics_handler)))
             .service(web::resource("/handler").route(web::get().to(some_handler)))
     })
