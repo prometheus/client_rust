@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Example for actix-web framework. See [PR 54].
 
+[PR 54]: https://github.com/prometheus/client_rust/pull/54/
+
 ### Changed
 
 - Require `Registry` default generic type `SendEncodeMetric` to be `Sync`. See [PR 58].

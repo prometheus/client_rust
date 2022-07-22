@@ -49,7 +49,6 @@ async fn main() -> std::io::Result<()> {
     let metrics = web::Data::new(Metrics {
         requests: Family::default(),
     });
-    // We have to wrap it with Mutex because `Registry` because of actix-web behaviour
     let mut state = AppState {
         registry: Registry::default(),
     };
