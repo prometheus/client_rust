@@ -36,7 +36,9 @@ pub async fn metrics_handler(state: web::Data<Mutex<AppState>>) -> Result<HttpRe
     let mut buf = Vec::new();
     encode(&mut buf, &state.registry)?;
     let body = std::str::from_utf8(buf.as_slice()).unwrap().to_string();
-    Ok(HttpResponse::Ok().body(body))
+    Ok(HttpResponse::Ok()
+        .content_type("application/openmetrics-text; version=1.0.0; charset=utf-8")
+        .body(body))
 }
 
 pub async fn some_handler(metrics: web::Data<Metrics>) -> impl Responder {
