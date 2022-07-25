@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 #![deny(unused)]
 #![deny(dead_code)]
+#![warn(missing_debug_implementations)]
 
 //! Client library implementation of the [Open Metrics
 //! specification](https://github.com/OpenObservability/OpenMetrics). Allows

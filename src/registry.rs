@@ -3,7 +3,6 @@
 //! See [`Registry`] for details.
 
 use std::borrow::Cow;
-use std::ops::Add;
 
 /// A metric registry.
 ///
@@ -58,7 +57,8 @@ use std::ops::Add;
 /// #                "# EOF\n";
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
-pub struct Registry<M = Box<dyn crate::encoding::text::SendEncodeMetric>> {
+#[derive(Debug)]
+pub struct Registry<M = Box<dyn crate::encoding::text::SendSyncEncodeMetric>> {
     prefix: Option<Prefix>,
     labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
     metrics: Vec<(Descriptor, M)>,
@@ -77,6 +77,14 @@ impl<M> Default for Registry<M> {
 }
 
 impl<M> Registry<M> {
+    /// Creates a new default [`Registry`] with the given prefix.
+    pub fn with_prefix(prefix: impl Into<String>) -> Self {
+        Self {
+            prefix: Some(Prefix(prefix.into())),
+            ..Default::default()
+        }
+    }
+
     /// Register a metric with the [`Registry`].
     ///
     /// Note: In the Open Metrics text exposition format some metric types have
@@ -149,7 +157,7 @@ impl<M> Registry<M> {
             name: self
                 .prefix
                 .as_ref()
-                .map(|p| (p.clone() + "_" + name.as_str()).into())
+                .map(|p| (p.clone().0 + "_" + name.as_str()))
                 .unwrap_or(name),
             help,
             unit,
@@ -196,13 +204,9 @@ impl<M> Registry<M> {
     /// but namespacing with a label instead of a metric name prefix.
     pub fn sub_registry_with_prefix<P: AsRef<str>>(&mut self, prefix: P) -> &mut Self {
         let sub_registry = Registry {
-            prefix: Some(
-                self.prefix
-                    .clone()
-                    .map(|p| p + "_")
-                    .unwrap_or_else(|| String::new().into())
-                    + prefix.as_ref(),
-            ),
+            prefix: Some(Prefix(
+                self.prefix.clone().map(|p| p.0 + "_").unwrap_or_default() + prefix.as_ref(),
+            )),
             labels: self.labels.clone(),
             ..Default::default()
         };
@@ -247,6 +251,7 @@ impl<M> Registry<M> {
 
 /// Iterator iterating both the metrics registered directly with the registry as
 /// well as all metrics registered with sub-registries.
+#[derive(Debug)]
 pub struct RegistryIterator<'a, M> {
     metrics: std::slice::Iter<'a, (Descriptor, M)>,
     sub_registries: std::slice::Iter<'a, Registry<M>>,
@@ -277,7 +282,7 @@ impl<'a, M> Iterator for RegistryIterator<'a, M> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Prefix(String);
 
 impl From<String> for Prefix {
@@ -292,20 +297,7 @@ impl From<Prefix> for String {
     }
 }
 
-impl Add<&str> for Prefix {
-    type Output = Self;
-    fn add(self, rhs: &str) -> Self::Output {
-        Prefix(self.0 + rhs)
-    }
-}
-
-impl Add<&Prefix> for String {
-    type Output = Self;
-    fn add(self, rhs: &Prefix) -> Self::Output {
-        self + rhs.0.as_str()
-    }
-}
-
+#[derive(Debug)]
 pub struct Descriptor {
     name: String,
     help: String,
@@ -334,6 +326,7 @@ impl Descriptor {
 /// Metric units recommended by Open Metrics.
 ///
 /// See [`Unit::Other`] to specify alternative units.
+#[derive(Debug)]
 pub enum Unit {
     Amperes,
     Bytes,
@@ -356,7 +349,7 @@ mod tests {
     fn register_and_iterate() {
         let mut registry: Registry<Counter> = Registry::default();
         let counter = Counter::default();
-        registry.register("my_counter", "My counter", counter.clone());
+        registry.register("my_counter", "My counter", counter);
 
         assert_eq!(1, registry.iter().count())
     }

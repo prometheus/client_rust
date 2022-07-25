@@ -4,21 +4,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0]
 
-## [0.16.0] - unreleased
+### Changed
+- Updates to Rust 2021 Edition. See [PR 65].
 
 ### Added
-
+- Added a `with_prefix` method to `Registry` to allow initializing a registry with a prefix. See [PR 70].
+- Added `Debug` implementations on most public types that were missing them. See [PR 71].
 - Example for actix-web framework. See [PR 54].
 
+### Removed
+- Remove `Add` trait implementation for a private type which lead to compile time conflicts with existing `Add` implementations e.g. on `String`. See [PR 69].
+
 [PR 54]: https://github.com/prometheus/client_rust/pull/54/
+[PR 65]: https://github.com/prometheus/client_rust/pull/65
+[PR 69]: https://github.com/prometheus/client_rust/pull/69
+[PR 70]: https://github.com/prometheus/client_rust/pull/70
+[PR 71]: https://github.com/prometheus/client_rust/pull/71
+
+## [0.16.0]
 
 ### Changed
 
 - Require `Registry` default generic type `SendEncodeMetric` to be `Sync`. See [PR 58].
 
 [PR 58]: https://github.com/prometheus/client_rust/pull/58
-[PR 54]: https://github.com/prometheus/client_rust/pull/54
 
 ## [0.15.1] - 2022-02-04
 

@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 
@@ -28,7 +28,7 @@ pub fn family(c: &mut Criterion) {
             Get,
             #[allow(dead_code)]
             Put,
-        };
+        }
 
         #[derive(Clone, Hash, PartialEq, Eq)]
         enum Status {
@@ -37,7 +37,7 @@ pub fn family(c: &mut Criterion) {
             Four,
             #[allow(dead_code)]
             Five,
-        };
+        }
         let family = Family::<Labels, Counter>::default();
 
         b.iter(|| {

@@ -225,6 +225,7 @@ impl Encode for () {
 // objects can not use type parameters.
 //
 // TODO: Alternative solutions to the above are very much appreciated.
+#[allow(missing_debug_implementations)]
 pub struct Encoder<'a, 'b> {
     writer: &'a mut dyn Write,
     name: &'a str,
@@ -303,6 +304,7 @@ impl<'a, 'b> Encoder<'a, 'b> {
     }
 }
 
+#[allow(missing_debug_implementations)]
 #[must_use]
 pub struct BucketEncoder<'a> {
     writer: &'a mut dyn Write,
@@ -342,6 +344,7 @@ impl<'a> BucketEncoder<'a> {
     }
 }
 
+#[allow(missing_debug_implementations)]
 #[must_use]
 pub struct ValueEncoder<'a> {
     writer: &'a mut dyn Write,
@@ -359,6 +362,7 @@ impl<'a> ValueEncoder<'a> {
     }
 }
 
+#[allow(missing_debug_implementations)]
 #[must_use]
 pub struct ExemplarEncoder<'a> {
     writer: &'a mut dyn Write,
@@ -404,11 +408,11 @@ impl EncodeMetric for Box<dyn EncodeMetric> {
     }
 }
 
-pub trait SendEncodeMetric: EncodeMetric + Send {}
+pub trait SendSyncEncodeMetric: EncodeMetric + Send + Sync {}
 
-impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
+impl<T: EncodeMetric + Send + Sync> SendSyncEncodeMetric for T {}
 
-impl EncodeMetric for Box<dyn SendEncodeMetric> {
+impl EncodeMetric for Box<dyn SendSyncEncodeMetric> {
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
         self.deref().encode(encoder)
     }
@@ -616,7 +620,7 @@ mod tests {
     fn encode_counter() {
         let counter: Counter = Counter::default();
         let mut registry = Registry::default();
-        registry.register("my_counter", "My counter", counter.clone());
+        registry.register("my_counter", "My counter", counter);
 
         let mut encoded = Vec::new();
 
@@ -629,7 +633,7 @@ mod tests {
     fn encode_counter_with_unit() {
         let mut registry = Registry::default();
         let counter: Counter = Counter::default();
-        registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter.clone());
+        registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter);
 
         let mut encoded = Vec::new();
         encode(&mut encoded, &registry).unwrap();
@@ -677,7 +681,7 @@ mod tests {
     fn encode_gauge() {
         let mut registry = Registry::default();
         let gauge: Gauge = Gauge::default();
-        registry.register("my_gauge", "My gauge", gauge.clone());
+        registry.register("my_gauge", "My gauge", gauge);
 
         let mut encoded = Vec::new();
 

@@ -12,7 +12,7 @@ pub trait TypedMetric {
     const TYPE: MetricType = MetricType::Unknown;
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum MetricType {
     Counter,
     Gauge,

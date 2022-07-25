@@ -10,14 +10,14 @@ fn basic_flow() {
     struct Labels {
         method: Method,
         path: String,
-    };
+    }
 
     #[derive(Clone, Hash, PartialEq, Eq, Encode)]
     enum Method {
-        GET,
+        Get,
         #[allow(dead_code)]
-        PUT,
-    };
+        Put,
+    }
 
     let family = Family::<Labels, Counter>::default();
     registry.register("my_counter", "This is my counter", family.clone());
@@ -25,7 +25,7 @@ fn basic_flow() {
     // Record a single HTTP GET request.
     family
         .get_or_create(&Labels {
-            method: Method::GET,
+            method: Method::Get,
             path: "/metrics".to_string(),
         })
         .inc();
@@ -36,7 +36,7 @@ fn basic_flow() {
 
     let expected = "# HELP my_counter This is my counter.\n".to_owned()
         + "# TYPE my_counter counter\n"
-        + "my_counter_total{method=\"GET\",path=\"/metrics\"} 1\n"
+        + "my_counter_total{method=\"Get\",path=\"/metrics\"} 1\n"
         + "# EOF\n";
     assert_eq!(expected, String::from_utf8(buffer).unwrap());
 }
@@ -52,13 +52,13 @@ fn remap_keyword_identifiers() {
         // Test makes sure `r#type` is replaced by `type` in the OpenMetrics
         // output.
         r#type: u64,
-    };
+    }
 
     let labels = Labels { r#type: 42 };
 
     let mut buffer = vec![];
 
-    labels.encode(&mut buffer);
+    labels.encode(&mut buffer).unwrap();
 
     assert_eq!(
         "type=\"42\"".to_string(),

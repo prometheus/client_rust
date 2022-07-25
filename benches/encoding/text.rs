@@ -7,7 +7,6 @@ use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
 use prometheus_client::registry::Registry;
 use std::io::Write;
-use std::sync::atomic::AtomicU64;
 
 pub fn text(c: &mut Criterion) {
     c.bench_function("encode", |b| {
@@ -23,7 +22,7 @@ pub fn text(c: &mut Criterion) {
             Get,
             #[allow(dead_code)]
             Put,
-        };
+        }
 
         #[derive(Clone, Hash, PartialEq, Eq)]
         enum Status {
@@ -32,7 +31,7 @@ pub fn text(c: &mut Criterion) {
             Four,
             #[allow(dead_code)]
             Five,
-        };
+        }
 
         impl Encode for Status {
             fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
