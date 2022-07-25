@@ -59,7 +59,7 @@ use std::ops::Add;
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 #[derive(Debug)]
-pub struct Registry<M = Box<dyn crate::encoding::text::SendSyncEncodeMetric>> {
+pub struct Registry<M = Box<dyn crate::encoding::text::SendEncodeMetric>> {
     prefix: Option<Prefix>,
     labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
     metrics: Vec<(Descriptor, M)>,
