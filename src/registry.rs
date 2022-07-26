@@ -262,7 +262,7 @@ where
 
 impl<'a, M> Collector<'a, M> for Registry<M>
 where
-    M: SendSyncEncodeMetric + 'a,
+    M: EncodeMetric + 'a,
 {
     fn collect(&'a self) -> Vec<&'a (Descriptor, M)> {
         self.iter().collect()
@@ -271,7 +271,7 @@ where
 
 impl<'a, M, C> Collector<'a, M> for Vec<&'a C>
 where
-    M: SendSyncEncodeMetric + 'a,
+    M: EncodeMetric + 'a,
     C: Collector<'a, M>,
 {
     fn collect(&'a self) -> Vec<&'a (Descriptor, M)> {
