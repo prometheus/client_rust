@@ -31,7 +31,7 @@ use crate::metrics::gauge::{self, Gauge};
 use crate::metrics::histogram::Histogram;
 use crate::metrics::info::Info;
 use crate::metrics::{MetricType, TypedMetric};
-use crate::registry::{Registry, Unit};
+use crate::registry::{Collector, Unit};
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -40,12 +40,15 @@ use std::ops::Deref;
 
 pub use prometheus_client_derive_text_encode::*;
 
-pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
+pub fn encode<'a, W, M>(
+    writer: &mut W,
+    registry: &'a dyn Collector<'a, M>,
+) -> Result<(), std::io::Error>
 where
     W: Write,
-    M: EncodeMetric,
+    M: EncodeMetric + 'a,
 {
-    for (desc, metric) in registry.iter() {
+    for (desc, metric) in registry.collect() {
         writer.write_all(b"# HELP ")?;
         writer.write_all(desc.name().as_bytes())?;
         if let Some(unit) = desc.unit() {
@@ -613,8 +616,39 @@ mod tests {
     use crate::metrics::counter::Counter;
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::exponential_buckets;
+    use crate::registry::Registry;
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
+
+    #[test]
+    fn collect_multiple_registries() {
+        let mut registry_single = Registry::default();
+        let mut registry_1 = Registry::default();
+        let mut registry_2 = Registry::default();
+
+        let counter_1_1: Counter = Counter::default();
+        let counter_2_2: Counter = Counter::default();
+        let counter_s_1: Counter = Counter::default();
+        let counter_s_2: Counter = Counter::default();
+
+        counter_1_1.inc();
+        counter_2_2.inc();
+        counter_s_1.inc();
+        counter_s_2.inc();
+
+        registry_single.register("counter_1", "Counter 1", counter_s_1);
+        registry_single.register("counter_2", "Counter 2", counter_s_2);
+        registry_1.register("counter_1", "Counter 1", counter_1_1);
+        registry_2.register("counter_2", "Counter 2", counter_2_2);
+
+        let mut encoded_single = Vec::new();
+        let mut encoded_combined = Vec::new();
+
+        encode(&mut encoded_single, &registry_single).unwrap();
+        encode(&mut encoded_combined, &vec![&registry_1, &registry_2]).unwrap();
+
+        assert_eq!(encoded_single, encoded_combined);
+    }
 
     #[test]
     fn encode_counter() {

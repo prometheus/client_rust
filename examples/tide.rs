@@ -31,7 +31,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     app.at("/metrics")
         .get(|req: tide::Request<State>| async move {
             let mut encoded = Vec::new();
-            encode(&mut encoded, &req.state().registry).unwrap();
+            encode(&mut encoded, req.state().registry.as_ref()).unwrap();
             let response = tide::Response::builder(200)
                 .body(encoded)
                 .content_type("application/openmetrics-text; version=1.0.0; charset=utf-8")

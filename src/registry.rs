@@ -2,6 +2,7 @@
 //!
 //! See [`Registry`] for details.
 
+use crate::encoding::text::{EncodeMetric, SendSyncEncodeMetric};
 use std::borrow::Cow;
 
 /// A metric registry.
@@ -58,7 +59,7 @@ use std::borrow::Cow;
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 #[derive(Debug)]
-pub struct Registry<M = Box<dyn crate::encoding::text::SendSyncEncodeMetric>> {
+pub struct Registry<M = Box<dyn SendSyncEncodeMetric>> {
     prefix: Option<Prefix>,
     labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
     metrics: Vec<(Descriptor, M)>,
@@ -246,6 +247,36 @@ impl<M> Registry<M> {
             sub_registries,
             sub_registry: None,
         }
+    }
+}
+
+/// Trait that allows manipulating Registries as a collection of Metrics.
+///
+/// The main use is combining a bunch of registries for encoding.
+pub trait Collector<'a, M>
+where
+    M: EncodeMetric + 'a,
+{
+    fn collect(&'a self) -> Vec<&'a (Descriptor, M)>;
+}
+
+impl<'a, M> Collector<'a, M> for Registry<M>
+where
+    M: SendSyncEncodeMetric + 'a,
+{
+    fn collect(&'a self) -> Vec<&'a (Descriptor, M)> {
+        self.iter().collect()
+    }
+}
+
+impl<'a, M> Collector<'a, M> for Vec<&'a Registry<M>>
+where
+    M: SendSyncEncodeMetric + 'a,
+{
+    fn collect(&'a self) -> Vec<&'a (Descriptor, M)> {
+        self.iter()
+            .flat_map(|r| r.iter().collect::<Vec<&'a (Descriptor, M)>>())
+            .collect()
     }
 }
 
