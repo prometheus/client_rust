@@ -269,14 +269,13 @@ where
     }
 }
 
-impl<'a, M> Collector<'a, M> for Vec<&'a Registry<M>>
+impl<'a, M, C> Collector<'a, M> for Vec<&'a C>
 where
     M: SendSyncEncodeMetric + 'a,
+    C: Collector<'a, M>,
 {
     fn collect(&'a self) -> Vec<&'a (Descriptor, M)> {
-        self.iter()
-            .flat_map(|r| r.iter().collect::<Vec<&'a (Descriptor, M)>>())
-            .collect()
+        self.iter().flat_map(|r| r.collect()).collect()
     }
 }
 
