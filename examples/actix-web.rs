@@ -43,7 +43,7 @@ pub async fn metrics_handler(state: web::Data<Mutex<AppState>>) -> Result<HttpRe
 
 pub async fn some_handler(metrics: web::Data<Metrics>) -> impl Responder {
     metrics.inc_requests(Method::Get);
-    format!("okay")
+    "okay".to_string()
 }
 
 #[actix_web::main]
