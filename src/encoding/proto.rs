@@ -130,21 +130,13 @@ impl<K: ToString, V: ToString> EncodeLabel for (K, V) {
 
 impl<T: EncodeLabel> EncodeLabel for Vec<T> {
     fn encode(&self) -> Vec<openmetrics_data_model::Label> {
-        let mut label = vec![];
-        for t in self {
-            label.append(&mut t.encode());
-        }
-        label
+        self.iter().map(|t| t.encode()).flatten().collect()
     }
 }
 
 impl<T: EncodeLabel> EncodeLabel for &[T] {
     fn encode(&self) -> Vec<openmetrics_data_model::Label> {
-        let mut label = vec![];
-        for t in self.iter() {
-            label.append(&mut t.encode());
-        }
-        label
+        self.iter().map(|t| t.encode()).flatten().collect()
     }
 }
 
