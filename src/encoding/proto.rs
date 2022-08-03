@@ -59,7 +59,9 @@ where
             family.unit = unit.as_str().to_string();
         }
         family.help = desc.help().to_string();
-        family.metrics = metric.encode(desc.labels().encode()).collect::<Vec<_>>();
+        family.metrics = metric
+            .encode(desc.labels().encode().collect::<Vec<_>>())
+            .collect::<Vec<_>>();
 
         metric_set.metric_families.push(family);
     }
@@ -119,33 +121,51 @@ impl EncodeMetric
 }
 
 pub trait EncodeLabel {
-    fn encode(&self) -> Vec<openmetrics_data_model::Label>;
+    type Iterator: Iterator<Item = openmetrics_data_model::Label>;
+
+    fn encode(&self) -> Self::Iterator;
 }
 
 impl<K: ToString, V: ToString> EncodeLabel for (K, V) {
-    fn encode(&self) -> Vec<openmetrics_data_model::Label> {
+    type Iterator = IntoIter<openmetrics_data_model::Label>;
+
+    fn encode(&self) -> Self::Iterator {
         let mut label = openmetrics_data_model::Label::default();
         label.name = self.0.to_string();
         label.value = self.1.to_string();
-        vec![label]
+        vec![label].into_iter()
     }
 }
 
 impl<T: EncodeLabel> EncodeLabel for Vec<T> {
-    fn encode(&self) -> Vec<openmetrics_data_model::Label> {
-        self.iter().map(|t| t.encode()).flatten().collect()
+    type Iterator = IntoIter<openmetrics_data_model::Label>;
+
+    fn encode(&self) -> Self::Iterator {
+        self.iter()
+            .map(|t| t.encode())
+            .flatten()
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 
 impl<T: EncodeLabel> EncodeLabel for &[T] {
-    fn encode(&self) -> Vec<openmetrics_data_model::Label> {
-        self.iter().map(|t| t.encode()).flatten().collect()
+    type Iterator = IntoIter<openmetrics_data_model::Label>;
+
+    fn encode(&self) -> Self::Iterator {
+        self.iter()
+            .map(|t| t.encode())
+            .flatten()
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 
 impl EncodeLabel for () {
-    fn encode(&self) -> Vec<openmetrics_data_model::Label> {
-        vec![]
+    type Iterator = IntoIter<openmetrics_data_model::Label>;
+
+    fn encode(&self) -> Self::Iterator {
+        vec![].into_iter()
     }
 }
 
@@ -157,7 +177,7 @@ where
 {
     let mut exemplar_proto = openmetrics_data_model::Exemplar::default();
     exemplar_proto.value = exemplar.value.clone().into();
-    exemplar_proto.label = exemplar.label_set.encode();
+    exemplar_proto.label = exemplar.label_set.encode().collect::<Vec<_>>();
 
     exemplar_proto
 }
@@ -331,7 +351,7 @@ where
 
         let guard = self.read();
         for (label_set, metric) in guard.iter() {
-            let mut label = label_set.encode();
+            let mut label = label_set.encode().collect::<Vec<_>>();
             label.append(&mut labels.clone());
             metrics.extend(metric.encode(label));
         }
@@ -438,7 +458,7 @@ where
         metric.metric_points = {
             let mut metric_point = openmetrics_data_model::MetricPoint::default();
             metric_point.value = {
-                let mut label = self.0.encode();
+                let mut label = self.0.encode().collect::<Vec<_>>();
                 label.append(&mut labels.clone());
 
                 let mut info_value = openmetrics_data_model::InfoValue::default();
