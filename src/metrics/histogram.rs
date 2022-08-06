@@ -3,9 +3,9 @@
 //! See [`Histogram`] for details.
 
 use super::{MetricType, TypedMetric};
-use owning_ref::OwningRef;
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use std::iter::{self, once};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
 
 /// Open Metrics [`Histogram`] to measure distributions of discrete events.
 ///
@@ -33,7 +33,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 // https://github.com/tikv/rust-prometheus/pull/314.
 #[derive(Debug)]
 pub struct Histogram {
-    inner: Arc<Mutex<Inner>>,
+    inner: Arc<RwLock<Inner>>,
 }
 
 impl Clone for Histogram {
@@ -56,7 +56,7 @@ pub(crate) struct Inner {
 impl Histogram {
     pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(Inner {
+            inner: Arc::new(RwLock::new(Inner {
                 sum: Default::default(),
                 count: Default::default(),
                 buckets: buckets
@@ -78,7 +78,7 @@ impl Histogram {
     /// Needed in
     /// [`HistogramWithExemplars`](crate::metrics::exemplar::HistogramWithExemplars).
     pub(crate) fn observe_and_bucket(&self, v: f64) -> Option<usize> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.write();
         inner.sum += v;
         inner.count += 1;
 
@@ -97,16 +97,14 @@ impl Histogram {
         }
     }
 
-    pub(crate) fn get(&self) -> (f64, u64, MutexGuardedBuckets) {
-        let inner = self.inner.lock().unwrap();
+    pub(crate) fn get(&self) -> (f64, u64, MappedRwLockReadGuard<Vec<(f64, u64)>>) {
+        let inner = self.inner.read();
         let sum = inner.sum;
         let count = inner.count;
-        let buckets = OwningRef::new(inner).map(|inner| &inner.buckets);
+        let buckets = RwLockReadGuard::map(inner, |inner| &inner.buckets);
         (sum, count, buckets)
     }
 }
-
-pub(crate) type MutexGuardedBuckets<'a> = OwningRef<MutexGuard<'a, Inner>, Vec<(f64, u64)>>;
 
 impl TypedMetric for Histogram {
     const TYPE: MetricType = MetricType::Histogram;
