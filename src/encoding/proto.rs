@@ -38,6 +38,9 @@ use crate::registry::Registry;
 use std::collections::HashMap;
 use std::ops::Deref;
 
+pub use openmetrics_data_model::*;
+pub use prometheus_client_derive_proto_encode::*;
+
 pub fn encode<M>(registry: &Registry<M>) -> openmetrics_data_model::MetricSet
 where
     M: EncodeMetric,

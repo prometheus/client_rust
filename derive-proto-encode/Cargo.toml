@@ -1,0 +1,23 @@
+[package]
+name = "prometheus-client-derive-proto-encode"
+version = "0.1.0"
+authors = ["Akihito Nakano <sora.akatsuki@gmail.com>"]
+edition = "2021"
+description = "Auxiliary crate to derive protobuf EncodeLabel trait from prometheus-client."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/prometheus/client_rust"
+homepage = "https://github.com/prometheus/client_rust"
+documentation = "https://docs.rs/prometheus-client-derive-proto-encode"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = "1"
+
+[dev-dependencies]
+prometheus-client = { path = "../", features = ["protobuf"] }
+
+[lib]
+proc-macro = true
