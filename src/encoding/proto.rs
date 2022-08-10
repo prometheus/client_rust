@@ -272,6 +272,12 @@ impl EncodeGaugeValue for i64 {
     }
 }
 
+impl EncodeGaugeValue for u64 {
+    fn encode(&self) -> openmetrics_data_model::gauge_value::Value {
+        openmetrics_data_model::gauge_value::Value::IntValue(*self as i64)
+    }
+}
+
 impl EncodeGaugeValue for f64 {
     fn encode(&self) -> openmetrics_data_model::gauge_value::Value {
         openmetrics_data_model::gauge_value::Value::DoubleValue(*self)
