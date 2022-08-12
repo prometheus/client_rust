@@ -33,7 +33,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                 quote! {
                     let mut labels = vec![];
                     #push_labels
-                    labels
+                    Box::new(labels.into_iter())
                 }
             }
             syn::Fields::Unnamed(_) => {
@@ -62,15 +62,17 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                     #match_arms
                 };
 
-                vec![label]
+                Box::new(vec![label].into_iter())
             }
         }
         syn::Data::Union(_) => panic!("Can not derive Encode for union."),
     };
 
     let gen = quote! {
-        impl prometheus_client::encoding::proto::EncodeLabel for #name {
-            fn encode(&self) -> Vec<prometheus_client::encoding::proto::Label> {
+        impl<'a> prometheus_client::encoding::proto::EncodeLabels for &'a #name {
+            type Iterator = Box<dyn Iterator<Item = prometheus_client::encoding::proto::Label> + 'a>;
+
+            fn encode(self) -> Self::Iterator {
                 #body
             }
         }
