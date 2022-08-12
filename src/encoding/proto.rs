@@ -714,12 +714,12 @@ mod tests {
 
         let metric = family.metrics.first().unwrap();
         assert_eq!(3, metric.labels.len());
-        assert_eq!("method", metric.labels[0].name);
-        assert_eq!("GET", metric.labels[0].value);
-        assert_eq!("status", metric.labels[1].name);
-        assert_eq!("200", metric.labels[1].value);
-        assert_eq!("my_key", metric.labels[2].name);
-        assert_eq!("my_value", metric.labels[2].value);
+        assert_eq!("my_key", metric.labels[0].name);
+        assert_eq!("my_value", metric.labels[0].value);
+        assert_eq!("method", metric.labels[1].name);
+        assert_eq!("GET", metric.labels[1].value);
+        assert_eq!("status", metric.labels[2].name);
+        assert_eq!("200", metric.labels[2].value);
 
         match extract_metric_point_value(metric_set) {
             openmetrics_data_model::metric_point::Value::CounterValue(value) => {
