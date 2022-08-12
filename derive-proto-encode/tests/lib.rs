@@ -1,5 +1,5 @@
 use prometheus_client::encoding::proto::EncodeLabels;
-use prometheus_client::encoding::proto::{encode, EncodeProtobuf};
+use prometheus_client::encoding::proto::{encode, Encode};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter};
 
 #[test]
 fn structs() {
-    #[derive(Clone, Hash, PartialEq, Eq, EncodeProtobuf)]
+    #[derive(Clone, Hash, PartialEq, Eq, Encode)]
     struct Labels {
         method: Method,
         path: String,
@@ -58,7 +58,7 @@ fn structs() {
 
 #[test]
 fn enums() {
-    #[derive(Clone, Hash, PartialEq, Eq, EncodeProtobuf)]
+    #[derive(Clone, Hash, PartialEq, Eq, Encode)]
     enum Method {
         Get,
         #[allow(dead_code)]
@@ -85,7 +85,7 @@ fn enums() {
 
 #[test]
 fn remap_keyword_identifiers() {
-    #[derive(EncodeProtobuf, Hash, Clone, Eq, PartialEq)]
+    #[derive(Encode, Hash, Clone, Eq, PartialEq)]
     struct Labels {
         // `r#type` is problematic as `r#` is not a valid OpenMetrics label name
         // but one needs to use keyword identifier syntax (aka. raw identifiers)

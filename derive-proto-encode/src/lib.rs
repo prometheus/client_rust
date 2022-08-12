@@ -3,7 +3,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::DeriveInput;
 
-#[proc_macro_derive(EncodeProtobuf)]
+#[proc_macro_derive(Encode)]
 pub fn derive_encode(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let name = &ast.ident;
