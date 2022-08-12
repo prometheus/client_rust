@@ -1,4 +1,4 @@
-use prometheus_client::encoding::proto::EncodeLabel;
+use prometheus_client::encoding::proto::EncodeLabels;
 use prometheus_client::encoding::proto::{encode, EncodeProtobuf};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
@@ -96,7 +96,7 @@ fn remap_keyword_identifiers() {
         r#type: u64,
     }
 
-    let labels = Labels { r#type: 42 }.encode();
+    let labels = Labels { r#type: 42 }.encode().collect::<Vec<_>>();
 
     assert_eq!("type", labels[0].name);
     assert_eq!("42", labels[0].value);
