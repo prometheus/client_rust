@@ -109,12 +109,8 @@ pub trait SendEncodeMetric: EncodeMetric + Send {}
 
 impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
 
-impl EncodeMetric
-    for Box<
-        dyn SendEncodeMetric<Iterator = Box<dyn Iterator<Item = openmetrics_data_model::Metric>>>,
-    >
-{
-    type Iterator = Box<dyn Iterator<Item = openmetrics_data_model::Metric>>;
+impl EncodeMetric for Box<dyn EncodeMetric<Iterator = IntoIter<openmetrics_data_model::Metric>>> {
+    type Iterator = IntoIter<openmetrics_data_model::Metric>;
 
     fn encode(&self, labels: Vec<openmetrics_data_model::Label>) -> Self::Iterator {
         self.deref().encode(labels)
@@ -803,6 +799,38 @@ mod tests {
             }
             _ => assert!(false, "wrong value type"),
         }
+    }
+
+    #[test]
+    fn encode_family_counter_histogram() {
+        let mut registry = Registry::<
+            Box<dyn EncodeMetric<Iterator = IntoIter<openmetrics_data_model::Metric>>>,
+        >::default();
+
+        let counter_family = Family::<Vec<(String, String)>, Counter>::default();
+        let histogram_family =
+            Family::<Vec<(String, String)>, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(1.0, 2.0, 10))
+            });
+
+        registry.register("my_counter", "My counter", Box::new(counter_family.clone()));
+        registry.register(
+            "my_histogram",
+            "My histogram",
+            Box::new(histogram_family.clone()),
+        );
+
+        counter_family
+            .get_or_create(&vec![("path".to_string(), "/".to_string())])
+            .inc();
+
+        histogram_family
+            .get_or_create(&vec![("path".to_string(), "/".to_string())])
+            .observe(1.0);
+
+        let metric_set = encode(&registry);
+        assert_eq!("my_counter", metric_set.metric_families[0].name);
+        assert_eq!("my_histogram", metric_set.metric_families[1].name);
     }
 
     #[test]
