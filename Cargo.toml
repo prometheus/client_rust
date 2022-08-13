@@ -47,3 +47,8 @@ harness = false
 name = "text"
 path = "benches/encoding/text.rs"
 harness = false
+
+[[bench]]
+name = "proto"
+path = "benches/encoding/proto.rs"
+harness = false
