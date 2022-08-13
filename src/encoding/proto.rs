@@ -834,6 +834,53 @@ mod tests {
     }
 
     #[test]
+    fn encode_family_and_counter_and_histogram() {
+        let mut registry = Registry::<
+            Box<dyn EncodeMetric<Iterator = Box<dyn Iterator<Item = openmetrics_data_model::Metric>>>>,
+        >::default();
+
+        // Family
+        let counter_family = Family::<Vec<(String, String)>, Counter>::default();
+        let histogram_family =
+            Family::<Vec<(String, String)>, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(1.0, 2.0, 10))
+            });
+
+        registry.register(
+            "my_family_counter",
+            "My counter",
+            Box::new(counter_family.clone()),
+        );
+        registry.register(
+            "my_family_histogram",
+            "My histogram",
+            Box::new(histogram_family.clone()),
+        );
+
+        counter_family
+            .get_or_create(&vec![("path".to_string(), "/".to_string())])
+            .inc();
+
+        histogram_family
+            .get_or_create(&vec![("path".to_string(), "/".to_string())])
+            .observe(1.0);
+
+        // Counter
+        let counter: Counter = Counter::default();
+        registry.register("my_counter", "My counter", Box::new(counter.clone()));
+        counter.inc();
+
+        // Histogram
+        let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
+        registry.register("my_histogram", "My histogram", Box::new(histogram.clone()));
+        histogram.observe(1.0);
+
+        let metric_set = encode(&registry);
+        assert_eq!("my_counter", metric_set.metric_families[0].name);
+        assert_eq!("my_histogram", metric_set.metric_families[1].name);
+    }
+
+    #[test]
     fn encode_info() {
         let mut registry = Registry::default();
         let info = Info::new(vec![("os".to_string(), "GNU/linux".to_string())]);
