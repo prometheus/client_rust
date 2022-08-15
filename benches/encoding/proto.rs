@@ -34,13 +34,20 @@ pub fn proto(c: &mut Criterion) {
             }
         }
 
+        #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+        enum Region {
+            Africa,
+            #[allow(dead_code)]
+            Asia,
+        }
+
         let mut registry = Registry::<
             Box<dyn EncodeMetric<Iterator = IntoIter<prometheus_client::encoding::proto::Metric>>>,
         >::default();
 
         for i in 0..100 {
             let counter_family = Family::<Labels, Counter>::default();
-            let histogram_family = Family::<Labels, Histogram>::new_with_constructor(|| {
+            let histogram_family = Family::<Region, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(1.0, 2.0, 10))
             });
 
@@ -65,11 +72,7 @@ pub fn proto(c: &mut Criterion) {
                     .inc();
 
                 histogram_family
-                    .get_or_create(&Labels {
-                        path: format!("/path/{}", i),
-                        method: Method::Get,
-                        some_number: j.into(),
-                    })
+                    .get_or_create(&Region::Africa)
                     .observe(j.into());
             }
         }
