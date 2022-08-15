@@ -8,7 +8,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let name = &ast.ident;
 
-    let body: TokenStream2 = match ast.data {
+    match ast.data {
         syn::Data::Struct(s) => match s.fields {
             syn::Fields::Named(syn::FieldsNamed { named, .. }) => {
                 let push_labels: TokenStream2 = named
@@ -31,9 +31,15 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                     .collect();
 
                 quote! {
-                    let mut labels = vec![];
-                    #push_labels
-                    labels.into_iter()
+                    impl<'a> prometheus_client::encoding::proto::EncodeLabels for &'a #name {
+                        type Iterator = std::vec::IntoIter<prometheus_client::encoding::proto::Label>;
+
+                        fn encode(self) -> Self::Iterator {
+                            let mut labels = vec![];
+                            #push_labels
+                            labels.into_iter()
+                        }
+                    }
                 }
             }
             syn::Fields::Unnamed(_) => {
@@ -58,26 +64,21 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                 .collect();
 
             quote! {
-                let label = match self {
-                    #match_arms
-                };
+                impl<'a> prometheus_client::encoding::proto::EncodeLabels for &'a #name {
+                    type Iterator = std::iter::Once<prometheus_client::encoding::proto::Label>;
 
-                vec![label].into_iter()
+                    fn encode(self) -> Self::Iterator {
+                        let label = match self {
+                            #match_arms
+                        };
+
+                        std::iter::once(label)
+                    }
+                }
             }
         }
         syn::Data::Union(_) => panic!("Can not derive Encode for union."),
-    };
-
-    let gen = quote! {
-        impl<'a> prometheus_client::encoding::proto::EncodeLabels for &'a #name {
-            type Iterator = std::vec::IntoIter<prometheus_client::encoding::proto::Label>;
-
-            fn encode(self) -> Self::Iterator {
-                #body
-            }
-        }
-    };
-    gen.into()
+    }.into()
 }
 
 // Copied from https://github.com/djc/askama (MIT and APACHE licensed) and
