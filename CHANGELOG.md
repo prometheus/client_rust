@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0]
+
+### Changed
+
+- Use `parking_lot` instead of `std::sync::*`.
+
+  Before `proemtheus-client` would use the `owning_ref` crate to map the target
+  of a `std::sync::RwLockReadGuard`. `owning_ref` has multiple unsoundness
+  issues, see https://rustsec.org/advisories/RUSTSEC-2022-0040.html. Instead of
+  replacing `owning_ref` with a similar crate, we switch to locking via
+  `parking_lot` which supports the above mapping natively.
+
+  See [PR 78] and [issue 77].
+
+[PR 78]: https://github.com/prometheus/client_rust/pull/78
+[issue 77]: https://github.com/prometheus/client_rust/issues/77
+
 ## [0.17.0]
 
 ### Changed
@@ -12,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added a `with_prefix` method to `Registry` to allow initializing a registry with a prefix. See [PR 70].
 - Added `Debug` implementations on most public types that were missing them. See [PR 71].
+- Added example for actix-web framework. See [PR 76].
 
 ### Removed
 - Remove `Add` trait implementation for a private type which lead to compile time conflicts with existing `Add` implementations e.g. on `String`. See [PR 69].
@@ -20,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR 69]: https://github.com/prometheus/client_rust/pull/69
 [PR 70]: https://github.com/prometheus/client_rust/pull/70
 [PR 71]: https://github.com/prometheus/client_rust/pull/71
+[PR 76]: https://github.com/prometheus/client_rust/pull/76
 
 ## [0.16.0]
 

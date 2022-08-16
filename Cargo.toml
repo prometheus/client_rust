@@ -1,6 +1,6 @@
 [package]
 name = "prometheus-client"
-version = "0.17.0"
+version = "0.18.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2021"
 description = "Open Metrics client library allowing users to natively instrument applications."
@@ -16,7 +16,7 @@ members = ["derive-text-encode"]
 [dependencies]
 dtoa = "1.0"
 itoa = "1.0"
-owning_ref = "0.4"
+parking_lot = "0.12"
 prometheus-client-derive-text-encode = { version = "0.3.0", path = "derive-text-encode" }
 
 [dev-dependencies]
@@ -27,6 +27,7 @@ pyo3 = "0.16"
 quickcheck = "1"
 rand = "0.8.4"
 tide = "0.16"
+actix-web = "4"
 
 [[bench]]
 name = "family"
