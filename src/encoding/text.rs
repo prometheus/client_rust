@@ -436,7 +436,7 @@ where
 {
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
         let (value, exemplar) = self.get();
-        encode_counter_with_maybe_exemplar(value, exemplar.as_ref().as_ref(), encoder)
+        encode_counter_with_maybe_exemplar(value, exemplar.as_ref(), encoder)
     }
 
     fn metric_type(&self) -> MetricType {
