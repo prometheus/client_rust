@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replacing `owning_ref` with a similar crate, we switch to locking via
   `parking_lot` which supports the above mapping natively.
 
+  See [PR 78] and [issue 77].
+
+[PR 78]: https://github.com/prometheus/client_rust/pull/78
+[issue 77]: https://github.com/prometheus/client_rust/issues/77
+
 ## [0.17.0]
 
 ### Changed
