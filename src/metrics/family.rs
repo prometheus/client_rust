@@ -3,9 +3,9 @@
 //! See [`Family`] for details.
 
 use super::{MetricType, TypedMetric};
-use owning_ref::OwningRef;
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::Arc;
 
 /// Representation of the OpenMetrics *MetricFamily* data type.
 ///
@@ -214,21 +214,19 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     /// // calls.
     /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
     /// ```
-    pub fn get_or_create(&self, label_set: &S) -> OwningRef<RwLockReadGuard<HashMap<S, M>>, M> {
-        let read_guard = self.metrics.read().expect("Lock not to be poisoned.");
+    pub fn get_or_create(&self, label_set: &S) -> MappedRwLockReadGuard<M> {
         if let Ok(metric) =
-            OwningRef::new(read_guard).try_map(|metrics| metrics.get(label_set).ok_or(()))
+            RwLockReadGuard::try_map(self.metrics.read(), |metrics| metrics.get(label_set))
         {
             return metric;
         }
 
-        let mut write_guard = self.metrics.write().unwrap();
+        let mut write_guard = self.metrics.write();
         write_guard.insert(label_set.clone(), self.constructor.new_metric());
 
         drop(write_guard);
 
-        let read_guard = self.metrics.read().unwrap();
-        OwningRef::new(read_guard).map(|metrics| {
+        RwLockReadGuard::map(self.metrics.read(), |metrics| {
             metrics
                 .get(label_set)
                 .expect("Metric to exist after creating it.")
@@ -236,7 +234,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     }
 
     pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
-        self.metrics.read().unwrap()
+        self.metrics.read()
     }
 }
 

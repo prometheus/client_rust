@@ -4,13 +4,13 @@
 
 use super::counter::{self, Counter};
 use super::histogram::Histogram;
-use owning_ref::OwningRef;
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use std::collections::HashMap;
 #[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
 use std::sync::atomic::AtomicU32;
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct Exemplar<S, V> {
@@ -74,7 +74,7 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
     /// Increase the [`CounterWithExemplar`] by `v`, updating the [`Exemplar`]
     /// if a label set is provided, returning the previous value.
     pub fn inc_by(&self, v: N, label_set: Option<S>) -> N {
-        let mut inner = self.inner.write().expect("Lock not to be poisoned.");
+        let mut inner = self.inner.write();
 
         inner.exemplar = label_set.map(|label_set| Exemplar {
             label_set,
@@ -86,10 +86,10 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
 
     /// Get the current value of the [`CounterWithExemplar`] as well as its
     /// [`Exemplar`] if any.
-    pub fn get(&self) -> (N, RwLockGuardedCounterWithExemplar<S, N, A>) {
-        let inner = self.inner.read().expect("Lock not to be poisoned.");
+    pub fn get(&self) -> (N, MappedRwLockReadGuard<Option<Exemplar<S, N>>>) {
+        let inner = self.inner.read();
         let value = inner.counter.get();
-        let exemplar = OwningRef::new(inner).map(|inner| &inner.exemplar);
+        let exemplar = RwLockReadGuard::map(inner, |inner| &inner.exemplar);
         (value, exemplar)
     }
 
@@ -101,14 +101,10 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
     /// The caller of this function has to uphold the property of an Open
     /// Metrics counter namely that the value is monotonically increasing, i.e.
     /// either stays the same or increases.
-    pub fn inner(&self) -> OwningRef<RwLockReadGuard<CounterWithExemplarInner<S, N, A>>, A> {
-        OwningRef::new(self.inner.read().expect("Lock not to be poisoned."))
-            .map(|inner| inner.counter.inner())
+    pub fn inner(&self) -> MappedRwLockReadGuard<A> {
+        RwLockReadGuard::map(self.inner.read(), |inner| inner.counter.inner())
     }
 }
-
-type RwLockGuardedCounterWithExemplar<'a, S, N, A> =
-    OwningRef<RwLockReadGuard<'a, CounterWithExemplarInner<S, N, A>>, Option<Exemplar<S, N>>>;
 
 /////////////////////////////////////////////////////////////////////////////////
 // Histogram
@@ -153,7 +149,7 @@ impl<S> HistogramWithExemplars<S> {
     }
 
     pub fn observe(&self, v: f64, label_set: Option<S>) {
-        let mut inner = self.inner.write().expect("Lock not to be poisoned.");
+        let mut inner = self.inner.write();
         let bucket = inner.histogram.observe_and_bucket(v);
         if let (Some(bucket), Some(label_set)) = (bucket, label_set) {
             inner.exemplars.insert(
@@ -167,6 +163,6 @@ impl<S> HistogramWithExemplars<S> {
     }
 
     pub(crate) fn inner(&self) -> RwLockReadGuard<HistogramWithExemplarsInner<S>> {
-        self.inner.read().expect("Lock not to be poisoned.")
+        self.inner.read()
     }
 }

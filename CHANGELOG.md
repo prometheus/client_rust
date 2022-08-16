@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - unreleased
+
+### Changed
+
+- Use `parking_lot` instead of `std::sync::*`.
+
+  Before `proemtheus-client` would use the `owning_ref` crate to map the target
+  of a `std::sync::RwLockReadGuard`. `owning_ref` has multiple unsoundness
+  issues, see https://rustsec.org/advisories/RUSTSEC-2022-0040.html. Instead of
+  replacing `owning_ref` with a similar crate, we switch to locking via
+  `parking_lot` which supports the above mapping natively.
+
 ## [0.17.0]
 
 ### Changed
