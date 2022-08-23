@@ -31,13 +31,9 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                     .collect();
 
                 quote! {
-                    impl<'a> prometheus_client::encoding::proto::EncodeLabels for &'a #name {
-                        type Iterator = std::vec::IntoIter<prometheus_client::encoding::proto::Label>;
-
-                        fn encode(self) -> Self::Iterator {
-                            let mut labels = vec![];
+                    impl prometheus_client::encoding::proto::EncodeLabels for #name {
+                        fn encode(&self, labels: &mut Vec<prometheus_client::encoding::proto::Label>) {
                             #push_labels
-                            labels.into_iter()
                         }
                     }
                 }
@@ -57,22 +53,18 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                             let mut label = prometheus_client::encoding::proto::Label::default();
                             label.name = stringify!(#name).to_string();
                             label.value = stringify!(#ident).to_string();
-                            label
+                            labels.push(label);
                         }
                     }
                 })
                 .collect();
 
             quote! {
-                impl<'a> prometheus_client::encoding::proto::EncodeLabels for &'a #name {
-                    type Iterator = std::iter::Once<prometheus_client::encoding::proto::Label>;
-
-                    fn encode(self) -> Self::Iterator {
-                        let label = match self {
+                impl prometheus_client::encoding::proto::EncodeLabels for #name {
+                    fn encode(&self, labels: &mut Vec<prometheus_client::encoding::proto::Label>) {
+                        match self {
                             #match_arms
                         };
-
-                        std::iter::once(label)
                     }
                 }
             }
