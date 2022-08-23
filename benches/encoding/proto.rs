@@ -7,7 +7,6 @@ use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
 use prometheus_client::registry::Registry;
 use std::fmt::{Display, Formatter};
-use std::vec::IntoIter;
 
 pub fn proto(c: &mut Criterion) {
     c.bench_function("encode", |b| {
@@ -41,9 +40,7 @@ pub fn proto(c: &mut Criterion) {
             Asia,
         }
 
-        let mut registry = Registry::<
-            Box<dyn EncodeMetric<Iterator = IntoIter<prometheus_client::encoding::proto::Metric>>>,
-        >::default();
+        let mut registry = Registry::<Box<dyn EncodeMetric>>::default();
 
         for i in 0..100 {
             let counter_family = Family::<Labels, Counter>::default();
