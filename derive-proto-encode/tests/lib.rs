@@ -96,7 +96,9 @@ fn remap_keyword_identifiers() {
         r#type: u64,
     }
 
-    let labels = Labels { r#type: 42 }.encode().collect::<Vec<_>>();
+    let mut labels = vec![];
+
+    Labels { r#type: 42 }.encode(&mut labels);
 
     assert_eq!("type", labels[0].name);
     assert_eq!("42", labels[0].value);
