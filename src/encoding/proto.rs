@@ -123,28 +123,27 @@ impl<K: ToString, V: ToString> Into<openmetrics_data_model::Label> for &(K, V) {
     }
 }
 
-// TODO: Is this needed? We already have `&'a [T]` below.
 impl<T> EncodeLabels for Vec<T>
 where
     for<'a> &'a T: Into<openmetrics_data_model::Label>,
 {
     fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
-        labels.extend(self.iter().map(|t| t.into()))
+        self.as_slice().encode(labels);
     }
 }
-// TODO: Is this needed? We already have `&'a [T]` below.
+
 impl<T> EncodeLabels for [T]
 where
     for<'a> &'a T: Into<openmetrics_data_model::Label>,
 {
     fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
-        labels.extend(self.iter().map(|t| t.into()))
+        labels.extend(self.iter().map(|t| t.into()));
     }
 }
 
 impl EncodeLabels for Void {
     fn encode(&self, _labels: &mut Vec<openmetrics_data_model::Label>) {
-        void::unreachable(*self)
+        void::unreachable(*self);
     }
 }
 
