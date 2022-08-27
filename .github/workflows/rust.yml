@@ -39,7 +39,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --benches
+          args: --benches --all-features
 
   test:
     name: Test Suite
@@ -73,7 +73,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all
+          args: --all --all-features
 
   fmt:
     name: Rustfmt
@@ -135,7 +135,7 @@ jobs:
           RUSTDOCFLAGS: "--deny broken_intra_doc_links"
         with:
           command: doc
-          args: --verbose --workspace --no-deps --document-private-items
+          args: --verbose --workspace --no-deps --document-private-items --all-features
 
   cross-compile:
     name: Cross compile
@@ -159,4 +159,4 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --release --target=${{ matrix.target }}
+          args: --release --target=${{ matrix.target }} --all-features
