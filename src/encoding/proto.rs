@@ -200,7 +200,7 @@ where
     }
 }
 
-impl<'a, S, N, A> EncodeMetric for CounterWithExemplar<S, N, A>
+impl<S, N, A> EncodeMetric for CounterWithExemplar<S, N, A>
 where
     S: EncodeLabels,
     N: Clone + EncodeCounterValue,
@@ -284,7 +284,7 @@ impl EncodeGaugeValue for f64 {
     }
 }
 
-impl<'a, N, A> EncodeMetric for Gauge<N, A>
+impl<N, A> EncodeMetric for Gauge<N, A>
 where
     N: EncodeGaugeValue,
     A: gauge::Atomic<N>,
