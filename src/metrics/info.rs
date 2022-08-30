@@ -16,6 +16,7 @@ use crate::metrics::{MetricType, TypedMetric};
 pub struct Info<S>(pub(crate) S);
 
 impl<S> Info<S> {
+    /// Create [`Info`] metric with the provided label set.
     pub fn new(label_set: S) -> Self {
         Self(label_set)
     }

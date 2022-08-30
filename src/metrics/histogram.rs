@@ -54,6 +54,7 @@ pub(crate) struct Inner {
 }
 
 impl Histogram {
+    /// Create a new [`Histogram`].
     pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
         Self {
             inner: Arc::new(RwLock::new(Inner {
@@ -68,6 +69,7 @@ impl Histogram {
         }
     }
 
+    /// Observe the given value.
     pub fn observe(&self, v: f64) {
         self.observe_and_bucket(v);
     }
@@ -110,6 +112,7 @@ impl TypedMetric for Histogram {
     const TYPE: MetricType = MetricType::Histogram;
 }
 
+/// Exponential bucket distribution.
 pub fn exponential_buckets(start: f64, factor: f64, length: u16) -> impl Iterator<Item = f64> {
     iter::repeat(())
         .enumerate()
@@ -117,6 +120,7 @@ pub fn exponential_buckets(start: f64, factor: f64, length: u16) -> impl Iterato
         .take(length.into())
 }
 
+/// Linear bucket distribution.
 pub fn linear_buckets(start: f64, width: f64, length: u16) -> impl Iterator<Item = f64> {
     iter::repeat(())
         .enumerate()

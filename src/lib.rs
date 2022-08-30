@@ -1,6 +1,7 @@
-#![forbid(unsafe_code)]
-#![deny(unused)]
 #![deny(dead_code)]
+#![deny(missing_docs)]
+#![deny(unused)]
+#![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]
 
 //! Client library implementation of the [Open Metrics

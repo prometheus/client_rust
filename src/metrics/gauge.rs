@@ -45,6 +45,7 @@ pub struct Gauge<N = u64, A = AtomicU64> {
     phantom: PhantomData<N>,
 }
 
+/// Open Metrics [`Gauge`] to record current measurements.
 #[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
 #[derive(Debug)]
 pub struct Gauge<N = u32, A = AtomicU32> {
@@ -110,17 +111,24 @@ impl<N, A: Atomic<N>> Gauge<N, A> {
     }
 }
 
+/// Atomic operations for a [`Gauge`] value store.
 pub trait Atomic<N> {
+    /// Increase the value by `1`.
     fn inc(&self) -> N;
 
+    /// Increase the value.
     fn inc_by(&self, v: N) -> N;
 
+    /// Decrease the value by `1`.
     fn dec(&self) -> N;
 
+    /// Decrease the value.
     fn dec_by(&self, v: N) -> N;
 
+    /// Set the value.
     fn set(&self, v: N) -> N;
 
+    /// Get the value.
     fn get(&self) -> N;
 }
 

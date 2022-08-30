@@ -40,6 +40,8 @@ use std::ops::Deref;
 
 pub use prometheus_client_derive_text_encode::*;
 
+/// Encode the metrics registered with the provided [`Registry`] into the
+/// provided [`Write`]r using the OpenMetrics text format.
 pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where
     W: Write,
@@ -92,7 +94,9 @@ where
     Ok(())
 }
 
+/// OpenMetrics text encoding for a value.
 pub trait Encode {
+    /// Encode to OpenMetrics text encoding.
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error>;
 }
 
@@ -304,6 +308,7 @@ impl<'a, 'b> Encoder<'a, 'b> {
     }
 }
 
+/// Used to encode an OpenMetrics Histogram bucket.
 #[allow(missing_debug_implementations)]
 #[must_use]
 pub struct BucketEncoder<'a> {
@@ -344,6 +349,7 @@ impl<'a> BucketEncoder<'a> {
     }
 }
 
+/// Used to encode an OpenMetrics metric value.
 #[allow(missing_debug_implementations)]
 #[must_use]
 pub struct ValueEncoder<'a> {
@@ -362,6 +368,7 @@ impl<'a> ValueEncoder<'a> {
     }
 }
 
+/// Used to encode an OpenMetrics Exemplar.
 #[allow(missing_debug_implementations)]
 #[must_use]
 pub struct ExemplarEncoder<'a> {
@@ -389,10 +396,12 @@ impl<'a> ExemplarEncoder<'a> {
     }
 }
 
-/// Trait implemented by each metric type, e.g. [`Counter`], to implement its encoding.
+/// Trait implemented by each metric type, e.g. [`Counter`], to implement its encoding in the OpenMetric text format.
 pub trait EncodeMetric {
+    /// Encode the given instance in the OpenMetrics text encoding.
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error>;
 
+    /// The OpenMetrics metric type of the instance.
     // One can not use [`TypedMetric`] directly, as associated constants are not
     // object safe and thus can not be used with dynamic dispatching.
     fn metric_type(&self) -> MetricType;
@@ -408,6 +417,7 @@ impl EncodeMetric for Box<dyn EncodeMetric> {
     }
 }
 
+/// Trait combining [`EncodeMetric`], [`Send`] and [`Sync`].
 pub trait SendSyncEncodeMetric: EncodeMetric + Send + Sync {}
 
 impl<T: EncodeMetric + Send + Sync> SendSyncEncodeMetric for T {}
