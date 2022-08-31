@@ -3,7 +3,7 @@
 //! See [`Family`] for details.
 
 use super::{MetricType, TypedMetric};
-use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -234,8 +234,34 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         })
     }
 
+    /// Remove a label set from the metric family.
+    ///
+    /// Returns a bool indicating if a label set was removed or not.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    ///
+    /// // Will create the metric with label `method="GET"` on first call and
+    /// // return a reference.
+    /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
+    ///
+    /// // Will return `true`, indicating that the `method="GET"` label set was
+    /// // removed.
+    /// assert!(family.remove_label_set(&vec![("method".to_owned(), "GET".to_owned())]));
+    /// ```
+    pub fn remove_label_set(&self, label_set: &S) -> bool {
+        self.write().remove(label_set).is_some()
+    }
+
     pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
         self.metrics.read()
+    }
+
+    fn write(&self) -> RwLockWriteGuard<HashMap<S, M>> {
+        self.metrics.write()
     }
 }
 
@@ -294,5 +320,57 @@ mod tests {
 
         let custom_builder = CustomBuilder { custom_start: 1.0 };
         Family::<(), Histogram, CustomBuilder>::new_with_constructor(custom_builder);
+    }
+
+    #[test]
+    fn counter_family_remove() {
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+
+        family
+            .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+            .inc();
+
+        assert_eq!(
+            1,
+            family
+                .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+                .get()
+        );
+
+        family
+            .get_or_create(&vec![("method".to_string(), "POST".to_string())])
+            .inc_by(2);
+
+        assert_eq!(
+            2,
+            family
+                .get_or_create(&vec![("method".to_string(), "POST".to_string())])
+                .get()
+        );
+
+        // Attempt to remove it twice, showing it really was removed on the
+        // first attempt.
+        assert!(family.remove_label_set(&vec![("method".to_string(), "POST".to_string())]));
+        assert!(!family.remove_label_set(&vec![("method".to_string(), "POST".to_string())]));
+
+        // This should make a new POST label.
+        family
+            .get_or_create(&vec![("method".to_string(), "POST".to_string())])
+            .inc();
+
+        assert_eq!(
+            1,
+            family
+                .get_or_create(&vec![("method".to_string(), "POST".to_string())])
+                .get()
+        );
+
+        // GET label should have be untouched.
+        assert_eq!(
+            1,
+            family
+                .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+                .get()
+        );
     }
 }
