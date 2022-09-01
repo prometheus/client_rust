@@ -45,6 +45,7 @@ pub struct Counter<N = u64, A = AtomicU64> {
     phantom: PhantomData<N>,
 }
 
+/// Open Metrics [`Counter`] to measure discrete events.
 #[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
 #[derive(Debug)]
 pub struct Counter<N = u32, A = AtomicU32> {
@@ -99,11 +100,15 @@ impl<N, A: Atomic<N>> Counter<N, A> {
     }
 }
 
+/// Atomic operations for a [`Counter`] value store.
 pub trait Atomic<N> {
+    /// Increase the value by `1`.
     fn inc(&self) -> N;
 
+    /// Increase the value.
     fn inc_by(&self, v: N) -> N;
 
+    /// Get the the value.
     fn get(&self) -> N;
 }
 
