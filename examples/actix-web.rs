@@ -12,6 +12,16 @@ pub enum Method {
     Post,
 }
 
+#[cfg(feature = "protobuf")]
+impl std::fmt::Display for Method {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Method::Get => f.write_str("Get"),
+            Method::Post => f.write_str("Post"),
+        }
+    }
+}
+
 #[derive(Clone, Hash, PartialEq, Eq, Encode)]
 pub struct MethodLabels {
     pub method: Method,
