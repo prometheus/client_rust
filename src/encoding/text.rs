@@ -38,7 +38,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
-pub use prometheus_client_derive_text_encode::*;
+pub use prometheus_client_derive_encode::*;
 
 pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
 where

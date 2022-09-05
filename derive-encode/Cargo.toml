@@ -1,9 +1,9 @@
 [package]
-name = "prometheus-client-derive-text-encode"
+name = "prometheus-client-derive-encode"
 version = "0.3.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2021"
-description = "Auxiliary crate to derive text Encode trait from prometheus-client."
+description = "Auxiliary crate to derive Encode trait from prometheus-client."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/prometheus/client_rust"
 homepage = "https://github.com/prometheus/client_rust"
