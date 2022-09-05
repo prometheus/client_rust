@@ -10,7 +10,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let name = &ast.ident;
 
-    let body = match ast.data {
+    let body = match ast.clone().data {
         syn::Data::Struct(s) => match s.fields {
             syn::Fields::Named(syn::FieldsNamed { named, .. }) => named
                 .into_iter()
@@ -61,7 +61,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
         syn::Data::Union(_) => panic!("Can not derive Encode for union."),
     };
 
-    let gen = quote! {
+    let mut gen = quote! {
         impl prometheus_client::encoding::text::Encode for #name {
             fn encode(&self, writer: &mut dyn std::io::Write) -> std::result::Result<(), std::io::Error> {
                 #body
@@ -70,7 +70,86 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
             }
         }
     };
+
+    if cfg!(feature = "protobuf") {
+        let protobuf = derive_protobuf_encode(ast);
+        gen = quote! {
+            #gen
+
+            #protobuf
+        }
+    }
+
     gen.into()
+}
+
+#[cfg(feature = "protobuf")]
+fn derive_protobuf_encode(ast: DeriveInput) -> TokenStream2 {
+    let name = &ast.ident;
+
+    match ast.data {
+        syn::Data::Struct(s) => match s.fields {
+            syn::Fields::Named(syn::FieldsNamed { named, .. }) => {
+                let push_labels: TokenStream2 = named
+                    .into_iter()
+                    .map(|f| {
+                        let ident = f.ident.unwrap();
+                        let ident_string = KEYWORD_IDENTIFIERS
+                            .iter()
+                            .find(|pair| ident == pair.1)
+                            .map(|pair| pair.0.to_string())
+                            .unwrap_or_else(|| ident.to_string());
+
+                        quote! {
+                            let mut label = prometheus_client::encoding::proto::Label::default();
+                            label.name = #ident_string.to_string();
+                            label.value = format!("{}", self.#ident);
+                            labels.push(label);
+                        }
+                    })
+                    .collect();
+
+                quote! {
+                    impl prometheus_client::encoding::proto::EncodeLabels for #name {
+                        fn encode(&self, labels: &mut Vec<prometheus_client::encoding::proto::Label>) {
+                            #push_labels
+                        }
+                    }
+                }
+            }
+            syn::Fields::Unnamed(_) => {
+                panic!("Can not derive Encode for struct with unnamed fields.")
+            }
+            syn::Fields::Unit => panic!("Can not derive Encode for struct with unit field."),
+        },
+        syn::Data::Enum(syn::DataEnum { variants, .. }) => {
+            let match_arms: TokenStream2 = variants
+                .into_iter()
+                .map(|v| {
+                    let ident = v.ident;
+                    quote! {
+                        #name::#ident => {
+                            let mut label = prometheus_client::encoding::proto::Label::default();
+                            label.name = stringify!(#name).to_string();
+                            label.value = stringify!(#ident).to_string();
+                            labels.push(label);
+                        }
+                    }
+                })
+                .collect();
+
+            quote! {
+                impl prometheus_client::encoding::proto::EncodeLabels for #name {
+                    fn encode(&self, labels: &mut Vec<prometheus_client::encoding::proto::Label>) {
+                        match self {
+                            #match_arms
+                        };
+                    }
+                }
+            }
+        }
+        syn::Data::Union(_) => panic!("Can not derive Encode for union."),
+    }
 }
 
 // Copied from https://github.com/djc/askama (MIT and APACHE licensed) and

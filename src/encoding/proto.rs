@@ -40,7 +40,7 @@ use std::ops::Deref;
 use void::Void;
 
 pub use openmetrics_data_model::*;
-pub use prometheus_client_derive_proto_encode::*;
+pub use prometheus_client_derive_text_encode::*;
 
 pub fn encode<M>(registry: &Registry<M>) -> openmetrics_data_model::MetricSet
 where
