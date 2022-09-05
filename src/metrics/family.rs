@@ -136,6 +136,7 @@ pub struct Family<S, M, C = fn() -> M> {
 /// let metric = Family::<(), Histogram, CustomBuilder>::new_with_constructor(custom_builder);
 /// ```
 pub trait MetricConstructor<M> {
+    /// Create a new instance of the metric type.
     fn new_metric(&self) -> M;
 }
 

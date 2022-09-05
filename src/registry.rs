@@ -238,6 +238,7 @@ impl<M> Registry<M> {
             .expect("sub_registries not to be empty.")
     }
 
+    /// [`Iterator`] over all metrics registered with the [`Registry`].
     pub fn iter(&self) -> RegistryIterator<M> {
         let metrics = self.metrics.iter();
         let sub_registries = self.sub_registries.iter();
@@ -297,6 +298,7 @@ impl From<Prefix> for String {
     }
 }
 
+/// OpenMetrics metric descriptor.
 #[derive(Debug)]
 pub struct Descriptor {
     name: String,
@@ -306,18 +308,22 @@ pub struct Descriptor {
 }
 
 impl Descriptor {
+    /// Returns the name of the OpenMetrics metric [`Descriptor`].
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the help text of the OpenMetrics metric [`Descriptor`].
     pub fn help(&self) -> &str {
         &self.help
     }
 
+    /// Returns the unit of the OpenMetrics metric [`Descriptor`].
     pub fn unit(&self) -> &Option<Unit> {
         &self.unit
     }
 
+    /// Returns the label set of the OpenMetrics metric [`Descriptor`].
     pub fn labels(&self) -> &[(Cow<'static, str>, Cow<'static, str>)] {
         &self.labels
     }
@@ -327,6 +333,7 @@ impl Descriptor {
 ///
 /// See [`Unit::Other`] to specify alternative units.
 #[derive(Debug)]
+#[allow(missing_docs)]
 pub enum Unit {
     Amperes,
     Bytes,

@@ -12,6 +12,7 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
+/// An OpenMetrics exemplar.
 #[derive(Debug)]
 pub struct Exemplar<S, V> {
     pub(crate) label_set: S,
@@ -36,6 +37,8 @@ pub struct CounterWithExemplar<S, N = u64, A = AtomicU64> {
     pub(crate) inner: Arc<RwLock<CounterWithExemplarInner<S, N, A>>>,
 }
 
+/// Open Metrics [`Counter`] with an [`Exemplar`] to both measure discrete
+/// events and track references to data outside of the metric set.
 #[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
 #[derive(Debug)]
 pub struct CounterWithExemplar<S, N = u32, A = AtomicU32> {
@@ -50,6 +53,7 @@ impl<S, N, A> Clone for CounterWithExemplar<S, N, A> {
     }
 }
 
+/// An OpenMetrics [`Counter`] in combination with an OpenMetrics [`Exemplar`].
 #[derive(Debug)]
 pub struct CounterWithExemplarInner<S, N, A> {
     pub(crate) exemplar: Option<Exemplar<S, N>>,
@@ -132,6 +136,7 @@ impl<S> Clone for HistogramWithExemplars<S> {
     }
 }
 
+/// An OpenMetrics [`Histogram`] in combination with an OpenMetrics [`Exemplar`].
 #[derive(Debug)]
 pub struct HistogramWithExemplarsInner<S> {
     pub(crate) exemplars: HashMap<usize, Exemplar<S, f64>>,
@@ -139,6 +144,7 @@ pub struct HistogramWithExemplarsInner<S> {
 }
 
 impl<S> HistogramWithExemplars<S> {
+    /// Create a new [`HistogramWithExemplars`].
     pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
         Self {
             inner: Arc::new(RwLock::new(HistogramWithExemplarsInner {
@@ -148,6 +154,8 @@ impl<S> HistogramWithExemplars<S> {
         }
     }
 
+    /// Observe the given value, optionally providing a label set and thus
+    /// setting the [`Exemplar`] value.
     pub fn observe(&self, v: f64, label_set: Option<S>) {
         let mut inner = self.inner.write();
         let bucket = inner.histogram.observe_and_bucket(v);
