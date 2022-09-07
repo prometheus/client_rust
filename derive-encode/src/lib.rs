@@ -83,7 +83,6 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
-#[cfg(feature = "protobuf")]
 fn derive_protobuf_encode(ast: DeriveInput) -> TokenStream2 {
     let name = &ast.ident;
 
