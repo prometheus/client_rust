@@ -54,16 +54,21 @@ where
     let mut metric_set = openmetrics_data_model::MetricSet::default();
 
     for (desc, metric) in registry.iter() {
-        let mut family = openmetrics_data_model::MetricFamily::default();
-        family.name = desc.name().to_string();
-        family.r#type = {
-            let metric_type: openmetrics_data_model::MetricType = metric.metric_type().into();
-            metric_type as i32
+        let mut family = openmetrics_data_model::MetricFamily {
+            name: desc.name().to_string(),
+            r#type: {
+                let metric_type: openmetrics_data_model::MetricType = metric.metric_type().into();
+                metric_type as i32
+            },
+            unit: if let Some(unit) = desc.unit() {
+                unit.as_str().to_string()
+            } else {
+                String::new()
+            },
+            help: desc.help().to_string(),
+            ..Default::default()
         };
-        if let Some(unit) = desc.unit() {
-            family.unit = unit.as_str().to_string();
-        }
-        family.help = desc.help().to_string();
+
         let mut labels = vec![];
         desc.labels().encode(&mut labels);
         metric.encode(labels, &mut family.metrics);
@@ -127,10 +132,10 @@ pub trait EncodeLabels {
 
 impl<K: ToString, V: ToString> Into<openmetrics_data_model::Label> for &(K, V) {
     fn into(self) -> openmetrics_data_model::Label {
-        let mut label = openmetrics_data_model::Label::default();
-        label.name = self.0.to_string();
-        label.value = self.1.to_string();
-        label
+        openmetrics_data_model::Label {
+            name: self.0.to_string(),
+            value: self.1.to_string(),
+        }
     }
 }
 
@@ -164,8 +169,10 @@ where
     S: EncodeLabels,
     f64: From<N>, // required because Exemplar.value is defined as `double` in protobuf
 {
-    let mut exemplar_proto = openmetrics_data_model::Exemplar::default();
-    exemplar_proto.value = exemplar.value.clone().into();
+    let mut exemplar_proto = openmetrics_data_model::Exemplar {
+        value: exemplar.value.clone().into(),
+        ..Default::default()
+    };
     exemplar.label_set.encode(&mut exemplar_proto.label);
 
     exemplar_proto
@@ -253,24 +260,25 @@ fn encode_counter_with_maybe_exemplar<N>(
 where
     N: EncodeCounterValue,
 {
-    let mut metric = openmetrics_data_model::Metric::default();
+    openmetrics_data_model::Metric {
+        metric_points: {
+            let metric_point = openmetrics_data_model::MetricPoint {
+                value: {
+                    Some(openmetrics_data_model::metric_point::Value::CounterValue(
+                        openmetrics_data_model::CounterValue {
+                            total: Some(value.encode()),
+                            exemplar,
+                            ..Default::default()
+                        },
+                    ))
+                },
+                ..Default::default()
+            };
 
-    metric.metric_points = {
-        let mut metric_point = openmetrics_data_model::MetricPoint::default();
-        metric_point.value = {
-            let mut counter_value = openmetrics_data_model::CounterValue::default();
-            counter_value.total = Some(value.encode());
-            counter_value.exemplar = exemplar;
-
-            Some(openmetrics_data_model::metric_point::Value::CounterValue(
-                counter_value,
-            ))
-        };
-
-        vec![metric_point]
-    };
-
-    metric
+            vec![metric_point]
+        },
+        ..Default::default()
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -313,23 +321,23 @@ where
         labels: Vec<openmetrics_data_model::Label>,
         family: &mut Vec<openmetrics_data_model::Metric>,
     ) {
-        let mut metric = openmetrics_data_model::Metric::default();
+        let metric = openmetrics_data_model::Metric {
+            metric_points: {
+                let metric_point = openmetrics_data_model::MetricPoint {
+                    value: {
+                        Some(openmetrics_data_model::metric_point::Value::GaugeValue(
+                            openmetrics_data_model::GaugeValue {
+                                value: Some(self.get().encode()),
+                            },
+                        ))
+                    },
+                    ..Default::default()
+                };
 
-        metric.metric_points = {
-            let mut metric_point = openmetrics_data_model::MetricPoint::default();
-            metric_point.value = {
-                let mut gauge_value = openmetrics_data_model::GaugeValue::default();
-                gauge_value.value = Some(self.get().encode());
-
-                Some(openmetrics_data_model::metric_point::Value::GaugeValue(
-                    gauge_value,
-                ))
-            };
-
-            vec![metric_point]
+                vec![metric_point]
+            },
+            labels,
         };
-
-        metric.labels = labels;
 
         family.push(metric)
     }
@@ -419,38 +427,42 @@ fn encode_histogram_with_maybe_exemplars<'a, S>(
 where
     S: EncodeLabels,
 {
-    let mut metric = openmetrics_data_model::Metric::default();
+    openmetrics_data_model::Metric {
+        metric_points: {
+            let metric_point = openmetrics_data_model::MetricPoint {
+                value: {
+                    let mut histogram_value = openmetrics_data_model::HistogramValue {
+                        sum: Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
+                            sum,
+                        )),
+                        count,
+                        ..Default::default()
+                    };
 
-    metric.metric_points = {
-        let mut metric_point = openmetrics_data_model::MetricPoint::default();
-        metric_point.value = {
-            let mut histogram_value = openmetrics_data_model::HistogramValue::default();
-            histogram_value.sum = Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
-                sum,
-            ));
-            histogram_value.count = count;
+                    let mut cummulative = 0;
+                    for (i, (upper_bound, count)) in buckets.iter().enumerate() {
+                        cummulative += count;
+                        let bucket = openmetrics_data_model::histogram_value::Bucket {
+                            count: cummulative,
+                            upper_bound: *upper_bound,
+                            exemplar: exemplars
+                                .map(|es| es.get(&i))
+                                .flatten()
+                                .map(|exemplar| encode_exemplar(exemplar)),
+                        };
+                        histogram_value.buckets.push(bucket);
+                    }
+                    Some(openmetrics_data_model::metric_point::Value::HistogramValue(
+                        histogram_value,
+                    ))
+                },
+                ..Default::default()
+            };
 
-            let mut cummulative = 0;
-            for (i, (upper_bound, count)) in buckets.iter().enumerate() {
-                cummulative += count;
-                let mut bucket = openmetrics_data_model::histogram_value::Bucket::default();
-                bucket.count = cummulative;
-                bucket.upper_bound = *upper_bound;
-                bucket.exemplar = exemplars
-                    .map(|es| es.get(&i))
-                    .flatten()
-                    .map(|exemplar| encode_exemplar(exemplar));
-                histogram_value.buckets.push(bucket);
-            }
-            Some(openmetrics_data_model::metric_point::Value::HistogramValue(
-                histogram_value,
-            ))
-        };
-
-        vec![metric_point]
-    };
-
-    metric
+            vec![metric_point]
+        },
+        ..Default::default()
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -465,22 +477,22 @@ where
         mut labels: Vec<openmetrics_data_model::Label>,
         family: &mut Vec<openmetrics_data_model::Metric>,
     ) {
-        let mut metric = openmetrics_data_model::Metric::default();
+        let metric = openmetrics_data_model::Metric {
+            metric_points: {
+                let metric_point = openmetrics_data_model::MetricPoint {
+                    value: {
+                        self.0.encode(&mut labels);
 
-        metric.metric_points = {
-            let mut metric_point = openmetrics_data_model::MetricPoint::default();
-            metric_point.value = {
-                self.0.encode(&mut labels);
+                        Some(openmetrics_data_model::metric_point::Value::InfoValue(
+                            openmetrics_data_model::InfoValue { info: labels },
+                        ))
+                    },
+                    ..Default::default()
+                };
 
-                let mut info_value = openmetrics_data_model::InfoValue::default();
-                info_value.info = labels;
-
-                Some(openmetrics_data_model::metric_point::Value::InfoValue(
-                    info_value,
-                ))
-            };
-
-            vec![metric_point]
+                vec![metric_point]
+            },
+            ..Default::default()
         };
 
         family.push(metric);
