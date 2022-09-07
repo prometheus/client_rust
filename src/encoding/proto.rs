@@ -130,11 +130,11 @@ pub trait EncodeLabels {
     fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>);
 }
 
-impl<K: ToString, V: ToString> Into<openmetrics_data_model::Label> for &(K, V) {
-    fn into(self) -> openmetrics_data_model::Label {
+impl<K: ToString, V: ToString> From<&(K, V)> for openmetrics_data_model::Label {
+    fn from(kv: &(K, V)) -> Self {
         openmetrics_data_model::Label {
-            name: self.0.to_string(),
-            value: self.1.to_string(),
+            name: kv.0.to_string(),
+            value: kv.1.to_string(),
         }
     }
 }
