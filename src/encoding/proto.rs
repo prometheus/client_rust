@@ -242,7 +242,7 @@ where
             None
         };
 
-        let mut metric = encode_counter_with_maybe_exemplar(value.clone(), exemplar_proto);
+        let mut metric = encode_counter_with_maybe_exemplar(value, exemplar_proto);
         metric.labels = labels;
 
         family.push(metric);
