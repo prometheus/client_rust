@@ -412,11 +412,11 @@ where
     }
 }
 
-fn encode_histogram_with_maybe_exemplars<'a, S>(
+fn encode_histogram_with_maybe_exemplars<S>(
     sum: f64,
     count: u64,
     buckets: &[(f64, u64)],
-    exemplars: Option<&'a HashMap<usize, Exemplar<S, f64>>>,
+    exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
 ) -> openmetrics_data_model::Metric
 where
     S: EncodeLabels,
