@@ -38,8 +38,6 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
-pub use prometheus_client_derive_encode::*;
-
 /// Encode the metrics registered with the provided [`Registry`] into the
 /// provided [`Write`]r using the OpenMetrics text format.
 pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
