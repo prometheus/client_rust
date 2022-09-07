@@ -235,13 +235,7 @@ where
         family: &mut Vec<openmetrics_data_model::Metric>,
     ) {
         let (value, exemplar) = self.get();
-
-        let exemplar_proto = if let Some(e) = exemplar.as_ref() {
-            Some(encode_exemplar(e))
-        } else {
-            None
-        };
-
+        let exemplar_proto = exemplar.as_ref().map(|e| encode_exemplar(e));
         let mut metric = encode_counter_with_maybe_exemplar(value, exemplar_proto);
         metric.labels = labels;
 
