@@ -348,6 +348,7 @@ pub enum Unit {
 }
 
 impl Unit {
+    /// Returns the given Unit's str representation.
     pub fn as_str(&self) -> &str {
         match self {
             Unit::Amperes => "amperes",

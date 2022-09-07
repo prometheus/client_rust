@@ -22,7 +22,10 @@
 //! assert_eq!("This is my counter.", family.help);
 //! ```
 
-// Include the `openmetrics_data_model` module, which is generated from `proto/openmetrics_data_model.proto`.
+// Allowing `missing docs` here as the `openmetrics.rs` is an automatically generated file.
+#[allow(missing_docs)]
+/// Data models that are automatically generated from OpenMetrics protobuf
+/// format.
 pub mod openmetrics_data_model {
     include!(concat!(env!("OUT_DIR"), "/openmetrics.rs"));
 }
@@ -42,6 +45,8 @@ use void::Void;
 pub use openmetrics_data_model::*;
 pub use prometheus_client_derive_encode::*;
 
+/// Encode the metrics registered with the provided [`Registry`] into MetricSet
+/// using the OpenMetrics protobuf format.
 pub fn encode<M>(registry: &Registry<M>) -> openmetrics_data_model::MetricSet
 where
     M: EncodeMetric,
@@ -83,12 +88,14 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
 
 /// Trait implemented by each metric type, e.g. [`Counter`], to implement its encoding.
 pub trait EncodeMetric {
+    /// Encode to OpenMetrics protobuf encoding.
     fn encode(
         &self,
         labels: Vec<openmetrics_data_model::Label>,
         family: &mut Vec<openmetrics_data_model::Metric>,
     );
 
+    /// The OpenMetrics metric type of the instance.
     fn metric_type(&self) -> MetricType;
 }
 
@@ -106,11 +113,15 @@ impl EncodeMetric for Box<dyn EncodeMetric> {
     }
 }
 
+/// Trait combining [`EncodeMetric`] and [`Send`].
 pub trait SendEncodeMetric: EncodeMetric + Send {}
 
 impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
 
+/// Trait to implement its label encoding in the OpenMetrics protobuf format.
 pub trait EncodeLabels {
+    /// Encode the given instance into Labels in the OpenMetrics protobuf
+    /// encoding.
     fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>);
 }
 
@@ -163,7 +174,11 @@ where
 /////////////////////////////////////////////////////////////////////////////////
 // Counter
 
+/// Trait to implement its counter value encoding in the OpenMetrics protobuf
+/// format.
 pub trait EncodeCounterValue {
+    /// Encode the given instance into counter value in the OpenMetrics protobuf
+    /// encoding.
     fn encode(&self) -> openmetrics_data_model::counter_value::Total;
 }
 
@@ -261,7 +276,11 @@ where
 /////////////////////////////////////////////////////////////////////////////////
 // Gauge
 
+/// Trait to implement its gauge value encoding in the OpenMetrics protobuf
+/// format.
 pub trait EncodeGaugeValue {
+    /// Encode the given instance into gauge value in the OpenMetrics protobuf
+    /// encoding.
     fn encode(&self) -> openmetrics_data_model::gauge_value::Value;
 }
 
