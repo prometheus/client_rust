@@ -7,13 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.19.0] - unreleased
 
 ### Added
-- Added support for the OpenMetrics protobuf format. See [PR 47].
+- Added support for the OpenMetrics protobuf format. See [PR 83].
 
 ### Changed
 
-- Move`Encode` trait from `prometheus_client::encoding::text` to `prometheus_client::encoding`. See [PR 47].
+- Move`Encode` trait from `prometheus_client::encoding::text` to `prometheus_client::encoding`. See [PR 83].
 
-[PR 47]: https://github.com/prometheus/client_rust/pull/47
+[PR 83]: https://github.com/prometheus/client_rust/pull/83
 
 ## [0.18.0]
 
