@@ -440,8 +440,7 @@ where
                             count: cummulative,
                             upper_bound: *upper_bound,
                             exemplar: exemplars
-                                .map(|es| es.get(&i))
-                                .flatten()
+                                .and_then(|es| es.get(&i))
                                 .map(|exemplar| encode_exemplar(exemplar)),
                         };
                         histogram_value.buckets.push(bucket);
