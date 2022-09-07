@@ -22,8 +22,8 @@
 //! assert_eq!("This is my counter.", family.help);
 //! ```
 
-// Allowing `missing docs` here as the `openmetrics.rs` is an automatically generated file.
-#[allow(missing_docs)]
+// Allowing some lints here as the `openmetrics.rs` is an automatically generated file.
+#[allow(missing_docs, clippy::derive_partial_eq_without_eq)]
 /// Data models that are automatically generated from OpenMetrics protobuf
 /// format.
 pub mod openmetrics_data_model {
