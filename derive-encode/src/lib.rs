@@ -61,7 +61,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
         syn::Data::Union(_) => panic!("Can not derive Encode for union."),
     };
 
-    let mut gen = quote! {
+    let gen = quote! {
         impl prometheus_client::encoding::text::Encode for #name {
             fn encode(&self, writer: &mut dyn std::io::Write) -> std::result::Result<(), std::io::Error> {
                 #body
@@ -71,18 +71,20 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
         }
     };
 
-    if cfg!(feature = "protobuf") {
+    #[cfg(feature = "protobuf")]
+    let gen = {
         let protobuf = derive_protobuf_encode(ast);
-        gen = quote! {
+        quote! {
             #gen
 
             #protobuf
         }
-    }
+    };
 
     gen.into()
 }
 
+#[cfg(feature = "protobuf")]
 fn derive_protobuf_encode(ast: DeriveInput) -> TokenStream2 {
     let name = &ast.ident;
 

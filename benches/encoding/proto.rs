@@ -1,7 +1,9 @@
-// Benchmark inspired by https://github.com/tikv/rust-prometheus/blob/ab1ca7285d3463504381a5025ae1951e020d6796/benches/text_encoder.rs
+// Benchmark inspired by
+// https://github.com/tikv/rust-prometheus/blob/ab1ca7285d3463504381a5025ae1951e020d6796/benches/text_encoder.rs:write
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use prometheus_client::encoding::proto::{encode, Encode, EncodeMetric};
+use prometheus_client::encoding::proto::{encode, EncodeMetric};
+use prometheus_client::encoding::Encode;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
@@ -17,7 +19,7 @@ pub fn proto(c: &mut Criterion) {
             some_number: u64,
         }
 
-        #[derive(Clone, Hash, PartialEq, Eq)]
+        #[derive(Clone, Hash, PartialEq, Eq, Encode)]
         enum Method {
             Get,
             #[allow(dead_code)]

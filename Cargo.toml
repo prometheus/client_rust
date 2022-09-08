@@ -46,8 +46,10 @@ harness = false
 name = "text"
 path = "benches/encoding/text.rs"
 harness = false
+required-features = []
 
 [[bench]]
 name = "proto"
 path = "benches/encoding/proto.rs"
 harness = false
+required-features = ["protobuf"] 

@@ -2,6 +2,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use prometheus_client::encoding::text::{encode, Encode, EncodeMetric};
+use prometheus_client::encoding::Encode;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
@@ -33,6 +34,26 @@ pub fn text(c: &mut Criterion) {
             Five,
         }
 
+        #[cfg(feature = "protobuf")]
+        impl std::fmt::Display for Method {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    Method::Get => f.write_str("Get"),
+                    Method::Put => f.write_str("Put"),
+                }
+            }
+        }
+
+        #[cfg(feature = "protobuf")]
+        impl std::fmt::Display for Status {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    Status::Two => f.write_str("2"),
+                    Status::Four => f.write_str("4"),
+                    Status::Five => f.write_str("5"),
+                }
+            }
+        }
         impl Encode for Status {
             fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
                 let status = match self {
