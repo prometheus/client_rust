@@ -36,6 +36,7 @@ use crate::registry::{Registry, Unit};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::ops::Deref;
 
 /// Encode the metrics registered with the provided [`Registry`] into the
@@ -203,6 +204,52 @@ impl Encode for Unit {
 impl Encode for () {
     fn encode(&self, _writer: &mut dyn Write) -> Result<(), std::io::Error> {
         Ok(())
+    }
+}
+
+impl Encode for Ipv4Addr {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(self.to_string().as_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for Ipv6Addr {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(self.to_string().as_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for IpAddr {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        match self {
+            IpAddr::V4(v4) => v4.encode(writer),
+            IpAddr::V6(v6) => v6.encode(writer),
+        }
+    }
+}
+
+impl Encode for SocketAddrV4 {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(self.to_string().as_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for SocketAddrV6 {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write_all(self.to_string().as_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for SocketAddr {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        match self {
+            SocketAddr::V4(v4) => v4.encode(writer),
+            SocketAddr::V6(v6) => v6.encode(writer),
+        }
     }
 }
 
@@ -701,6 +748,48 @@ mod tests {
         let mut encoded = Vec::new();
 
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_socketaddr() {
+        let mut registry = Registry::default();
+        let family = Family::<Vec<(&str, SocketAddr)>, Counter>::default();
+        registry.register("my_addr", "My socket address", family.clone());
+
+        let addr: SocketAddr = "127.0.0.1:80".parse().unwrap();
+        family.get_or_create(&vec![("address", addr)]).inc();
+
+        let mut encoded = Vec::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_addr My socket address.\n".to_owned()
+            + "# TYPE my_addr counter\n"
+            + "my_addr_total{address=\"127.0.0.1:80\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_ipaddr() {
+        let mut registry = Registry::default();
+        let family = Family::<Vec<(&str, IpAddr)>, Counter>::default();
+        registry.register("my_addr", "My IP address", family.clone());
+
+        let addr: IpAddr = "::1".parse().unwrap();
+        family.get_or_create(&vec![("address", addr)]).inc();
+
+        let mut encoded = Vec::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_addr My IP address.\n".to_owned()
+            + "# TYPE my_addr counter\n"
+            + "my_addr_total{address=\"::1\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
 
         parse_with_python_client(String::from_utf8(encoded).unwrap());
     }
