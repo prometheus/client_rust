@@ -256,6 +256,25 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         self.metrics.write().remove(label_set).is_some()
     }
 
+    /// Clear all label sets from the metric family.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    ///
+    /// // Will create the metric with label `method="GET"` on first call and
+    /// // return a reference.
+    /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
+    ///
+    /// // Clear the family of all label sets.
+    /// family.clear();
+    /// ```
+    pub fn clear(&self) {
+        self.metrics.write().clear()
+    }
+
     pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
         self.metrics.read()
     }
@@ -362,6 +381,37 @@ mod tests {
         );
 
         // GET label should have be untouched.
+        assert_eq!(
+            1,
+            family
+                .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+                .get()
+        );
+    }
+
+    #[test]
+    fn counter_family_clear() {
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+
+        // Create a label and check it.
+        family
+            .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+            .inc();
+
+        assert_eq!(
+            1,
+            family
+                .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+                .get()
+        );
+
+        // Clear it, then try recreating and checking it again.
+        family.clear();
+
+        family
+            .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+            .inc();
+
         assert_eq!(
             1,
             family
