@@ -3,7 +3,7 @@
 //! See [`Family`] for details.
 
 use super::{MetricType, TypedMetric};
-use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -250,18 +250,14 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     ///
     /// // Will return `true`, indicating that the `method="GET"` label set was
     /// // removed.
-    /// assert!(family.remove_label_set(&vec![("method".to_owned(), "GET".to_owned())]));
+    /// assert!(family.remove(&vec![("method".to_owned(), "GET".to_owned())]));
     /// ```
-    pub fn remove_label_set(&self, label_set: &S) -> bool {
-        self.write().remove(label_set).is_some()
+    pub fn remove(&self, label_set: &S) -> bool {
+        self.metrics.write().remove(label_set).is_some()
     }
 
     pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
         self.metrics.read()
-    }
-
-    fn write(&self) -> RwLockWriteGuard<HashMap<S, M>> {
-        self.metrics.write()
     }
 }
 
@@ -350,8 +346,8 @@ mod tests {
 
         // Attempt to remove it twice, showing it really was removed on the
         // first attempt.
-        assert!(family.remove_label_set(&vec![("method".to_string(), "POST".to_string())]));
-        assert!(!family.remove_label_set(&vec![("method".to_string(), "POST".to_string())]));
+        assert!(family.remove(&vec![("method".to_string(), "POST".to_string())]));
+        assert!(!family.remove(&vec![("method".to_string(), "POST".to_string())]));
 
         // This should make a new POST label.
         family
