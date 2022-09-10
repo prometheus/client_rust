@@ -102,9 +102,14 @@ fn derive_protobuf_encode(ast: DeriveInput) -> TokenStream2 {
                             .unwrap_or_else(|| ident.to_string());
 
                         quote! {
-                            let mut label = prometheus_client::encoding::proto::Label::default();
+                            let mut label = {
+                                let mut labels = vec![];
+                                self.#ident.encode(&mut labels);
+                                debug_assert_eq!(1, labels.len(), "Labels encoded from {} should have only one label.", #ident_string);
+                                labels.pop().expect("should have an element")
+                            };
+                            // Override the label name with the field name of this struct.
                             label.name = #ident_string.to_string();
-                            label.value = format!("{}", self.#ident);
                             labels.push(label);
                         }
                     })

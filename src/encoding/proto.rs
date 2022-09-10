@@ -139,6 +139,42 @@ impl<K: ToString, V: ToString> From<&(K, V)> for openmetrics_data_model::Label {
     }
 }
 
+impl EncodeLabels for f64 {
+    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
+        labels.push(openmetrics_data_model::Label {
+            name: self.to_string(),
+            value: self.to_string(),
+        })
+    }
+}
+
+impl EncodeLabels for u64 {
+    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
+        labels.push(openmetrics_data_model::Label {
+            name: self.to_string(),
+            value: self.to_string(),
+        })
+    }
+}
+
+impl EncodeLabels for u32 {
+    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
+        labels.push(openmetrics_data_model::Label {
+            name: self.to_string(),
+            value: self.to_string(),
+        })
+    }
+}
+
+impl EncodeLabels for String {
+    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
+        labels.push(openmetrics_data_model::Label {
+            name: self.clone(),
+            value: self.clone(),
+        })
+    }
+}
+
 impl<T> EncodeLabels for Vec<T>
 where
     for<'a> &'a T: Into<openmetrics_data_model::Label>,
