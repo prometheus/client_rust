@@ -5,8 +5,8 @@
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 /// Open Metrics [`Gauge`] to record current measurements.
@@ -234,6 +234,7 @@ impl Atomic<f64> for AtomicU64 {
     }
 }
 
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 impl Atomic<i64> for AtomicI64 {
     fn inc(&self) -> i64 {
         self.inc_by(1)
