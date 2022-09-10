@@ -57,7 +57,7 @@ use std::sync::Arc;
 /// [`Encode`](crate::encoding::text::Encode) implementation.
 ///
 /// ```
-/// # use prometheus_client::encoding::text::Encode;
+/// # use prometheus_client::encoding::Encode;
 /// # use prometheus_client::encoding::text::encode;
 /// # use prometheus_client::metrics::counter::{Atomic, Counter};
 /// # use prometheus_client::metrics::family::Family;

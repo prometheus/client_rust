@@ -56,16 +56,6 @@ enum Method {
     Put,
 }
 
-#[cfg(feature = "protobuf")]
-impl std::fmt::Display for Method {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Method::Get => f.write_str("Get"),
-            Method::Put => f.write_str("Put"),
-        }
-    }
-}
-
 #[derive(Clone)]
 struct State {
     registry: Arc<Registry<Family<Labels, Counter>>>,

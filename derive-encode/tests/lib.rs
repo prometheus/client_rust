@@ -1,10 +1,8 @@
-use prometheus_client::encoding::text::{encode, Encode};
+use prometheus_client::encoding::text::encode;
 use prometheus_client::encoding::Encode;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
-#[cfg(feature = "protobuf")]
-use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Hash, PartialEq, Eq, Encode)]
 struct Labels {
@@ -17,16 +15,6 @@ enum Method {
     Get,
     #[allow(dead_code)]
     Put,
-}
-
-#[cfg(feature = "protobuf")]
-impl Display for Method {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Method::Get => f.write_str("Get"),
-            Method::Put => f.write_str("Put"),
-        }
-    }
 }
 
 #[test]
@@ -130,7 +118,10 @@ fn remap_keyword_identifiers() {
 
     let mut buffer = vec![];
 
-    labels.encode(&mut buffer).unwrap();
+    {
+        use prometheus_client::encoding::text::Encode;
+        labels.encode(&mut buffer).unwrap();
+    }
 
     assert_eq!(
         "type=\"42\"".to_string(),

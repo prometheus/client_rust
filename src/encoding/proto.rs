@@ -139,6 +139,42 @@ impl<K: ToString, V: ToString> From<&(K, V)> for openmetrics_data_model::Label {
     }
 }
 
+impl EncodeLabels for f64 {
+    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
+        labels.push(openmetrics_data_model::Label {
+            name: self.to_string(),
+            value: self.to_string(),
+        })
+    }
+}
+
+impl EncodeLabels for u64 {
+    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
+        labels.push(openmetrics_data_model::Label {
+            name: self.to_string(),
+            value: self.to_string(),
+        })
+    }
+}
+
+impl EncodeLabels for u32 {
+    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
+        labels.push(openmetrics_data_model::Label {
+            name: self.to_string(),
+            value: self.to_string(),
+        })
+    }
+}
+
+impl EncodeLabels for String {
+    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
+        labels.push(openmetrics_data_model::Label {
+            name: self.clone(),
+            value: self.clone(),
+        })
+    }
+}
+
 impl<T> EncodeLabels for Vec<T>
 where
     for<'a> &'a T: Into<openmetrics_data_model::Label>,
@@ -534,7 +570,7 @@ mod tests {
                 assert_eq!(None, value.exemplar);
                 assert_eq!(None, value.created);
             }
-            _ => assert!(false, "wrong value type"),
+            _ => panic!("wrong value type"),
         }
     }
 
@@ -565,7 +601,7 @@ mod tests {
                 assert_eq!(None, value.exemplar);
                 assert_eq!(None, value.created);
             }
-            _ => assert!(false, "wrong value type"),
+            _ => panic!("wrong value type"),
         }
     }
 
@@ -573,7 +609,7 @@ mod tests {
     fn encode_counter_with_unit() {
         let mut registry = Registry::default();
         let counter: Counter = Counter::default();
-        registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter.clone());
+        registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter);
 
         let metric_set = encode(&registry);
 
@@ -618,14 +654,14 @@ mod tests {
                 assert_eq!(1.0, exemplar.value);
 
                 let expected_label = {
-                    let mut label = openmetrics_data_model::Label::default();
-                    label.name = "user_id".to_string();
-                    label.value = "42".to_string();
-                    label
+                    openmetrics_data_model::Label {
+                        name: "user_id".to_string(),
+                        value: "42".to_string(),
+                    }
                 };
                 assert_eq!(vec![expected_label], exemplar.label);
             }
-            _ => assert!(false, "wrong value type"),
+            _ => panic!("wrong value type"),
         }
     }
 
@@ -651,7 +687,7 @@ mod tests {
                 let expected = openmetrics_data_model::gauge_value::Value::IntValue(1);
                 assert_eq!(Some(expected), value.value);
             }
-            _ => assert!(false, "wrong value type"),
+            _ => panic!("wrong value type"),
         }
     }
 
@@ -693,7 +729,7 @@ mod tests {
                 assert_eq!(None, value.exemplar);
                 assert_eq!(None, value.created);
             }
-            _ => assert!(false, "wrong value type"),
+            _ => panic!("wrong value type"),
         }
     }
 
@@ -740,7 +776,7 @@ mod tests {
                 assert_eq!(None, value.exemplar);
                 assert_eq!(None, value.created);
             }
-            _ => assert!(false, "wrong value type"),
+            _ => panic!("wrong value type"),
         }
     }
 
@@ -773,7 +809,7 @@ mod tests {
                 assert_eq!(1, value.count);
                 assert_eq!(11, value.buckets.len());
             }
-            _ => assert!(false, "wrong value type"),
+            _ => panic!("wrong value type"),
         }
     }
 
@@ -801,14 +837,14 @@ mod tests {
                 assert_eq!(1.0, exemplar.value);
 
                 let expected_label = {
-                    let mut label = openmetrics_data_model::Label::default();
-                    label.name = "user_id".to_string();
-                    label.value = "42".to_string();
-                    label
+                    openmetrics_data_model::Label {
+                        name: "user_id".to_string(),
+                        value: "42".to_string(),
+                    }
                 };
                 assert_eq!(vec![expected_label], exemplar.label);
             }
-            _ => assert!(false, "wrong value type"),
+            _ => panic!("wrong value type"),
         }
     }
 
@@ -912,7 +948,7 @@ mod tests {
                 assert_eq!("os", info.name);
                 assert_eq!("GNU/linux", info.value);
             }
-            _ => assert!(false, "wrong value type"),
+            _ => panic!("wrong value type"),
         }
     }
 
