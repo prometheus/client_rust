@@ -1,7 +1,8 @@
 // Benchmark inspired by https://github.com/tikv/rust-prometheus/blob/ab1ca7285d3463504381a5025ae1951e020d6796/benches/text_encoder.rs
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use prometheus_client::encoding::text::{encode, Encode, EncodeMetric};
+use prometheus_client::encoding::text::{encode, EncodeMetric};
+use prometheus_client::encoding::Encode;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
@@ -33,7 +34,7 @@ pub fn text(c: &mut Criterion) {
             Five,
         }
 
-        impl Encode for Status {
+        impl prometheus_client::encoding::text::Encode for Status {
             fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
                 let status = match self {
                     Status::Two => b"200",
@@ -42,6 +43,21 @@ pub fn text(c: &mut Criterion) {
                 };
                 writer.write_all(status)?;
                 Ok(())
+            }
+        }
+
+        #[cfg(feature = "protobuf")]
+        impl prometheus_client::encoding::proto::EncodeLabels for Status {
+            fn encode(&self, labels: &mut Vec<prometheus_client::encoding::proto::Label>) {
+                let value = match self {
+                    Status::Two => "200".to_string(),
+                    Status::Four => "400".to_string(),
+                    Status::Five => "500".to_string(),
+                };
+                labels.push(prometheus_client::encoding::proto::Label {
+                    name: "status".to_string(),
+                    value,
+                });
             }
         }
 

@@ -38,8 +38,6 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
-pub use prometheus_client_derive_text_encode::*;
-
 /// Encode the metrics registered with the provided [`Registry`] into the
 /// provided [`Write`]r using the OpenMetrics text format.
 pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
@@ -197,20 +195,7 @@ impl Encode for MetricType {
 
 impl Encode for Unit {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        let u = match self {
-            Unit::Amperes => "amperes",
-            Unit::Bytes => "bytes",
-            Unit::Celsius => "celsius",
-            Unit::Grams => "grams",
-            Unit::Joules => "joules",
-            Unit::Meters => "meters",
-            Unit::Ratios => "ratios",
-            Unit::Seconds => "seconds",
-            Unit::Volts => "volts",
-            Unit::Other(other) => other.as_str(),
-        };
-
-        writer.write_all(u.as_bytes())?;
+        writer.write_all(self.as_str().as_bytes())?;
         Ok(())
     }
 }

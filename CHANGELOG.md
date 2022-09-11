@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - unreleased
+
+### Added
+- Added support for the OpenMetrics protobuf format. See [PR 83].
+
+### Changed
+
+- Move`Encode` trait from `prometheus_client::encoding::text` to `prometheus_client::encoding`. See [PR 83].
+
+[PR 83]: https://github.com/prometheus/client_rust/pull/83
+
 ## [0.18.0]
 
 ### Changed

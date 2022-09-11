@@ -347,6 +347,24 @@ pub enum Unit {
     Other(String),
 }
 
+impl Unit {
+    /// Returns the given Unit's str representation.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Unit::Amperes => "amperes",
+            Unit::Bytes => "bytes",
+            Unit::Celsius => "celsius",
+            Unit::Grams => "grams",
+            Unit::Joules => "joules",
+            Unit::Meters => "meters",
+            Unit::Ratios => "ratios",
+            Unit::Seconds => "seconds",
+            Unit::Volts => "volts",
+            Unit::Other(other) => other.as_str(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

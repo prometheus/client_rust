@@ -1,13 +1,16 @@
 [package]
-name = "prometheus-client-derive-text-encode"
-version = "0.3.0"
+name = "prometheus-client-derive-encode"
+version = "0.3.1"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2021"
-description = "Auxiliary crate to derive text Encode trait from prometheus-client."
+description = "Auxiliary crate to derive Encode trait from prometheus-client."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/prometheus/client_rust"
 homepage = "https://github.com/prometheus/client_rust"
 documentation = "https://docs.rs/prometheus-client-derive-text-encode"
+
+[features]
+protobuf = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,7 +20,7 @@ quote = "1"
 syn = "1"
 
 [dev-dependencies]
-prometheus-client = { path = "../" }
+prometheus-client = { path = "../", features = ["protobuf"] }
 
 [lib]
 proc-macro = true

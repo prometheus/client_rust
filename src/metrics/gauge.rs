@@ -5,7 +5,7 @@
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicI64, AtomicU64};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
@@ -231,6 +231,33 @@ impl Atomic<f64> for AtomicU64 {
 
     fn get(&self) -> f64 {
         f64::from_bits(self.load(Ordering::Relaxed))
+    }
+}
+
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+impl Atomic<i64> for AtomicI64 {
+    fn inc(&self) -> i64 {
+        self.inc_by(1)
+    }
+
+    fn inc_by(&self, v: i64) -> i64 {
+        self.fetch_add(v, Ordering::Relaxed)
+    }
+
+    fn dec(&self) -> i64 {
+        self.dec_by(1)
+    }
+
+    fn dec_by(&self, v: i64) -> i64 {
+        self.fetch_sub(v, Ordering::Relaxed)
+    }
+
+    fn set(&self, v: i64) -> i64 {
+        self.swap(v, Ordering::Relaxed)
+    }
+
+    fn get(&self) -> i64 {
+        self.load(Ordering::Relaxed)
     }
 }
 
