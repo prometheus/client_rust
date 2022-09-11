@@ -44,9 +44,6 @@ be fixed in the future. Contributions in all forms are most welcome.
 - Enforce "Exposers SHOULD avoid names that could be confused with the suffixes
   that text format sample metric names use".
 
-- Protobuf wire format. (Follow [spec
-  issue](https://github.com/OpenObservability/OpenMetrics/issues/183).)
-
 - Gauge histogram metric.
 
 - Allow "A MetricPoint in a Metric with the type [Counter, Histogram] SHOULD have a Timestamp
