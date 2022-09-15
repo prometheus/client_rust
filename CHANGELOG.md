@@ -8,12 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added support for the OpenMetrics protobuf format. See [PR 83].
+- Added a `remove` method to `Family` to allow the removal of a specified label
+  set from a family. See [PR 85].
+- Added a `clear` method to `Family` to allow the removal of all label sets
+  from a family. See [PR 85].
 
 ### Changed
 
 - Move`Encode` trait from `prometheus_client::encoding::text` to `prometheus_client::encoding`. See [PR 83].
 
 [PR 83]: https://github.com/prometheus/client_rust/pull/83
+[PR 85]: https://github.com/prometheus/client_rust/pull/85
 
 ## [0.18.0]
 
