@@ -99,51 +99,6 @@ mod protobuf {
         assert_eq!("Method", label.name);
         assert_eq!("Get", label.value);
     }
-
-    mod multiple_applicable_items_in_scope {
-        use prometheus_client::encoding::proto::encode;
-        use prometheus_client::encoding::Encode;
-        use prometheus_client::metrics::counter::Counter;
-        use prometheus_client::metrics::family::Family;
-        use prometheus_client::registry::Registry;
-
-        // This is a trait to reproduce `multiple applicable items in scope` error.
-        //
-        // error[E0034]: multiple applicable items in scope
-        //    --> derive-encode/tests/lib.rs:120:46
-        //     |
-        // 120 |         #[derive(Clone, Hash, PartialEq, Eq, Encode)]
-        //     |                                              ^^^^^^ multiple `encode` found
-        trait Test {
-            fn encode(&self);
-        }
-
-        impl Test for String {
-            fn encode(&self) {
-                println!("TEST");
-            }
-        }
-
-        #[derive(Clone, Hash, PartialEq, Eq, Encode)]
-        struct Labels {
-            path: String,
-        }
-
-        #[test]
-        fn test() {
-            let mut registry = Registry::default();
-            let family = Family::<Labels, Counter>::default();
-            registry.register("my_counter", "This is my counter", family.clone());
-
-            family
-                .get_or_create(&Labels {
-                    path: "/metrics".to_string(),
-                })
-                .inc();
-
-            let _ = encode(&registry);
-        }
-    }
 }
 
 #[test]
