@@ -104,7 +104,7 @@ fn derive_protobuf_encode(ast: DeriveInput) -> TokenStream2 {
                         quote! {
                             let mut label = {
                                 let mut labels = vec![];
-                                self.#ident.encode(&mut labels);
+                                prometheus_client::encoding::proto::EncodeLabels::encode(&self.#ident, &mut labels);
                                 debug_assert_eq!(1, labels.len(), "Labels encoded from {} should have only one label.", #ident_string);
                                 labels.pop().expect("should have an element")
                             };
