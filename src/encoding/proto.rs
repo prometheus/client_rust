@@ -214,6 +214,25 @@ where
     exemplar_proto
 }
 
+/// Trait combining [`EncodeMetric`], [`Send`] and [`Sync`].
+pub trait SendSyncEncodeMetric: EncodeMetric + Send + Sync {}
+
+impl<T: EncodeMetric + Send + Sync> SendSyncEncodeMetric for T {}
+
+impl EncodeMetric for Box<dyn SendSyncEncodeMetric> {
+    fn encode(
+        &self,
+        labels: Vec<openmetrics_data_model::Label>,
+        family: &mut Vec<openmetrics_data_model::Metric>,
+    ) {
+        self.deref().encode(labels, family)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        self.deref().metric_type()
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 // Counter
 
