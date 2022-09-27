@@ -4,6 +4,7 @@
 
 use super::counter::{self, Counter};
 use super::histogram::Histogram;
+use super::{MetricType, TypedMetric};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use std::collections::HashMap;
 #[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
@@ -31,10 +32,43 @@ pub struct Exemplar<S, V> {
 /// counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), "42".to_string())]));
 /// let _value: (u64, _) = counter_with_exemplar.get();
 /// ```
+/// You can also use exemplars with families. Just wrap the exemplar in a Family.
+/// ```
+/// # use prometheus_client::metrics::exemplar::CounterWithExemplar;
+/// # use prometheus_client::metrics::histogram::exponential_buckets;
+/// # use prometheus_client::metrics::family::Family;
+/// # use prometheus_client_derive_encode::Encode;
+/// #[derive(Clone, Hash, PartialEq, Eq, Encode, Debug, Default)]
+/// pub struct ResultLabel {
+///     pub result: String,
+/// }
+///
+/// #[derive(Clone, Hash, PartialEq, Eq, Encode, Debug, Default)]
+/// pub struct TraceLabel {
+///     pub trace_id: String,
+/// }
+///
+/// let latency: Family<ResultLabel, CounterWithExemplar<TraceLabel>> = Family::default();
+///
+/// latency
+///     .get_or_create(&ResultLabel {
+///         result: "success".to_owned(),
+///     })
+///     .inc_by(
+///         1,
+///         Some(TraceLabel {
+///             trace_id: "3a2f90c9f80b894f".to_owned(),
+///         }),
+///     );
+/// ```
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 #[derive(Debug)]
 pub struct CounterWithExemplar<S, N = u64, A = AtomicU64> {
     pub(crate) inner: Arc<RwLock<CounterWithExemplarInner<S, N, A>>>,
+}
+
+impl<S> TypedMetric for CounterWithExemplar<S> {
+    const TYPE: MetricType = MetricType::Counter;
 }
 
 /// Open Metrics [`Counter`] with an [`Exemplar`] to both measure discrete
@@ -122,10 +156,46 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
 /// let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
 /// histogram.observe(4.2, Some(vec![("user_id".to_string(), "42".to_string())]));
 /// ```
+/// You can also use exemplars with families. Just wrap the exemplar in a Family.
+/// ```
+/// # use prometheus_client::metrics::exemplar::HistogramWithExemplars;
+/// # use prometheus_client::metrics::histogram::exponential_buckets;
+/// # use prometheus_client::metrics::family::Family;
+/// # use prometheus_client_derive_encode::Encode;
+/// #[derive(Clone, Hash, PartialEq, Eq, Encode, Debug, Default)]
+/// pub struct ResultLabel {
+///     pub result: String,
+/// }
+///
+/// #[derive(Clone, Hash, PartialEq, Eq, Encode, Debug, Default)]
+/// pub struct TraceLabel {
+///     pub trace_id: String,
+/// }
+///
+/// let latency: Family<ResultLabel, HistogramWithExemplars<TraceLabel>> =
+///     Family::new_with_constructor(|| {
+///         HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10))
+///     });
+///
+/// latency
+///     .get_or_create(&ResultLabel {
+///         result: "success".to_owned(),
+///     })
+///     .observe(
+///         0.001345422,
+///         Some(TraceLabel {
+///             trace_id: "3a2f90c9f80b894f".to_owned(),
+///         }),
+///     );
+/// ```
 #[derive(Debug)]
 pub struct HistogramWithExemplars<S> {
     // TODO: Not ideal, as Histogram has a Mutex as well.
     pub(crate) inner: Arc<RwLock<HistogramWithExemplarsInner<S>>>,
+}
+
+impl<S> TypedMetric for HistogramWithExemplars<S> {
+    const TYPE: MetricType = MetricType::Histogram;
 }
 
 impl<S> Clone for HistogramWithExemplars<S> {
