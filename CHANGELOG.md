@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   set from a family. See [PR 85].
 - Added a `clear` method to `Family` to allow the removal of all label sets
   from a family. See [PR 85].
+- Impl `TypedMetric` for `CounterWithExemplar` and `HistogramWithExemplar`, so that they can be used with `Family`. See [PR 96].
 
 ### Changed
 
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [PR 83]: https://github.com/prometheus/client_rust/pull/83
 [PR 85]: https://github.com/prometheus/client_rust/pull/85
+[PR 96]: https://github.com/prometheus/client_rust/pull/96
 
 ## [0.18.0]
 
