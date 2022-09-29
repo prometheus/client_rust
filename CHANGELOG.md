@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Always use dynamic dispatch on Registry, i.e. remove generic type parameter `M` from `Registry`.
+
 - Move`Encode` trait from `prometheus_client::encoding::text` to `prometheus_client::encoding`. See [PR 83].
 
 [PR 83]: https://github.com/prometheus/client_rust/pull/83

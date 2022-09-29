@@ -47,7 +47,7 @@ pub use prometheus_client_derive_encode::*;
 
 /// Encode the metrics registered with the provided [`Registry`] into MetricSet
 /// using the OpenMetrics protobuf format.
-pub fn encode<M>(registry: &Registry<M>) -> openmetrics_data_model::MetricSet
+pub fn encode<M>(registry: &Registry) -> openmetrics_data_model::MetricSet
 where
     M: EncodeMetric,
 {
@@ -57,7 +57,8 @@ where
         let mut family = openmetrics_data_model::MetricFamily {
             name: desc.name().to_string(),
             r#type: {
-                let metric_type: openmetrics_data_model::MetricType = metric.metric_type().into();
+                let metric_type: openmetrics_data_model::MetricType =
+                    EncodeMetric::metric_type(metric.as_ref()).into();
                 metric_type as i32
             },
             unit: if let Some(unit) = desc.unit() {
@@ -71,7 +72,7 @@ where
 
         let mut labels = vec![];
         desc.labels().encode(&mut labels);
-        metric.encode(labels, &mut family.metrics);
+        EncodeMetric::encode(metric.as_ref(), labels, &mut family.metrics);
 
         metric_set.metric_families.push(family);
     }
@@ -117,11 +118,6 @@ impl EncodeMetric for Box<dyn EncodeMetric> {
         self.deref().metric_type()
     }
 }
-
-/// Trait combining [`EncodeMetric`] and [`Send`].
-pub trait SendEncodeMetric: EncodeMetric + Send {}
-
-impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
 
 /// Trait to implement its label encoding in the OpenMetrics protobuf format.
 pub trait EncodeLabels {

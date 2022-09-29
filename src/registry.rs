@@ -25,10 +25,7 @@ use std::borrow::Cow;
 /// # use prometheus_client::registry::Registry;
 /// #
 /// // Create a metric registry.
-/// //
-/// // Note the angle brackets to make sure to use the default (dynamic
-/// // dispatched boxed metric) for the generic type parameter.
-/// let mut registry = <Registry>::default();
+/// let mut registry = Registry::default();
 ///
 /// let counter: Counter = Counter::default();
 /// let gauge: Gauge = Gauge::default();
@@ -36,12 +33,12 @@ use std::borrow::Cow;
 /// registry.register(
 ///   "my_counter",
 ///   "This is my counter",
-///   Box::new(counter.clone()),
+///   counter.clone(),
 /// );
 /// registry.register(
 ///   "my_gauge",
 ///   "This is my gauge",
-///   Box::new(gauge.clone()),
+///   gauge.clone(),
 /// );
 ///
 /// # // Encode all metrics in the registry in the text format.
@@ -58,14 +55,14 @@ use std::borrow::Cow;
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 #[derive(Debug)]
-pub struct Registry<M = Box<dyn crate::encoding::text::SendSyncEncodeMetric>> {
+pub struct Registry {
     prefix: Option<Prefix>,
     labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
-    metrics: Vec<(Descriptor, M)>,
-    sub_registries: Vec<Registry<M>>,
+    metrics: Vec<(Descriptor, Box<dyn Metric>)>,
+    sub_registries: Vec<Registry>,
 }
 
-impl<M> Default for Registry<M> {
+impl Default for Registry {
     fn default() -> Self {
         Self {
             prefix: None,
@@ -76,7 +73,7 @@ impl<M> Default for Registry<M> {
     }
 }
 
-impl<M> Registry<M> {
+impl Registry {
     /// Creates a new default [`Registry`] with the given prefix.
     pub fn with_prefix(prefix: impl Into<String>) -> Self {
         Self {
@@ -103,12 +100,17 @@ impl<M> Registry<M> {
     /// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
     /// # use prometheus_client::registry::{Registry, Unit};
     /// #
-    /// let mut registry: Registry<Counter> = Registry::default();
-    /// let counter = Counter::default();
+    /// let mut registry = Registry::default();
+    /// let counter: Counter = Counter::default();
     ///
     /// registry.register("my_counter", "This is my counter", counter.clone());
     /// ```
-    pub fn register<N: Into<String>, H: Into<String>>(&mut self, name: N, help: H, metric: M) {
+    pub fn register<N: Into<String>, H: Into<String>>(
+        &mut self,
+        name: N,
+        help: H,
+        metric: impl Metric,
+    ) {
         self.priv_register(name, help, metric, None)
     }
 
@@ -124,8 +126,8 @@ impl<M> Registry<M> {
     /// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
     /// # use prometheus_client::registry::{Registry, Unit};
     /// #
-    /// let mut registry: Registry<Counter> = Registry::default();
-    /// let counter = Counter::default();
+    /// let mut registry = Registry::default();
+    /// let counter: Counter = Counter::default();
     ///
     /// registry.register_with_unit(
     ///   "my_counter",
@@ -139,7 +141,7 @@ impl<M> Registry<M> {
         name: N,
         help: H,
         unit: Unit,
-        metric: M,
+        metric: impl Metric,
     ) {
         self.priv_register(name, help, metric, Some(unit))
     }
@@ -148,7 +150,7 @@ impl<M> Registry<M> {
         &mut self,
         name: N,
         help: H,
-        metric: M,
+        metric: impl Metric,
         unit: Option<Unit>,
     ) {
         let name = name.into();
@@ -164,7 +166,7 @@ impl<M> Registry<M> {
             labels: self.labels.clone(),
         };
 
-        self.metrics.push((descriptor, metric));
+        self.metrics.push((descriptor, Box::new(metric)));
     }
 
     // TODO: Update doc.
@@ -183,17 +185,17 @@ impl<M> Registry<M> {
     /// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
     /// # use prometheus_client::registry::{Registry, Unit};
     /// #
-    /// let mut registry: Registry<Counter> = Registry::default();
+    /// let mut registry = Registry::default();
     ///
-    /// let subsystem_a_counter_1 = Counter::default();
-    /// let subsystem_a_counter_2 = Counter::default();
+    /// let subsystem_a_counter_1: Counter = Counter::default();
+    /// let subsystem_a_counter_2: Counter = Counter::default();
     ///
     /// let subsystem_a_registry = registry.sub_registry_with_prefix("subsystem_a");
     /// registry.register("counter_1", "", subsystem_a_counter_1.clone());
     /// registry.register("counter_2", "", subsystem_a_counter_2.clone());
     ///
-    /// let subsystem_b_counter_1 = Counter::default();
-    /// let subsystem_b_counter_2 = Counter::default();
+    /// let subsystem_b_counter_1: Counter = Counter::default();
+    /// let subsystem_b_counter_2: Counter = Counter::default();
     ///
     /// let subsystem_a_registry = registry.sub_registry_with_prefix("subsystem_b");
     /// registry.register("counter_1", "", subsystem_b_counter_1.clone());
@@ -239,7 +241,7 @@ impl<M> Registry<M> {
     }
 
     /// [`Iterator`] over all metrics registered with the [`Registry`].
-    pub fn iter(&self) -> RegistryIterator<M> {
+    pub fn iter(&self) -> RegistryIterator {
         let metrics = self.metrics.iter();
         let sub_registries = self.sub_registries.iter();
         RegistryIterator {
@@ -253,14 +255,14 @@ impl<M> Registry<M> {
 /// Iterator iterating both the metrics registered directly with the registry as
 /// well as all metrics registered with sub-registries.
 #[derive(Debug)]
-pub struct RegistryIterator<'a, M> {
-    metrics: std::slice::Iter<'a, (Descriptor, M)>,
-    sub_registries: std::slice::Iter<'a, Registry<M>>,
-    sub_registry: Option<Box<RegistryIterator<'a, M>>>,
+pub struct RegistryIterator<'a> {
+    metrics: std::slice::Iter<'a, (Descriptor, Box<dyn Metric>)>,
+    sub_registries: std::slice::Iter<'a, Registry>,
+    sub_registry: Option<Box<RegistryIterator<'a>>>,
 }
 
-impl<'a, M> Iterator for RegistryIterator<'a, M> {
-    type Item = &'a (Descriptor, M);
+impl<'a> Iterator for RegistryIterator<'a> {
+    type Item = &'a (Descriptor, Box<dyn Metric>);
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(metric) = self.metrics.next() {
@@ -365,6 +367,45 @@ impl Unit {
     }
 }
 
+// TODO: Instead of depending on dynamic dispatch for all metrics, we could use
+// static dispatch for the most common ones and only fall back to dynamic
+// dispatch. That said, this needs to be proven performant in a benchmark first.
+/// Super trait representing an abstract Prometheus metric.
+#[cfg(not(feature = "protobuf"))]
+pub trait Metric:
+    crate::encoding::text::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
+{
+}
+
+/// Super trait representing an abstract Prometheus metric.
+#[cfg(feature = "protobuf")]
+pub trait Metric:
+    crate::encoding::text::EncodeMetric
+    + crate::encoding::proto::EncodeMetric
+    + Send
+    + Sync
+    + std::fmt::Debug
+    + 'static
+{
+}
+
+#[cfg(not(feature = "protobuf"))]
+impl<T> Metric for T where
+    T: crate::encoding::text::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
+{
+}
+
+#[cfg(feature = "protobuf")]
+impl<T> Metric for T where
+    T: crate::encoding::text::EncodeMetric
+        + crate::encoding::proto::EncodeMetric
+        + Send
+        + Sync
+        + std::fmt::Debug
+        + 'static
+{
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,8 +413,8 @@ mod tests {
 
     #[test]
     fn register_and_iterate() {
-        let mut registry: Registry<Counter> = Registry::default();
-        let counter = Counter::default();
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
         registry.register("my_counter", "My counter", counter);
 
         assert_eq!(1, registry.iter().count())
@@ -382,28 +423,29 @@ mod tests {
     #[test]
     fn sub_registry_with_prefix_and_label() {
         let top_level_metric_name = "my_top_level_metric";
-        let mut registry = Registry::<Counter>::default();
-        registry.register(top_level_metric_name, "some help", Default::default());
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        registry.register(top_level_metric_name, "some help", counter.clone());
 
         let prefix_1 = "prefix_1";
         let prefix_1_metric_name = "my_prefix_1_metric";
         let sub_registry = registry.sub_registry_with_prefix(prefix_1);
-        sub_registry.register(prefix_1_metric_name, "some help", Default::default());
+        sub_registry.register(prefix_1_metric_name, "some help", counter.clone());
 
         let prefix_1_1 = "prefix_1_1";
         let prefix_1_1_metric_name = "my_prefix_1_1_metric";
         let sub_sub_registry = sub_registry.sub_registry_with_prefix(prefix_1_1);
-        sub_sub_registry.register(prefix_1_1_metric_name, "some help", Default::default());
+        sub_sub_registry.register(prefix_1_1_metric_name, "some help", counter.clone());
 
         let label_1_2 = (Cow::Borrowed("registry"), Cow::Borrowed("1_2"));
         let prefix_1_2_metric_name = "my_prefix_1_2_metric";
         let sub_sub_registry = sub_registry.sub_registry_with_label(label_1_2.clone());
-        sub_sub_registry.register(prefix_1_2_metric_name, "some help", Default::default());
+        sub_sub_registry.register(prefix_1_2_metric_name, "some help", counter.clone());
 
         let prefix_1_2_1 = "prefix_1_2_1";
         let prefix_1_2_1_metric_name = "my_prefix_1_2_1_metric";
         let sub_sub_sub_registry = sub_sub_registry.sub_registry_with_prefix(prefix_1_2_1);
-        sub_sub_sub_registry.register(prefix_1_2_1_metric_name, "some help", Default::default());
+        sub_sub_sub_registry.register(prefix_1_2_1_metric_name, "some help", counter.clone());
 
         let prefix_2 = "prefix_2";
         let _ = registry.sub_registry_with_prefix(prefix_2);
@@ -411,7 +453,7 @@ mod tests {
         let prefix_3 = "prefix_3";
         let prefix_3_metric_name = "my_prefix_3_metric";
         let sub_registry = registry.sub_registry_with_prefix(prefix_3);
-        sub_registry.register(prefix_3_metric_name, "some help", Default::default());
+        sub_registry.register(prefix_3_metric_name, "some help", counter.clone());
 
         let mut metric_iter = registry
             .iter()

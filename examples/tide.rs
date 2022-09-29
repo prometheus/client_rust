@@ -44,13 +44,13 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     Ok(())
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Encode)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Encode)]
 struct Labels {
     method: Method,
     path: String,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Encode)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Encode)]
 enum Method {
     Get,
     Put,
@@ -58,7 +58,7 @@ enum Method {
 
 #[derive(Clone)]
 struct State {
-    registry: Arc<Registry<Family<Labels, Counter>>>,
+    registry: Arc<Registry>,
 }
 
 #[derive(Default)]

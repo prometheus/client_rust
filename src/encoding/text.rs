@@ -40,10 +40,9 @@ use std::ops::Deref;
 
 /// Encode the metrics registered with the provided [`Registry`] into the
 /// provided [`Write`]r using the OpenMetrics text format.
-pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
+pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::io::Error>
 where
     W: Write,
-    M: EncodeMetric,
 {
     for (desc, metric) in registry.iter() {
         writer.write_all(b"# HELP ")?;
@@ -63,7 +62,7 @@ where
             unit.encode(writer)?;
         }
         writer.write_all(b" ")?;
-        metric.metric_type().encode(writer)?;
+        EncodeMetric::metric_type(metric.as_ref()).encode(writer)?;
         writer.write_all(b"\n")?;
 
         if let Some(unit) = desc.unit() {
@@ -84,7 +83,7 @@ where
             labels: None,
         };
 
-        metric.encode(encoder)?;
+        EncodeMetric::encode(metric.as_ref(), encoder)?;
     }
 
     writer.write_all(b"# EOF\n")?;
@@ -393,21 +392,6 @@ pub trait EncodeMetric {
 }
 
 impl EncodeMetric for Box<dyn EncodeMetric> {
-    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
-        self.deref().encode(encoder)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        self.deref().metric_type()
-    }
-}
-
-/// Trait combining [`EncodeMetric`], [`Send`] and [`Sync`].
-pub trait SendSyncEncodeMetric: EncodeMetric + Send + Sync {}
-
-impl<T: EncodeMetric + Send + Sync> SendSyncEncodeMetric for T {}
-
-impl EncodeMetric for Box<dyn SendSyncEncodeMetric> {
     fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
         self.deref().encode(encoder)
     }

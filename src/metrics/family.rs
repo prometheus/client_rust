@@ -65,12 +65,12 @@ use std::sync::Arc;
 /// # use std::io::Write;
 /// #
 /// # let mut registry = Registry::default();
-/// #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+/// #[derive(Clone, Debug, Hash, PartialEq, Eq, Encode)]
 /// struct Labels {
 ///   method: Method,
 /// };
 ///
-/// #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+/// #[derive(Clone, Debug, Hash, PartialEq, Eq, Encode)]
 /// enum Method {
 ///   GET,
 ///   PUT,
@@ -97,7 +97,6 @@ use std::sync::Arc;
 /// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
 /// ```
 // TODO: Consider exposing hash algorithm.
-#[derive(Debug)]
 pub struct Family<S, M, C = fn() -> M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
     /// Function that when called constructs a new metric.
@@ -109,6 +108,14 @@ pub struct Family<S, M, C = fn() -> M> {
     /// specific buckets, a custom constructor is set via
     /// [`Family::new_with_constructor`].
     constructor: C,
+}
+
+impl<S: std::fmt::Debug, M: std::fmt::Debug, C> std::fmt::Debug for Family<S, M, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Family")
+            .field("metrics", &self.metrics)
+            .finish()
+    }
 }
 
 /// A constructor for creating new metrics in a [`Family`] when calling

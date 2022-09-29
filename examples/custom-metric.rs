@@ -7,6 +7,7 @@ use prometheus_client::registry::Registry;
 /// Related to the concept of "Custom Collectors" in other implementations.
 ///
 /// [`MyCustomMetric`] generates and encodes a random number on each scrape.
+#[derive(Debug)]
 struct MyCustomMetric {}
 
 impl EncodeMetric for MyCustomMetric {

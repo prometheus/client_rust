@@ -7,13 +7,13 @@ use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 
-#[derive(Clone, Hash, PartialEq, Eq, Encode)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Encode)]
 pub enum Method {
     Get,
     Post,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Encode)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Encode)]
 pub struct MethodLabels {
     pub method: Method,
 }
@@ -55,11 +55,9 @@ async fn main() -> std::io::Result<()> {
     let mut state = AppState {
         registry: Registry::default(),
     };
-    state.registry.register(
-        "requests",
-        "Count of requests",
-        Box::new(metrics.requests.clone()),
-    );
+    state
+        .registry
+        .register("requests", "Count of requests", metrics.requests.clone());
     let state = web::Data::new(Mutex::new(state));
 
     HttpServer::new(move || {
