@@ -169,4 +169,5 @@ jobs:
         with:
           use-cross: true
           command: build
+          # Note that this does not test the `protobuf` feature (for now). See reasoning in https://github.com/prometheus/client_rust/pull/98/.
           args: --release --target=${{ matrix.target }}
