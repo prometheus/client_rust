@@ -18,9 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Move`Encode` trait from `prometheus_client::encoding::text` to `prometheus_client::encoding`. See [PR 83].
 
+### Fixed
+
+- Fix race condition in `Family::get_or_create`. See [PR 102].
+
 [PR 83]: https://github.com/prometheus/client_rust/pull/83
 [PR 85]: https://github.com/prometheus/client_rust/pull/85
 [PR 96]: https://github.com/prometheus/client_rust/pull/96
+[PR 102]: https://github.com/prometheus/client_rust/pull/102
 
 ## [0.18.0]
 
