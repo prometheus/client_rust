@@ -3,7 +3,7 @@
 //! See [`Family`] for details.
 
 use super::{MetricType, TypedMetric};
-use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -222,11 +222,14 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         }
 
         let mut write_guard = self.metrics.write();
-        write_guard.insert(label_set.clone(), self.constructor.new_metric());
 
-        drop(write_guard);
+        write_guard
+            .entry(label_set.clone())
+            .or_insert_with(|| self.constructor.new_metric());
 
-        RwLockReadGuard::map(self.metrics.read(), |metrics| {
+        let read_guard = RwLockWriteGuard::downgrade(write_guard);
+
+        RwLockReadGuard::map(read_guard, |metrics| {
             metrics
                 .get(label_set)
                 .expect("Metric to exist after creating it.")
