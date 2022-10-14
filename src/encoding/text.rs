@@ -207,6 +207,12 @@ impl Encode for () {
     }
 }
 
+/// Warning: Using an IP address as a label is only useful when the number of
+/// distinct values is low (i.e. low cardinality). In all other cases you should
+/// combine your metrics into a single metric instead. Especially bad examples
+/// are: storing separate metrics for each client connecting to your public
+/// service or having a large fleet of servers and storing individual binding
+/// addresses.
 impl Encode for Ipv4Addr {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         writer.write_all(self.to_string().as_bytes())?;
@@ -214,6 +220,12 @@ impl Encode for Ipv4Addr {
     }
 }
 
+/// Warning: Using an IP address as a label is only useful when the number of
+/// distinct values is low (i.e. low cardinality). In all other cases you should
+/// combine your metrics into a single metric instead. Especially bad examples
+/// are: storing separate metrics for each client connecting to your public
+/// service or having a large fleet of servers and storing individual binding
+/// addresses.
 impl Encode for Ipv6Addr {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         writer.write_all(self.to_string().as_bytes())?;
@@ -221,6 +233,12 @@ impl Encode for Ipv6Addr {
     }
 }
 
+/// Warning: Using an IP address as a label is only useful when the number of
+/// distinct values is low (i.e. low cardinality). In all other cases you should
+/// combine your metrics into a single metric instead. Especially bad examples
+/// are: storing separate metrics for each client connecting to your public
+/// service or having a large fleet of servers and storing individual binding
+/// addresses.
 impl Encode for IpAddr {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         match self {
@@ -230,6 +248,12 @@ impl Encode for IpAddr {
     }
 }
 
+/// Warning: Using a socket address as a label is only useful when the number of
+/// distinct values is low (i.e. low cardinality). In all other cases you should
+/// combine your metrics into a single metric instead. Especially bad examples
+/// are: storing separate metrics for each client connecting to your public
+/// service or having a large fleet of servers and storing individual binding
+/// addresses.
 impl Encode for SocketAddrV4 {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         writer.write_all(self.to_string().as_bytes())?;
@@ -237,6 +261,12 @@ impl Encode for SocketAddrV4 {
     }
 }
 
+/// Warning: Using a socket address as a label is only useful when the number of
+/// distinct values is low (i.e. low cardinality). In all other cases you should
+/// combine your metrics into a single metric instead. Especially bad examples
+/// are: storing separate metrics for each client connecting to your public
+/// service or having a large fleet of servers and storing individual binding
+/// addresses.
 impl Encode for SocketAddrV6 {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         writer.write_all(self.to_string().as_bytes())?;
@@ -244,6 +274,12 @@ impl Encode for SocketAddrV6 {
     }
 }
 
+/// Warning: Using a socket address as a label is only useful when the number of
+/// distinct values is low (i.e. low cardinality). In all other cases you should
+/// combine your metrics into a single metric instead. Especially bad examples
+/// are: storing separate metrics for each client connecting to your public
+/// service or having a large fleet of servers and storing individual binding
+/// addresses.
 impl Encode for SocketAddr {
     fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
         match self {
