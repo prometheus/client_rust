@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR 85]: https://github.com/prometheus/client_rust/pull/85
 [PR 96]: https://github.com/prometheus/client_rust/pull/96
 
+## [0.18.1]
+
+### Fixed
+
+- Fix race condition in `Family::get_or_create`. See [PR 102].
+
+[PR 102]: https://github.com/prometheus/client_rust/pull/102
+
 ## [0.18.0]
 
 ### Changed
