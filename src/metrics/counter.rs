@@ -2,6 +2,8 @@
 //!
 //! See [`Counter`] for details.
 
+use crate::encoding::{EncodeMetric, MetricEncoder};
+
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
@@ -169,6 +171,20 @@ impl Atomic<f64> for AtomicU64 {
 
 impl<N, A> TypedMetric for Counter<N, A> {
     const TYPE: MetricType = MetricType::Counter;
+}
+
+impl<N, A> EncodeMetric for Counter<N, A>
+where
+    N: crate::encoding::EncodeCounterValue,
+    A: Atomic<N>,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_counter::<(), _, u64>(self.get(), None)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
 }
 
 #[cfg(test)]

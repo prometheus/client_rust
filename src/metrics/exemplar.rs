@@ -2,6 +2,10 @@
 //!
 //! See [`CounterWithExemplar`] and [`HistogramWithExemplars`] for details.
 
+use crate::encoding::{
+    EncodeCounterValue, EncodeExemplarValue, EncodeLabelSet, EncodeMetric, MetricEncoder,
+};
+
 use super::counter::{self, Counter};
 use super::histogram::Histogram;
 use super::{MetricType, TypedMetric};
@@ -37,13 +41,13 @@ pub struct Exemplar<S, V> {
 /// # use prometheus_client::metrics::exemplar::CounterWithExemplar;
 /// # use prometheus_client::metrics::histogram::exponential_buckets;
 /// # use prometheus_client::metrics::family::Family;
-/// # use prometheus_client_derive_encode::Encode;
-/// #[derive(Clone, Hash, PartialEq, Eq, Encode, Debug, Default)]
+/// # use prometheus_client_derive_encode::EncodeLabelSet;
+/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug, Default)]
 /// pub struct ResultLabel {
 ///     pub result: String,
 /// }
 ///
-/// #[derive(Clone, Hash, PartialEq, Eq, Encode, Debug, Default)]
+/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug, Default)]
 /// pub struct TraceLabel {
 ///     pub trace_id: String,
 /// }
@@ -144,6 +148,23 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
     }
 }
 
+// TODO: S, V, N, A are hard to grasp.
+impl<S, N, A> EncodeMetric for crate::metrics::exemplar::CounterWithExemplar<S, N, A>
+where
+    S: EncodeLabelSet,
+    N: EncodeCounterValue + EncodeExemplarValue + Clone,
+    A: counter::Atomic<N>,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        let (value, exemplar) = self.get();
+        encoder.encode_counter(value, exemplar.as_ref())
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Counter::<N, A>::TYPE
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 // Histogram
 
@@ -161,13 +182,13 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
 /// # use prometheus_client::metrics::exemplar::HistogramWithExemplars;
 /// # use prometheus_client::metrics::histogram::exponential_buckets;
 /// # use prometheus_client::metrics::family::Family;
-/// # use prometheus_client_derive_encode::Encode;
-/// #[derive(Clone, Hash, PartialEq, Eq, Encode, Debug, Default)]
+/// # use prometheus_client::encoding::EncodeLabelSet;
+/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug, Default)]
 /// pub struct ResultLabel {
 ///     pub result: String,
 /// }
 ///
-/// #[derive(Clone, Hash, PartialEq, Eq, Encode, Debug, Default)]
+/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug, Default)]
 /// pub struct TraceLabel {
 ///     pub trace_id: String,
 /// }
@@ -242,5 +263,17 @@ impl<S> HistogramWithExemplars<S> {
 
     pub(crate) fn inner(&self) -> RwLockReadGuard<HistogramWithExemplarsInner<S>> {
         self.inner.read()
+    }
+}
+
+impl<S: EncodeLabelSet> EncodeMetric for HistogramWithExemplars<S> {
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        let inner = self.inner();
+        let (sum, count, buckets) = inner.histogram.get();
+        encoder.encode_histogram(sum, count, &buckets, Some(&inner.exemplars))
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Histogram::TYPE
     }
 }
