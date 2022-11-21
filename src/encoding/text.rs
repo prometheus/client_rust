@@ -29,6 +29,7 @@ use crate::metrics::exemplar::{CounterWithExemplar, Exemplar, HistogramWithExemp
 use crate::metrics::family::{Family, MetricConstructor};
 use crate::metrics::gauge::{self, Gauge};
 use crate::metrics::histogram::Histogram;
+use crate::metrics::summary::Summary;
 use crate::metrics::info::Info;
 use crate::metrics::{MetricType, TypedMetric};
 use crate::registry::{Registry, Unit};
@@ -186,6 +187,7 @@ impl Encode for MetricType {
             MetricType::Histogram => "histogram",
             MetricType::Info => "info",
             MetricType::Unknown => "unknown",
+            MetricType::Summary => "summary",
         };
 
         writer.write_all(t.as_bytes())?;
@@ -316,6 +318,23 @@ impl<'a> BucketEncoder<'a> {
         } else {
             upper_bound.encode(self.writer)?;
         }
+        self.writer.write_all(b"\"}")?;
+
+        Ok(ValueEncoder {
+            writer: self.writer,
+        })
+    }
+
+     /// Encode a quantile. Used for the [`Summary`] metric type.
+     pub fn encode_quantile(&mut self, quantile: f64) -> Result<ValueEncoder, std::io::Error> {
+        if self.opened_curly_brackets {
+            self.writer.write_all(b",")?;
+        } else {
+            self.writer.write_all(b"{")?;
+        }
+
+        self.writer.write_all(b"quantile=\"")?;
+        quantile.encode(self.writer)?;
         self.writer.write_all(b"\"}")?;
 
         Ok(ValueEncoder {
@@ -579,6 +598,41 @@ fn encode_histogram_with_maybe_exemplars<S: Encode>(
     Ok(())
 }
 
+
+/////////////////////////////////////////////////////////////////////////////////
+// Summary
+
+impl EncodeMetric for Summary {
+    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
+        let (sum, count, quantiles) = self.get();
+
+        encoder
+        .encode_suffix("sum")?
+        .no_bucket()?
+        .encode_value(sum)?
+        .no_exemplar()?;
+        encoder
+        .encode_suffix("count")?
+        .no_bucket()?
+        .encode_value(count)?
+        .no_exemplar()?;
+
+        for (_, (quantile, result)) in quantiles.iter().enumerate() {
+            let mut bucket_encoder = encoder.no_suffix()?;
+            let mut value_encoder = bucket_encoder.encode_quantile(*quantile)?;
+            let mut exemplar_encoder = value_encoder.encode_value(*result)?;
+            exemplar_encoder.no_exemplar()?
+        }
+
+        Result::Ok(())
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
+}
+
+
 /////////////////////////////////////////////////////////////////////////////////
 // Info
 
@@ -812,6 +866,32 @@ mod tests {
             + "my_histogram_bucket{le=\"256.0\"} 1\n"
             + "my_histogram_bucket{le=\"512.0\"} 1\n"
             + "my_histogram_bucket{le=\"+Inf\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
+
+        parse_with_python_client(String::from_utf8(encoded).unwrap());
+    }
+
+    #[test]
+    fn encode_summary() {
+        let mut registry = Registry::default();
+        let summary = Summary::new(3, 10, vec![0.5, 0.9, 0.99], 0.0);
+        registry.register("my_summary", "My summary", summary.clone());
+        summary.observe(0.10);
+        summary.observe(0.20);
+        summary.observe(0.30);
+
+        let mut encoded = Vec::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_summary My summary.\n".to_owned()
+            + "# TYPE my_summary summary\n"
+            + "my_summary_sum 0.6000000000000001\n"
+            + "my_summary_count 3\n"
+            + "my_summary{quantile=\"0.5\"} 0.2\n"
+            + "my_summary{quantile=\"0.9\"} 0.3\n"
+            + "my_summary{quantile=\"0.99\"} 0.3\n"
             + "# EOF\n";
         assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
 
