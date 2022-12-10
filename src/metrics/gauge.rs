@@ -246,7 +246,7 @@ where
     A: Atomic<N>,
 {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_gauge(self.get())
+        encoder.encode_gauge(&self.get())
     }
     fn metric_type(&self) -> MetricType {
         Self::TYPE

@@ -36,7 +36,7 @@ use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::Registry;
 
-use super::{EncodeExemplarValue, EncodeLabelSet};
+use super::{EncodeCounterValue, EncodeExemplarValue, EncodeGaugeValue, EncodeLabelSet};
 
 /// Encode the metrics registered with the provided [`Registry`] into MetricSet
 /// using the OpenMetrics protobuf format.
@@ -102,10 +102,14 @@ pub(crate) struct MetricEncoder<'a> {
 }
 
 impl<'a> MetricEncoder<'a> {
-    pub fn encode_counter<S: EncodeLabelSet, V: EncodeExemplarValue>(
+    pub fn encode_counter<
+        S: EncodeLabelSet,
+        CounterValue: EncodeCounterValue,
+        ExemplarValue: EncodeExemplarValue,
+    >(
         &mut self,
-        v: impl super::EncodeCounterValue,
-        exemplar: Option<&Exemplar<S, V>>,
+        v: &CounterValue,
+        exemplar: Option<&Exemplar<S, ExemplarValue>>,
     ) -> Result<(), std::fmt::Error> {
         let mut value = openmetrics_data_model::counter_value::Total::IntValue(0);
         let mut e = CounterValueEncoder { value: &mut value }.into();
@@ -128,7 +132,10 @@ impl<'a> MetricEncoder<'a> {
         Ok(())
     }
 
-    pub fn encode_gauge(&mut self, v: impl super::EncodeGaugeValue) -> Result<(), std::fmt::Error> {
+    pub fn encode_gauge<GaugeValue: EncodeGaugeValue>(
+        &mut self,
+        v: &GaugeValue,
+    ) -> Result<(), std::fmt::Error> {
         let mut value = openmetrics_data_model::gauge_value::Value::IntValue(0);
         let mut e = GaugeValueEncoder { value: &mut value }.into();
         v.encode(&mut e)?;
