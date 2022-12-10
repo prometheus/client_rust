@@ -96,14 +96,17 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
         ExemplarValue: EncodeExemplarValue,
     >(
         &mut self,
-        v: CounterValue,
+        v: &CounterValue,
         exemplar: Option<&Exemplar<S, ExemplarValue>>,
     ) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, MetricEncoderInner, e, e.encode_counter(v, exemplar))
     }
 
     /// Encode a gauge.
-    pub fn encode_gauge(&mut self, v: impl EncodeGaugeValue) -> Result<(), std::fmt::Error> {
+    pub fn encode_gauge<GaugeValue: EncodeGaugeValue>(
+        &mut self,
+        v: &GaugeValue,
+    ) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, MetricEncoderInner, e, e.encode_gauge(v))
     }
 
