@@ -326,6 +326,27 @@ where
     }
 }
 
+// TODO: When we split the dispatched type for the standard registered metrics
+// and the collector metrics and only require Sync for the former, we can use a
+// RefCell here.
+impl<S: EncodeLabelSet, M: EncodeMetric + TypedMetric, T: Iterator<Item = (S, M)>> EncodeMetric
+    for parking_lot::Mutex<T>
+{
+    fn encode(&self, mut encoder: MetricEncoder<'_, '_>) -> Result<(), std::fmt::Error> {
+        let mut iter = self.lock();
+
+        while let Some((label_set, m)) = iter.next() {
+            let encoder = encoder.encode_family(&label_set)?;
+            m.encode(encoder)?;
+        }
+        Ok(())
+    }
+
+    fn metric_type(&self) -> MetricType {
+        M::TYPE
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

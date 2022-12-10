@@ -253,6 +253,37 @@ where
     }
 }
 
+/// As [`Gauge`] but constant, that is can not change once created.
+///
+/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::registry::Collector).
+#[derive(Debug, Default)]
+pub struct ConstGauge<N = i64> {
+    value: N,
+}
+
+impl<N> ConstGauge<N> {
+    /// Creates a new [`ConstGauge`].
+    pub fn new(value: N) -> Self {
+        Self { value }
+    }
+}
+
+impl<N> TypedMetric for ConstGauge<N> {
+    const TYPE: MetricType = MetricType::Gauge;
+}
+
+impl<N> EncodeMetric for ConstGauge<N>
+where
+    N: EncodeGaugeValue,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_gauge(&self.value)
+    }
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
