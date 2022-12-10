@@ -179,7 +179,7 @@ where
     A: Atomic<N>,
 {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_counter::<(), _, u64>(self.get(), None)
+        encoder.encode_counter::<(), _, u64>(&self.get(), None)
     }
 
     fn metric_type(&self) -> MetricType {

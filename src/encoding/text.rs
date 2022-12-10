@@ -112,10 +112,14 @@ impl<'a, 'b> std::fmt::Debug for MetricEncoder<'a, 'b> {
 }
 
 impl<'a, 'b> MetricEncoder<'a, 'b> {
-    pub fn encode_counter<S: EncodeLabelSet, V: EncodeExemplarValue>(
+    pub fn encode_counter<
+        S: EncodeLabelSet,
+        CounterValue: super::EncodeCounterValue,
+        ExemplarValue: EncodeExemplarValue,
+    >(
         &mut self,
-        v: impl super::EncodeCounterValue,
-        exemplar: Option<&Exemplar<S, V>>,
+        v: &CounterValue,
+        exemplar: Option<&Exemplar<S, ExemplarValue>>,
     ) -> Result<(), std::fmt::Error> {
         self.write_name_and_unit()?;
 
@@ -139,7 +143,10 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
         Ok(())
     }
 
-    pub fn encode_gauge(&mut self, v: impl super::EncodeGaugeValue) -> Result<(), std::fmt::Error> {
+    pub fn encode_gauge<GaugeValue: super::EncodeGaugeValue>(
+        &mut self,
+        v: &GaugeValue,
+    ) -> Result<(), std::fmt::Error> {
         self.write_name_and_unit()?;
 
         self.encode_labels::<()>(None)?;
