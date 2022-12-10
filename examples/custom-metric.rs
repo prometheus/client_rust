@@ -20,7 +20,7 @@ impl EncodeMetric for MyCustomMetric {
         // E.g. every CPU cycle spend in this method delays the response send to
         // the Prometheus server.
 
-        encoder.encode_counter::<(), _, u64>(rand::random::<u64>(), None)
+        encoder.encode_counter::<(), _, u64>(&rand::random::<u64>(), None)
     }
 
     fn metric_type(&self) -> prometheus_client::metrics::MetricType {
