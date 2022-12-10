@@ -271,50 +271,6 @@ impl<'a> LabelKeyEncoder<'a> {
         )
     }
 }
-
-/// An encodable label value.
-pub trait EncodeLabelValue {
-    /// Encode oneself into the given encoder.
-    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error>;
-}
-
-/// Encoder for a label value.
-#[derive(Debug)]
-pub struct LabelValueEncoder<'a>(LabelValueEncoderInner<'a>);
-
-impl<'a> From<text::LabelValueEncoder<'a>> for LabelValueEncoder<'a> {
-    fn from(e: text::LabelValueEncoder<'a>) -> Self {
-        LabelValueEncoder(LabelValueEncoderInner::Text(e))
-    }
-}
-
-#[cfg(feature = "protobuf")]
-impl<'a> From<protobuf::LabelValueEncoder<'a>> for LabelValueEncoder<'a> {
-    fn from(e: protobuf::LabelValueEncoder<'a>) -> Self {
-        LabelValueEncoder(LabelValueEncoderInner::Protobuf(e))
-    }
-}
-
-#[derive(Debug)]
-enum LabelValueEncoderInner<'a> {
-    Text(text::LabelValueEncoder<'a>),
-    #[cfg(feature = "protobuf")]
-    Protobuf(protobuf::LabelValueEncoder<'a>),
-}
-
-impl<'a> LabelValueEncoder<'a> {
-    /// Finish encoding the label value.
-    pub fn finish(self) -> Result<(), std::fmt::Error> {
-        for_both!(self, LabelValueEncoderInner, e, e.finish())
-    }
-}
-
-impl<'a> std::fmt::Write for LabelValueEncoder<'a> {
-    fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        for_both_mut!(self, LabelValueEncoderInner, e, e.write_str(s))
-    }
-}
-
 impl<T: EncodeLabel, const N: usize> EncodeLabelSet for [T; N] {
     fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
         self.as_ref().encode(encoder)
@@ -368,27 +324,71 @@ impl EncodeLabelKey for &str {
         Ok(())
     }
 }
-impl EncodeLabelValue for &str {
-    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.write_str(self)?;
-        Ok(())
-    }
-}
 
 impl EncodeLabelKey for String {
     fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
         EncodeLabelKey::encode(&self.as_str(), encoder)
     }
 }
-impl EncodeLabelValue for String {
-    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
-        EncodeLabelValue::encode(&self.as_str(), encoder)
-    }
-}
 
 impl<'a> EncodeLabelKey for Cow<'a, str> {
     fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
         EncodeLabelKey::encode(&self.as_ref(), encoder)
+    }
+}
+
+/// An encodable label value.
+pub trait EncodeLabelValue {
+    /// Encode oneself into the given encoder.
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error>;
+}
+
+/// Encoder for a label value.
+#[derive(Debug)]
+pub struct LabelValueEncoder<'a>(LabelValueEncoderInner<'a>);
+
+impl<'a> From<text::LabelValueEncoder<'a>> for LabelValueEncoder<'a> {
+    fn from(e: text::LabelValueEncoder<'a>) -> Self {
+        LabelValueEncoder(LabelValueEncoderInner::Text(e))
+    }
+}
+
+#[cfg(feature = "protobuf")]
+impl<'a> From<protobuf::LabelValueEncoder<'a>> for LabelValueEncoder<'a> {
+    fn from(e: protobuf::LabelValueEncoder<'a>) -> Self {
+        LabelValueEncoder(LabelValueEncoderInner::Protobuf(e))
+    }
+}
+
+#[derive(Debug)]
+enum LabelValueEncoderInner<'a> {
+    Text(text::LabelValueEncoder<'a>),
+    #[cfg(feature = "protobuf")]
+    Protobuf(protobuf::LabelValueEncoder<'a>),
+}
+
+impl<'a> LabelValueEncoder<'a> {
+    /// Finish encoding the label value.
+    pub fn finish(self) -> Result<(), std::fmt::Error> {
+        for_both!(self, LabelValueEncoderInner, e, e.finish())
+    }
+}
+
+impl<'a> std::fmt::Write for LabelValueEncoder<'a> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        for_both_mut!(self, LabelValueEncoderInner, e, e.write_str(s))
+    }
+}
+
+impl EncodeLabelValue for &str {
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.write_str(self)?;
+        Ok(())
+    }
+}
+impl EncodeLabelValue for String {
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelValue::encode(&self.as_str(), encoder)
     }
 }
 
@@ -404,11 +404,19 @@ impl EncodeLabelValue for f64 {
     }
 }
 
-impl EncodeLabelValue for u64 {
-    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.write_str(itoa::Buffer::new().format(*self))
-    }
+macro_rules! impl_encode_label_value_for_integer {
+    ($($t:ident),*) => {$(
+        impl EncodeLabelValue for $t {
+            fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+                encoder.write_str(itoa::Buffer::new().format(*self))
+            }
+        }
+    )*};
 }
+
+impl_encode_label_value_for_integer!(
+    u128, i128, u64, i64, u32, i32, u16, i16, u8, i8, usize, isize
+);
 
 /// An encodable gauge value.
 pub trait EncodeGaugeValue {
