@@ -1,7 +1,7 @@
 //! Open Metrics protobuf implementation.
 //!
 //! ```
-//! # use prometheus_client::encoding::proto::encode;
+//! # use prometheus_client::encoding::protobuf::encode;
 //! # use prometheus_client::metrics::counter::Counter;
 //! # use prometheus_client::registry::Registry;
 //! #
@@ -15,7 +15,7 @@
 //! # );
 //! # counter.inc();
 //! // Returns `MetricSet`, the top-level container type. Please refer to [openmetrics_data_model.proto](https://github.com/OpenObservability/OpenMetrics/blob/main/proto/openmetrics_data_model.proto) for details.
-//! let metric_set = encode(&registry);
+//! let metric_set = encode(&registry).unwrap();
 //!
 //! let family = metric_set.metric_families.first().unwrap();
 //! assert_eq!("my_counter", family.name);
@@ -30,34 +30,25 @@ pub mod openmetrics_data_model {
     include!(concat!(env!("OUT_DIR"), "/openmetrics.rs"));
 }
 
-use crate::metrics::counter::Counter;
-use crate::metrics::exemplar::{CounterWithExemplar, Exemplar, HistogramWithExemplars};
-use crate::metrics::family::{Family, MetricConstructor};
-use crate::metrics::gauge::Gauge;
-use crate::metrics::histogram::Histogram;
-use crate::metrics::info::Info;
-use crate::metrics::{counter, gauge, MetricType, TypedMetric};
-use crate::registry::Registry;
 use std::collections::HashMap;
-use std::ops::Deref;
-use void::Void;
 
-pub use openmetrics_data_model::*;
-pub use prometheus_client_derive_encode::*;
+use crate::metrics::exemplar::Exemplar;
+use crate::metrics::MetricType;
+use crate::registry::Registry;
+
+use super::{EncodeExemplarValue, EncodeLabelSet};
 
 /// Encode the metrics registered with the provided [`Registry`] into MetricSet
 /// using the OpenMetrics protobuf format.
-pub fn encode<M>(registry: &Registry<M>) -> openmetrics_data_model::MetricSet
-where
-    M: EncodeMetric,
-{
+pub fn encode(registry: &Registry) -> Result<openmetrics_data_model::MetricSet, std::fmt::Error> {
     let mut metric_set = openmetrics_data_model::MetricSet::default();
 
     for (desc, metric) in registry.iter() {
         let mut family = openmetrics_data_model::MetricFamily {
             name: desc.name().to_string(),
             r#type: {
-                let metric_type: openmetrics_data_model::MetricType = metric.metric_type().into();
+                let metric_type: openmetrics_data_model::MetricType =
+                    super::EncodeMetric::metric_type(metric.as_ref()).into();
                 metric_type as i32
             },
             unit: if let Some(unit) = desc.unit() {
@@ -70,13 +61,25 @@ where
         };
 
         let mut labels = vec![];
-        desc.labels().encode(&mut labels);
-        metric.encode(labels, &mut family.metrics);
+        desc.labels().encode(
+            LabelSetEncoder {
+                labels: &mut labels,
+            }
+            .into(),
+        )?;
+
+        let encoder = MetricEncoder {
+            family: &mut family.metrics,
+            metric_type: super::EncodeMetric::metric_type(metric.as_ref()),
+            labels: &mut labels,
+        };
+
+        super::EncodeMetric::encode(metric.as_ref(), encoder.into())?;
 
         metric_set.metric_families.push(family);
     }
 
-    metric_set
+    Ok(metric_set)
 }
 
 impl From<MetricType> for openmetrics_data_model::MetricType {
@@ -91,43 +94,197 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
     }
 }
 
-/// Trait implemented by each metric type, e.g. [`Counter`], to implement its encoding.
-pub trait EncodeMetric {
-    /// Encode to OpenMetrics protobuf encoding.
-    fn encode(
-        &self,
-        labels: Vec<openmetrics_data_model::Label>,
-        family: &mut Vec<openmetrics_data_model::Metric>,
-    );
-
-    /// The OpenMetrics metric type of the instance.
-    fn metric_type(&self) -> MetricType;
+#[derive(Debug)]
+pub(crate) struct MetricEncoder<'a> {
+    metric_type: MetricType,
+    family: &'a mut Vec<openmetrics_data_model::Metric>,
+    labels: &'a mut Vec<openmetrics_data_model::Label>,
 }
 
-impl EncodeMetric for Box<dyn EncodeMetric> {
-    fn encode(
-        &self,
-        labels: Vec<openmetrics_data_model::Label>,
-        family: &mut Vec<openmetrics_data_model::Metric>,
-    ) {
-        self.deref().encode(labels, family)
+impl<'a> MetricEncoder<'a> {
+    pub fn encode_counter<S: EncodeLabelSet, V: EncodeExemplarValue>(
+        &mut self,
+        v: impl super::EncodeCounterValue,
+        exemplar: Option<&Exemplar<S, V>>,
+    ) -> Result<(), std::fmt::Error> {
+        let mut value = openmetrics_data_model::counter_value::Total::IntValue(0);
+        let mut e = CounterValueEncoder { value: &mut value }.into();
+        v.encode(&mut e)?;
+
+        self.family.push(openmetrics_data_model::Metric {
+            labels: self.labels.clone(),
+            metric_points: vec![openmetrics_data_model::MetricPoint {
+                value: Some(openmetrics_data_model::metric_point::Value::CounterValue(
+                    openmetrics_data_model::CounterValue {
+                        total: Some(value),
+                        exemplar: exemplar.map(|e| e.try_into()).transpose()?,
+                        ..Default::default()
+                    },
+                )),
+                ..Default::default()
+            }],
+        });
+
+        Ok(())
     }
 
-    fn metric_type(&self) -> MetricType {
-        self.deref().metric_type()
+    pub fn encode_gauge(&mut self, v: impl super::EncodeGaugeValue) -> Result<(), std::fmt::Error> {
+        let mut value = openmetrics_data_model::gauge_value::Value::IntValue(0);
+        let mut e = GaugeValueEncoder { value: &mut value }.into();
+        v.encode(&mut e)?;
+
+        self.family.push(openmetrics_data_model::Metric {
+            labels: self.labels.clone(),
+            metric_points: vec![openmetrics_data_model::MetricPoint {
+                value: Some(openmetrics_data_model::metric_point::Value::GaugeValue(
+                    openmetrics_data_model::GaugeValue { value: Some(value) },
+                )),
+                ..Default::default()
+            }],
+        });
+
+        Ok(())
+    }
+
+    pub fn encode_info(
+        &mut self,
+        label_set: &impl super::EncodeLabelSet,
+    ) -> Result<(), std::fmt::Error> {
+        let mut info_labels = vec![];
+        label_set.encode(
+            LabelSetEncoder {
+                labels: &mut info_labels,
+            }
+            .into(),
+        )?;
+
+        self.family.push(openmetrics_data_model::Metric {
+            labels: self.labels.clone(),
+            metric_points: vec![openmetrics_data_model::MetricPoint {
+                value: Some(openmetrics_data_model::metric_point::Value::InfoValue(
+                    openmetrics_data_model::InfoValue { info: info_labels },
+                )),
+                ..Default::default()
+            }],
+        });
+
+        Ok(())
+    }
+
+    pub fn encode_family<'b, S: EncodeLabelSet>(
+        &'b mut self,
+        label_set: &S,
+    ) -> Result<MetricEncoder<'b>, std::fmt::Error> {
+        label_set.encode(
+            LabelSetEncoder {
+                labels: self.labels,
+            }
+            .into(),
+        )?;
+
+        Ok(MetricEncoder {
+            metric_type: self.metric_type,
+            family: self.family,
+            labels: self.labels,
+        })
+    }
+
+    pub fn encode_histogram<S: EncodeLabelSet>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        buckets: &[(f64, u64)],
+        exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
+    ) -> Result<(), std::fmt::Error> {
+        let buckets = buckets
+            .iter()
+            .enumerate()
+            .map(|(i, (upper_bound, count))| {
+                Ok(openmetrics_data_model::histogram_value::Bucket {
+                    upper_bound: *upper_bound,
+                    count: *count,
+                    exemplar: exemplars
+                        .and_then(|exemplars| exemplars.get(&i).map(|exemplar| exemplar.try_into()))
+                        .transpose()?,
+                })
+            })
+            .collect::<Result<Vec<_>, std::fmt::Error>>()?;
+
+        self.family.push(openmetrics_data_model::Metric {
+            labels: self.labels.clone(),
+            metric_points: vec![openmetrics_data_model::MetricPoint {
+                value: Some(openmetrics_data_model::metric_point::Value::HistogramValue(
+                    openmetrics_data_model::HistogramValue {
+                        count,
+                        created: None,
+                        buckets,
+                        sum: Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
+                            sum,
+                        )),
+                    },
+                )),
+                ..Default::default()
+            }],
+        });
+
+        Ok(())
     }
 }
 
-/// Trait combining [`EncodeMetric`] and [`Send`].
-pub trait SendEncodeMetric: EncodeMetric + Send {}
+impl<S: EncodeLabelSet, V: EncodeExemplarValue> TryFrom<&Exemplar<S, V>>
+    for openmetrics_data_model::Exemplar
+{
+    type Error = std::fmt::Error;
 
-impl<T: EncodeMetric + Send> SendEncodeMetric for T {}
+    fn try_from(exemplar: &Exemplar<S, V>) -> Result<Self, Self::Error> {
+        let mut value = f64::default();
+        exemplar
+            .value
+            .encode(ExemplarValueEncoder { value: &mut value }.into())?;
 
-/// Trait to implement its label encoding in the OpenMetrics protobuf format.
-pub trait EncodeLabels {
-    /// Encode the given instance into Labels in the OpenMetrics protobuf
-    /// encoding.
-    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>);
+        let mut labels = vec![];
+        exemplar.label_set.encode(
+            LabelSetEncoder {
+                labels: &mut labels,
+            }
+            .into(),
+        )?;
+
+        Ok(openmetrics_data_model::Exemplar {
+            value,
+            timestamp: Default::default(),
+            label: labels,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct GaugeValueEncoder<'a> {
+    value: &'a mut openmetrics_data_model::gauge_value::Value,
+}
+
+impl<'a> GaugeValueEncoder<'a> {
+    pub fn encode_i64(&mut self, v: i64) -> Result<(), std::fmt::Error> {
+        *self.value = openmetrics_data_model::gauge_value::Value::IntValue(v);
+        Ok(())
+    }
+
+    pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        *self.value = openmetrics_data_model::gauge_value::Value::DoubleValue(v);
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ExemplarValueEncoder<'a> {
+    value: &'a mut f64,
+}
+
+impl<'a> ExemplarValueEncoder<'a> {
+    pub fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        *self.value = v;
+        Ok(())
+    }
 }
 
 impl<K: ToString, V: ToString> From<&(K, V)> for openmetrics_data_model::Label {
@@ -139,396 +296,84 @@ impl<K: ToString, V: ToString> From<&(K, V)> for openmetrics_data_model::Label {
     }
 }
 
-impl EncodeLabels for f64 {
-    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
-        labels.push(openmetrics_data_model::Label {
-            name: self.to_string(),
-            value: self.to_string(),
-        })
+#[derive(Debug)]
+pub(crate) struct CounterValueEncoder<'a> {
+    value: &'a mut openmetrics_data_model::counter_value::Total,
+}
+
+impl<'a> CounterValueEncoder<'a> {
+    pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        *self.value = openmetrics_data_model::counter_value::Total::DoubleValue(v);
+        Ok(())
+    }
+
+    pub fn encode_u64(&mut self, v: u64) -> Result<(), std::fmt::Error> {
+        *self.value = openmetrics_data_model::counter_value::Total::IntValue(v);
+        Ok(())
     }
 }
 
-impl EncodeLabels for u64 {
-    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
-        labels.push(openmetrics_data_model::Label {
-            name: self.to_string(),
-            value: self.to_string(),
-        })
-    }
+#[derive(Debug)]
+pub(crate) struct LabelSetEncoder<'a> {
+    labels: &'a mut Vec<openmetrics_data_model::Label>,
 }
 
-impl EncodeLabels for u32 {
-    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
-        labels.push(openmetrics_data_model::Label {
-            name: self.to_string(),
-            value: self.to_string(),
-        })
-    }
-}
-
-impl EncodeLabels for String {
-    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
-        labels.push(openmetrics_data_model::Label {
-            name: self.clone(),
-            value: self.clone(),
-        })
-    }
-}
-
-impl<T> EncodeLabels for Vec<T>
-where
-    for<'a> &'a T: Into<openmetrics_data_model::Label>,
-{
-    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
-        self.as_slice().encode(labels);
-    }
-}
-
-impl<T> EncodeLabels for [T]
-where
-    for<'a> &'a T: Into<openmetrics_data_model::Label>,
-{
-    fn encode(&self, labels: &mut Vec<openmetrics_data_model::Label>) {
-        labels.extend(self.iter().map(|t| t.into()));
-    }
-}
-
-impl EncodeLabels for Void {
-    fn encode(&self, _labels: &mut Vec<openmetrics_data_model::Label>) {
-        void::unreachable(*self);
-    }
-}
-
-fn encode_exemplar<S, N>(exemplar: &Exemplar<S, N>) -> openmetrics_data_model::Exemplar
-where
-    N: Clone,
-    S: EncodeLabels,
-    f64: From<N>, // required because Exemplar.value is defined as `double` in protobuf
-{
-    let mut exemplar_proto = openmetrics_data_model::Exemplar {
-        value: exemplar.value.clone().into(),
-        ..Default::default()
-    };
-    exemplar.label_set.encode(&mut exemplar_proto.label);
-
-    exemplar_proto
-}
-
-/////////////////////////////////////////////////////////////////////////////////
-// Counter
-
-/// Trait to implement its counter value encoding in the OpenMetrics protobuf
-/// format.
-pub trait EncodeCounterValue {
-    /// Encode the given instance into counter value in the OpenMetrics protobuf
-    /// encoding.
-    fn encode(&self) -> openmetrics_data_model::counter_value::Total;
-}
-
-impl EncodeCounterValue for u64 {
-    fn encode(&self) -> openmetrics_data_model::counter_value::Total {
-        openmetrics_data_model::counter_value::Total::IntValue(*self)
-    }
-}
-
-impl EncodeCounterValue for f64 {
-    fn encode(&self) -> openmetrics_data_model::counter_value::Total {
-        openmetrics_data_model::counter_value::Total::DoubleValue(*self)
-    }
-}
-
-impl<N, A> EncodeMetric for Counter<N, A>
-where
-    N: EncodeCounterValue,
-    A: counter::Atomic<N>,
-{
-    fn encode(
-        &self,
-        labels: Vec<openmetrics_data_model::Label>,
-        family: &mut Vec<openmetrics_data_model::Metric>,
-    ) {
-        let mut metric = encode_counter_with_maybe_exemplar(self.get(), None);
-        metric.labels = labels;
-
-        family.push(metric);
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Self::TYPE
-    }
-}
-
-impl<S, N, A> EncodeMetric for CounterWithExemplar<S, N, A>
-where
-    S: EncodeLabels,
-    N: Clone + EncodeCounterValue,
-    A: counter::Atomic<N>,
-    f64: From<N>,
-{
-    fn encode(
-        &self,
-        labels: Vec<openmetrics_data_model::Label>,
-        family: &mut Vec<openmetrics_data_model::Metric>,
-    ) {
-        let (value, exemplar) = self.get();
-        let exemplar_proto = exemplar.as_ref().map(|e| encode_exemplar(e));
-        let mut metric = encode_counter_with_maybe_exemplar(value, exemplar_proto);
-        metric.labels = labels;
-
-        family.push(metric);
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Counter::<N, A>::TYPE
-    }
-}
-
-fn encode_counter_with_maybe_exemplar<N>(
-    value: N,
-    exemplar: Option<openmetrics_data_model::Exemplar>,
-) -> openmetrics_data_model::Metric
-where
-    N: EncodeCounterValue,
-{
-    openmetrics_data_model::Metric {
-        metric_points: {
-            let metric_point = openmetrics_data_model::MetricPoint {
-                value: {
-                    Some(openmetrics_data_model::metric_point::Value::CounterValue(
-                        openmetrics_data_model::CounterValue {
-                            total: Some(value.encode()),
-                            exemplar,
-                            ..Default::default()
-                        },
-                    ))
-                },
-                ..Default::default()
-            };
-
-            vec![metric_point]
-        },
-        ..Default::default()
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////
-// Gauge
-
-/// Trait to implement its gauge value encoding in the OpenMetrics protobuf
-/// format.
-pub trait EncodeGaugeValue {
-    /// Encode the given instance into gauge value in the OpenMetrics protobuf
-    /// encoding.
-    fn encode(&self) -> openmetrics_data_model::gauge_value::Value;
-}
-
-// GaugeValue.int_value is defined as `int64` in protobuf
-impl EncodeGaugeValue for i64 {
-    fn encode(&self) -> openmetrics_data_model::gauge_value::Value {
-        openmetrics_data_model::gauge_value::Value::IntValue(*self)
-    }
-}
-
-impl EncodeGaugeValue for u64 {
-    fn encode(&self) -> openmetrics_data_model::gauge_value::Value {
-        openmetrics_data_model::gauge_value::Value::IntValue(*self as i64)
-    }
-}
-
-impl EncodeGaugeValue for f64 {
-    fn encode(&self) -> openmetrics_data_model::gauge_value::Value {
-        openmetrics_data_model::gauge_value::Value::DoubleValue(*self)
-    }
-}
-
-impl<N, A> EncodeMetric for Gauge<N, A>
-where
-    N: EncodeGaugeValue,
-    A: gauge::Atomic<N>,
-{
-    fn encode(
-        &self,
-        labels: Vec<openmetrics_data_model::Label>,
-        family: &mut Vec<openmetrics_data_model::Metric>,
-    ) {
-        let metric = openmetrics_data_model::Metric {
-            metric_points: {
-                let metric_point = openmetrics_data_model::MetricPoint {
-                    value: {
-                        Some(openmetrics_data_model::metric_point::Value::GaugeValue(
-                            openmetrics_data_model::GaugeValue {
-                                value: Some(self.get().encode()),
-                            },
-                        ))
-                    },
-                    ..Default::default()
-                };
-
-                vec![metric_point]
-            },
-            labels,
-        };
-
-        family.push(metric)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Self::TYPE
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////
-// Family
-
-impl<S, M, C> EncodeMetric for Family<S, M, C>
-where
-    S: EncodeLabels + Clone + std::hash::Hash + Eq,
-    M: EncodeMetric + TypedMetric,
-    C: MetricConstructor<M>,
-{
-    fn encode(
-        &self,
-        labels: Vec<openmetrics_data_model::Label>,
-        family: &mut Vec<openmetrics_data_model::Metric>,
-    ) {
-        for (label_set, metric) in self.read().iter() {
-            let mut labels = labels.clone();
-            label_set.encode(&mut labels);
-            metric.encode(labels, family)
+impl<'a> LabelSetEncoder<'a> {
+    pub fn encode_label(&mut self) -> LabelEncoder {
+        LabelEncoder {
+            labels: self.labels,
         }
     }
+}
 
-    fn metric_type(&self) -> MetricType {
-        M::TYPE
+#[derive(Debug)]
+pub(crate) struct LabelEncoder<'a> {
+    labels: &'a mut Vec<openmetrics_data_model::Label>,
+}
+
+impl<'a> LabelEncoder<'a> {
+    pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder, std::fmt::Error> {
+        self.labels.push(openmetrics_data_model::Label::default());
+
+        Ok(LabelKeyEncoder {
+            label: self.labels.last_mut().expect("To find pushed label."),
+        })
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////
-// Histogram
+#[derive(Debug)]
+pub(crate) struct LabelKeyEncoder<'a> {
+    label: &'a mut openmetrics_data_model::Label,
+}
 
-impl EncodeMetric for Histogram {
-    fn encode(
-        &self,
-        labels: Vec<openmetrics_data_model::Label>,
-        family: &mut Vec<openmetrics_data_model::Metric>,
-    ) {
-        let (sum, count, buckets) = self.get();
-        // TODO: Would be better to use never type instead of `Void`.
-        let mut metric = encode_histogram_with_maybe_exemplars::<Void>(sum, count, &buckets, None);
-        metric.labels = labels;
-
-        family.push(metric)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Self::TYPE
+impl<'a> std::fmt::Write for LabelKeyEncoder<'a> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.label.name.write_str(s)
     }
 }
 
-impl<S> EncodeMetric for HistogramWithExemplars<S>
-where
-    S: EncodeLabels,
-{
-    fn encode(
-        &self,
-        labels: Vec<openmetrics_data_model::Label>,
-        family: &mut Vec<openmetrics_data_model::Metric>,
-    ) {
-        let inner = self.inner();
-        let (sum, count, buckets) = inner.histogram.get();
-        let mut metric =
-            encode_histogram_with_maybe_exemplars(sum, count, &buckets, Some(&inner.exemplars));
-        metric.labels = labels;
-
-        family.push(metric)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Histogram::TYPE
+impl<'a> LabelKeyEncoder<'a> {
+    pub fn encode_label_value(self) -> Result<LabelValueEncoder<'a>, std::fmt::Error> {
+        Ok(LabelValueEncoder {
+            label_value: &mut self.label.value,
+        })
     }
 }
 
-fn encode_histogram_with_maybe_exemplars<S>(
-    sum: f64,
-    count: u64,
-    buckets: &[(f64, u64)],
-    exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
-) -> openmetrics_data_model::Metric
-where
-    S: EncodeLabels,
-{
-    openmetrics_data_model::Metric {
-        metric_points: {
-            let metric_point = openmetrics_data_model::MetricPoint {
-                value: {
-                    let mut histogram_value = openmetrics_data_model::HistogramValue {
-                        sum: Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
-                            sum,
-                        )),
-                        count,
-                        ..Default::default()
-                    };
+#[derive(Debug)]
+pub(crate) struct LabelValueEncoder<'a> {
+    label_value: &'a mut String,
+}
 
-                    let mut cummulative = 0;
-                    for (i, (upper_bound, count)) in buckets.iter().enumerate() {
-                        cummulative += count;
-                        let bucket = openmetrics_data_model::histogram_value::Bucket {
-                            count: cummulative,
-                            upper_bound: *upper_bound,
-                            exemplar: exemplars
-                                .and_then(|es| es.get(&i))
-                                .map(|exemplar| encode_exemplar(exemplar)),
-                        };
-                        histogram_value.buckets.push(bucket);
-                    }
-                    Some(openmetrics_data_model::metric_point::Value::HistogramValue(
-                        histogram_value,
-                    ))
-                },
-                ..Default::default()
-            };
-
-            vec![metric_point]
-        },
-        ..Default::default()
+impl<'a> LabelValueEncoder<'a> {
+    pub fn finish(self) -> Result<(), std::fmt::Error> {
+        Ok(())
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////
-// Info
-
-impl<S> EncodeMetric for Info<S>
-where
-    S: EncodeLabels,
-{
-    fn encode(
-        &self,
-        mut labels: Vec<openmetrics_data_model::Label>,
-        family: &mut Vec<openmetrics_data_model::Metric>,
-    ) {
-        let metric = openmetrics_data_model::Metric {
-            metric_points: {
-                let metric_point = openmetrics_data_model::MetricPoint {
-                    value: {
-                        self.0.encode(&mut labels);
-
-                        Some(openmetrics_data_model::metric_point::Value::InfoValue(
-                            openmetrics_data_model::InfoValue { info: labels },
-                        ))
-                    },
-                    ..Default::default()
-                };
-
-                vec![metric_point]
-            },
-            ..Default::default()
-        };
-
-        family.push(metric);
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Self::TYPE
+impl<'a> std::fmt::Write for LabelValueEncoder<'a> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.label_value.write_str(s)
     }
 }
 
@@ -552,7 +397,7 @@ mod tests {
         registry.register("my_counter", "My counter", counter.clone());
         counter.inc();
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_counter", family.name);
@@ -582,7 +427,7 @@ mod tests {
         registry.register("my_counter", "My counter", counter.clone());
         counter.inc();
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_counter", family.name);
@@ -611,7 +456,7 @@ mod tests {
         let counter: Counter = Counter::default();
         registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter);
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_counter", family.name);
@@ -633,7 +478,7 @@ mod tests {
 
         counter_with_exemplar.inc_by(1.0, Some(vec![("user_id".to_string(), 42.0)]));
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_counter_with_exemplar", family.name);
@@ -656,7 +501,7 @@ mod tests {
                 let expected_label = {
                     openmetrics_data_model::Label {
                         name: "user_id".to_string(),
-                        value: "42".to_string(),
+                        value: "42.0".to_string(),
                     }
                 };
                 assert_eq!(vec![expected_label], exemplar.label);
@@ -672,7 +517,7 @@ mod tests {
         registry.register("my_gauge", "My gauge", gauge.clone());
         gauge.inc();
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_gauge", family.name);
         assert_eq!("My gauge.", family.help);
@@ -704,7 +549,7 @@ mod tests {
             ])
             .inc();
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_counter_family", family.name);
@@ -749,7 +594,7 @@ mod tests {
             ])
             .inc();
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_prefix_my_counter_family", family.name);
@@ -787,7 +632,7 @@ mod tests {
         registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0);
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_histogram", family.name);
@@ -820,7 +665,7 @@ mod tests {
         registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0, Some(vec![("user_id".to_string(), 42u64)]));
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_histogram", family.name);
@@ -850,7 +695,7 @@ mod tests {
 
     #[test]
     fn encode_family_counter_histogram() {
-        let mut registry = Registry::<Box<dyn EncodeMetric>>::default();
+        let mut registry = Registry::default();
 
         let counter_family = Family::<Vec<(String, String)>, Counter>::default();
         let histogram_family =
@@ -858,12 +703,8 @@ mod tests {
                 Histogram::new(exponential_buckets(1.0, 2.0, 10))
             });
 
-        registry.register("my_counter", "My counter", Box::new(counter_family.clone()));
-        registry.register(
-            "my_histogram",
-            "My histogram",
-            Box::new(histogram_family.clone()),
-        );
+        registry.register("my_counter", "My counter", counter_family.clone());
+        registry.register("my_histogram", "My histogram", histogram_family.clone());
 
         counter_family
             .get_or_create(&vec![("path".to_string(), "/".to_string())])
@@ -873,14 +714,14 @@ mod tests {
             .get_or_create(&vec![("path".to_string(), "/".to_string())])
             .observe(1.0);
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
         assert_eq!("my_counter", metric_set.metric_families[0].name);
         assert_eq!("my_histogram", metric_set.metric_families[1].name);
     }
 
     #[test]
     fn encode_family_and_counter_and_histogram() {
-        let mut registry = Registry::<Box<dyn EncodeMetric>>::default();
+        let mut registry = Registry::default();
 
         // Family
         let counter_family = Family::<Vec<(String, String)>, Counter>::default();
@@ -889,15 +730,11 @@ mod tests {
                 Histogram::new(exponential_buckets(1.0, 2.0, 10))
             });
 
-        registry.register(
-            "my_family_counter",
-            "My counter",
-            Box::new(counter_family.clone()),
-        );
+        registry.register("my_family_counter", "My counter", counter_family.clone());
         registry.register(
             "my_family_histogram",
             "My histogram",
-            Box::new(histogram_family.clone()),
+            histogram_family.clone(),
         );
 
         counter_family
@@ -910,15 +747,15 @@ mod tests {
 
         // Counter
         let counter: Counter = Counter::default();
-        registry.register("my_counter", "My counter", Box::new(counter.clone()));
+        registry.register("my_counter", "My counter", counter.clone());
         counter.inc();
 
         // Histogram
         let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
-        registry.register("my_histogram", "My histogram", Box::new(histogram.clone()));
+        registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0);
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
         assert_eq!("my_family_counter", metric_set.metric_families[0].name);
         assert_eq!("my_family_histogram", metric_set.metric_families[1].name);
     }
@@ -929,7 +766,7 @@ mod tests {
         let info = Info::new(vec![("os".to_string(), "GNU/linux".to_string())]);
         registry.register("my_info_metric", "My info metric", info);
 
-        let metric_set = encode(&registry);
+        let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
         assert_eq!("my_info_metric", family.name);

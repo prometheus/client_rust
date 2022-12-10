@@ -28,3 +28,16 @@ pub enum MetricType {
     // StateSet,
     // Summary
 }
+
+impl MetricType {
+    /// Returns the given metric type's str representation.
+    pub fn as_str(&self) -> &str {
+        match self {
+            MetricType::Counter => "counter",
+            MetricType::Gauge => "gauge",
+            MetricType::Histogram => "histogram",
+            MetricType::Info => "info",
+            MetricType::Unknown => "unknown",
+        }
+    }
+}

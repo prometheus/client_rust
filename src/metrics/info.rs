@@ -2,7 +2,10 @@
 //!
 //! See [`Info`] for details.
 
-use crate::metrics::{MetricType, TypedMetric};
+use crate::{
+    encoding::{EncodeLabelSet, EncodeMetric, MetricEncoder},
+    metrics::{MetricType, TypedMetric},
+};
 
 /// Open Metrics [`Info`] metric "to expose textual information which SHOULD NOT
 /// change during process lifetime".
@@ -24,4 +27,17 @@ impl<S> Info<S> {
 
 impl<S> TypedMetric for Info<S> {
     const TYPE: MetricType = MetricType::Info;
+}
+
+impl<S> EncodeMetric for Info<S>
+where
+    S: Clone + std::hash::Hash + Eq + EncodeLabelSet,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_info(&self.0)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
 }

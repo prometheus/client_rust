@@ -16,11 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Move`Encode` trait from `prometheus_client::encoding::text` to `prometheus_client::encoding`. See [PR 83].
+- Always use dynamic dispatch on `Registry`, i.e. remove generic type parameter `M` from `Registry`. See [PR 105].
+- Refactor encoding. See [PR 105].
+  - Introducing separate traits to encode
+    - value (e.g. `EncodeCounterValue`)
+    - label set (`EncodeLabelSet`), derivable for structs via `prometheus-client-derive-encode`
+    - label (`EncodeLabel`)
+    - label key (`EncodeLabelKey`)
+    - label value (`EncodeLabelValue`), derivable for enums via `prometheus-client-derive-encode`
+  - Encode as UTF-8 strings, not bytes. I.e. use `std::fmt::Write` instead of `std::io::Write`.
+- Use signed integers for `Gauge` for compliance with OpenMetrics protobuf
+  format. See [PR 105].
 
 [PR 83]: https://github.com/prometheus/client_rust/pull/83
 [PR 85]: https://github.com/prometheus/client_rust/pull/85
 [PR 96]: https://github.com/prometheus/client_rust/pull/96
+[PR 105]: https://github.com/prometheus/client_rust/pull/105
 
 ## [0.18.1]
 

@@ -21,7 +21,7 @@ async fn main() {
     registry.register(
         "requests",
         "How many requests the application has received",
-        Box::new(request_counter.clone()),
+        request_counter.clone(),
     );
 
     // Spawn a server to serve the OpenMetrics endpoint.
@@ -59,17 +59,19 @@ pub fn make_handler(
     move |_req: Request<Body>| {
         let reg = registry.clone();
         Box::pin(async move {
-            let mut buf = Vec::new();
-            encode(&mut buf, &reg.clone()).map(|_| {
-                let body = Body::from(buf);
-                Response::builder()
-                    .header(
-                        hyper::header::CONTENT_TYPE,
-                        "application/openmetrics-text; version=1.0.0; charset=utf-8",
-                    )
-                    .body(body)
-                    .unwrap()
-            })
+            let mut buf = String::new();
+            encode(&mut buf, &reg.clone())
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+                .map(|_| {
+                    let body = Body::from(buf);
+                    Response::builder()
+                        .header(
+                            hyper::header::CONTENT_TYPE,
+                            "application/openmetrics-text; version=1.0.0; charset=utf-8",
+                        )
+                        .body(body)
+                        .unwrap()
+                })
         })
     }
 }
