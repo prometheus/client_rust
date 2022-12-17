@@ -156,8 +156,8 @@ impl Registry {
     ///
     /// ```
     /// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
-    /// # use prometheus_client::registry::{Descriptor, Metric, Registry};
-    /// # use prometheus_client::collector::Collector;
+    /// # use prometheus_client::registry::{Descriptor, Registry};
+    /// # use prometheus_client::collector::{Collector, Metric};
     /// # use prometheus_client::MaybeOwned;
     /// # use std::borrow::Cow;
     /// #
@@ -165,7 +165,7 @@ impl Registry {
     /// struct MyCollector {}
     ///
     /// impl Collector for MyCollector {
-    ///   fn collect<'a>(&'a self) -> Box<dyn Iterator<Item = (Cow<Descriptor>, MaybeOwned<'a, Box<dyn Metric>>)> + 'a> {
+    ///   fn collect<'a>(&'a self) -> Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn Metric>>)> + 'a> {
     ///     let c: Counter = Counter::default();
     ///     let c: Box<dyn Metric> = Box::new(c);
     ///     let descriptor = Descriptor::new(
@@ -259,12 +259,7 @@ impl Registry {
             .expect("sub_registries not to be empty.")
     }
 
-    /// [`Iterator`] over all metrics registered with the [`Registry`].
-    pub fn iter(&self) -> std::iter::Chain<MetricIterator, CollectorIterator> {
-        return self.iter_metrics().chain(self.iter_collectors());
-    }
-
-    fn iter_metrics(&self) -> MetricIterator {
+    pub(crate) fn iter_metrics(&self) -> MetricIterator {
         let metrics = self.metrics.iter();
         let sub_registries = self.sub_registries.iter();
         MetricIterator {
@@ -274,7 +269,7 @@ impl Registry {
         }
     }
 
-    fn iter_collectors(&self) -> CollectorIterator {
+    pub(crate) fn iter_collectors(&self) -> CollectorIterator {
         let collectors = self.collectors.iter();
         let sub_registries = self.sub_registries.iter();
         CollectorIterator {
@@ -300,12 +295,12 @@ pub struct MetricIterator<'a> {
 }
 
 impl<'a> Iterator for MetricIterator<'a> {
-    type Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn Metric>>);
+    type Item = &'a (Descriptor, Box<dyn Metric>);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some((descriptor, metric)) = self.metrics.next() {
-                return Some((Cow::Borrowed(descriptor), MaybeOwned::Borrowed(metric)));
+            if let Some(m) = self.metrics.next() {
+                return Some(m);
             }
 
             if let Some(metric) = self.sub_registry.as_mut().and_then(|i| i.next()) {
@@ -332,7 +327,14 @@ pub struct CollectorIterator<'a> {
     labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 
     collector: Option<
-        Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn Metric>>)> + 'a>,
+        Box<
+            dyn Iterator<
+                    Item = (
+                        Cow<'a, Descriptor>,
+                        MaybeOwned<'a, Box<dyn crate::collector::Metric>>,
+                    ),
+                > + 'a,
+        >,
     >,
     collectors: std::slice::Iter<'a, Box<dyn Collector>>,
 
@@ -350,26 +352,38 @@ impl<'a> std::fmt::Debug for CollectorIterator<'a> {
 }
 
 impl<'a> Iterator for CollectorIterator<'a> {
-    type Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn Metric>>);
+    type Item = (
+        Cow<'a, Descriptor>,
+        MaybeOwned<'a, Box<dyn crate::collector::Metric>>,
+    );
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some((descriptor, metric)) = self
+            if let Some(m) = self
                 .collector
                 .as_mut()
                 .and_then(|c| c.next())
                 .or_else(|| self.sub_collector_iter.as_mut().and_then(|i| i.next()))
-            {
-                let Descriptor {
-                    name,
-                    help,
-                    unit,
-                    mut labels,
-                } = descriptor.into_owned();
-                labels.extend_from_slice(self.labels);
-                let enriched_descriptor = Descriptor::new(name, help, unit, self.prefix, labels);
+                .map(|(descriptor, metric)| {
+                    if self.prefix.is_some() || !self.labels.is_empty() {
+                        let Descriptor {
+                            name,
+                            help,
+                            unit,
+                            labels,
+                        } = descriptor.as_ref();
+                        let mut labels = labels.to_vec();
+                        labels.extend_from_slice(self.labels);
+                        let enriched_descriptor =
+                            Descriptor::new(name, help, unit.to_owned(), self.prefix, labels);
 
-                return Some((Cow::Owned(enriched_descriptor), metric));
+                        Some((Cow::Owned(enriched_descriptor), metric))
+                    } else {
+                        Some((descriptor, metric))
+                    }
+                })
+            {
+                return m;
             }
 
             if let Some(collector) = self.collectors.next() {
@@ -515,7 +529,7 @@ mod tests {
         let counter: Counter = Counter::default();
         registry.register("my_counter", "My counter", counter);
 
-        assert_eq!(1, registry.iter().count())
+        assert_eq!(1, registry.iter_metrics().count())
     }
 
     #[test]
@@ -554,7 +568,7 @@ mod tests {
         sub_registry.register(prefix_3_metric_name, "some help", counter);
 
         let mut metric_iter = registry
-            .iter()
+            .iter_metrics()
             .map(|(desc, _)| (desc.name.clone(), desc.labels.clone()));
         assert_eq!(
             Some((top_level_metric_name.to_string(), vec![])),
