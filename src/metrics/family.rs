@@ -6,6 +6,7 @@ use crate::encoding::{EncodeLabelSet, EncodeMetric, MetricEncoder};
 
 use super::{MetricType, TypedMetric};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -330,10 +331,10 @@ where
 // and the collector metrics and only require Sync for the former, we can use a
 // RefCell here.
 impl<S: EncodeLabelSet, M: EncodeMetric + TypedMetric, T: Iterator<Item = (S, M)>> EncodeMetric
-    for parking_lot::Mutex<T>
+    for RefCell<T>
 {
     fn encode(&self, mut encoder: MetricEncoder<'_, '_>) -> Result<(), std::fmt::Error> {
-        let mut iter = self.lock();
+        let mut iter = self.borrow_mut();
 
         while let Some((label_set, m)) = iter.next() {
             let encoder = encoder.encode_family(&label_set)?;
