@@ -26,7 +26,7 @@
 
 use crate::encoding::{EncodeExemplarValue, EncodeLabelSet, EncodeMetric};
 use crate::metrics::exemplar::Exemplar;
-use crate::registry::{Registry, Unit};
+use crate::registry::{Descriptor, Registry, Unit};
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -38,50 +38,66 @@ pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Er
 where
     W: Write,
 {
-    for (desc, metric) in registry.iter() {
-        writer.write_str("# HELP ")?;
-        writer.write_str(desc.name())?;
-        if let Some(unit) = desc.unit() {
-            writer.write_str("_")?;
-            writer.write_str(unit.as_str())?;
-        }
-        writer.write_str(" ")?;
-        writer.write_str(desc.help())?;
-        writer.write_str("\n")?;
-
-        writer.write_str("# TYPE ")?;
-        writer.write_str(desc.name())?;
-        if let Some(unit) = desc.unit() {
-            writer.write_str("_")?;
-            writer.write_str(unit.as_str())?;
-        }
-        writer.write_str(" ")?;
-        writer.write_str(EncodeMetric::metric_type(metric.as_ref()).as_str())?;
-        writer.write_str("\n")?;
-
-        if let Some(unit) = desc.unit() {
-            writer.write_str("# UNIT ")?;
-            writer.write_str(desc.name())?;
-            writer.write_str("_")?;
-            writer.write_str(unit.as_str())?;
-            writer.write_str(" ")?;
-            writer.write_str(unit.as_str())?;
-            writer.write_str("\n")?;
-        }
-
-        let encoder = MetricEncoder {
-            writer,
-            name: desc.name(),
-            unit: desc.unit(),
-            const_labels: desc.labels(),
-            family_labels: None,
-        }
-        .into();
-
-        EncodeMetric::encode(metric.as_ref(), encoder)?;
+    for (desc, metric) in registry.iter_metrics() {
+        encode_metric(writer, desc, metric.as_ref())?;
+    }
+    for (desc, metric) in registry.iter_collectors() {
+        encode_metric(writer, desc.as_ref(), metric.as_ref())?;
     }
 
     writer.write_str("# EOF\n")?;
+
+    Ok(())
+}
+
+fn encode_metric<W>(
+    writer: &mut W,
+    desc: &Descriptor,
+    metric: &(impl EncodeMetric + ?Sized),
+) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
+    writer.write_str("# HELP ")?;
+    writer.write_str(desc.name())?;
+    if let Some(unit) = desc.unit() {
+        writer.write_str("_")?;
+        writer.write_str(unit.as_str())?;
+    }
+    writer.write_str(" ")?;
+    writer.write_str(desc.help())?;
+    writer.write_str("\n")?;
+
+    writer.write_str("# TYPE ")?;
+    writer.write_str(desc.name())?;
+    if let Some(unit) = desc.unit() {
+        writer.write_str("_")?;
+        writer.write_str(unit.as_str())?;
+    }
+    writer.write_str(" ")?;
+    writer.write_str(EncodeMetric::metric_type(metric).as_str())?;
+    writer.write_str("\n")?;
+
+    if let Some(unit) = desc.unit() {
+        writer.write_str("# UNIT ")?;
+        writer.write_str(desc.name())?;
+        writer.write_str("_")?;
+        writer.write_str(unit.as_str())?;
+        writer.write_str(" ")?;
+        writer.write_str(unit.as_str())?;
+        writer.write_str("\n")?;
+    }
+
+    let encoder = MetricEncoder {
+        writer,
+        name: desc.name(),
+        unit: desc.unit(),
+        const_labels: desc.labels(),
+        family_labels: None,
+    }
+    .into();
+
+    EncodeMetric::encode(metric, encoder)?;
 
     Ok(())
 }

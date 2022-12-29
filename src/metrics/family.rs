@@ -6,6 +6,7 @@ use crate::encoding::{EncodeLabelSet, EncodeMetric, MetricEncoder};
 
 use super::{MetricType, TypedMetric};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -316,6 +317,24 @@ where
         let guard = self.read();
         for (label_set, m) in guard.iter() {
             let encoder = encoder.encode_family(label_set)?;
+            m.encode(encoder)?;
+        }
+        Ok(())
+    }
+
+    fn metric_type(&self) -> MetricType {
+        M::TYPE
+    }
+}
+
+impl<S: EncodeLabelSet, M: EncodeMetric + TypedMetric, T: Iterator<Item = (S, M)>> EncodeMetric
+    for RefCell<T>
+{
+    fn encode(&self, mut encoder: MetricEncoder<'_, '_>) -> Result<(), std::fmt::Error> {
+        let mut iter = self.borrow_mut();
+
+        for (label_set, m) in iter.by_ref() {
+            let encoder = encoder.encode_family(&label_set)?;
             m.encode(encoder)?;
         }
         Ok(())

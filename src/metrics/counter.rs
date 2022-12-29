@@ -187,6 +187,38 @@ where
     }
 }
 
+/// As a [`Counter`], but constant, meaning it cannot change once created.
+///
+/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::collector::Collector).
+#[derive(Debug, Default)]
+pub struct ConstCounter<N = u64> {
+    value: N,
+}
+
+impl<N> ConstCounter<N> {
+    /// Creates a new [`ConstCounter`].
+    pub fn new(value: N) -> Self {
+        Self { value }
+    }
+}
+
+impl<N> TypedMetric for ConstCounter<N> {
+    const TYPE: MetricType = MetricType::Counter;
+}
+
+impl<N> EncodeMetric for ConstCounter<N>
+where
+    N: crate::encoding::EncodeCounterValue,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_counter::<(), _, u64>(&self.value, None)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

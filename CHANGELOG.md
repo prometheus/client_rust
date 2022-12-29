@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] [unreleased]
+
+### Added
+
+- Introduce `Collector` abstraction allowing users to provide additional metrics
+  and their description on each scrape. See [PR 82].
+
+[PR 82]: https://github.com/prometheus/client_rust/pull/82
+
 ## [0.19.0]
 
 This is a large release including multiple breaking changes. Major user-facing

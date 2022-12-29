@@ -4,12 +4,15 @@
 
 use std::borrow::Cow;
 
+use crate::collector::Collector;
+use crate::MaybeOwned;
+
 /// A metric registry.
 ///
 /// First off one registers metrics with the registry via
 /// [`Registry::register`]. Later on the [`Registry`] is passed to an encoder
 /// collecting samples of each metric by iterating all metrics in the
-/// [`Registry`] via [`Registry::iter`].
+/// [`Registry`].
 ///
 /// [`Registry`] is the core building block, generic over the metric type being
 /// registered. Out of convenience, the generic type parameter is set to use
@@ -59,6 +62,7 @@ pub struct Registry {
     prefix: Option<Prefix>,
     labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
     metrics: Vec<(Descriptor, Box<dyn Metric>)>,
+    collectors: Vec<Box<dyn Collector>>,
     sub_registries: Vec<Registry>,
 }
 
@@ -142,20 +146,46 @@ impl Registry {
         metric: impl Metric,
         unit: Option<Unit>,
     ) {
-        let name = name.into();
-        let help = help.into() + ".";
-        let descriptor = Descriptor {
-            name: self
-                .prefix
-                .as_ref()
-                .map(|p| (p.clone().0 + "_" + name.as_str()))
-                .unwrap_or(name),
-            help,
-            unit,
-            labels: self.labels.clone(),
-        };
+        let descriptor =
+            Descriptor::new(name, help, unit, self.prefix.as_ref(), self.labels.clone());
 
         self.metrics.push((descriptor, Box::new(metric)));
+    }
+
+    /// Register a [`Collector`].
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::ConstCounter;
+    /// # use prometheus_client::registry::{Descriptor, Registry, LocalMetric};
+    /// # use prometheus_client::collector::Collector;
+    /// # use prometheus_client::MaybeOwned;
+    /// # use std::borrow::Cow;
+    /// #
+    /// #[derive(Debug)]
+    /// struct MyCollector {}
+    ///
+    /// impl Collector for MyCollector {
+    ///   fn collect<'a>(&'a self) -> Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>)> + 'a> {
+    ///     let c: Box<dyn LocalMetric> = Box::new(ConstCounter::new(42));
+    ///     let descriptor = Descriptor::new(
+    ///       "my_counter",
+    ///       "This is my counter",
+    ///       None,
+    ///       None,
+    ///       vec![],
+    ///     );
+    ///     Box::new(std::iter::once((Cow::Owned(descriptor), MaybeOwned::Owned(c))))
+    ///   }
+    /// }
+    ///
+    /// let my_collector = Box::new(MyCollector{});
+    ///
+    /// let mut registry = Registry::default();
+    ///
+    /// registry.register_collector(my_collector);
+    /// ```
+    pub fn register_collector(&mut self, collector: Box<dyn Collector>) {
+        self.collectors.push(collector);
     }
 
     /// Create a sub-registry to register metrics with a common prefix.
@@ -228,41 +258,58 @@ impl Registry {
             .expect("sub_registries not to be empty.")
     }
 
-    /// [`Iterator`] over all metrics registered with the [`Registry`].
-    pub fn iter(&self) -> RegistryIterator {
+    pub(crate) fn iter_metrics(&self) -> MetricIterator {
         let metrics = self.metrics.iter();
         let sub_registries = self.sub_registries.iter();
-        RegistryIterator {
+        MetricIterator {
             metrics,
             sub_registries,
             sub_registry: None,
         }
     }
+
+    pub(crate) fn iter_collectors(&self) -> CollectorIterator {
+        let collectors = self.collectors.iter();
+        let sub_registries = self.sub_registries.iter();
+        CollectorIterator {
+            prefix: self.prefix.as_ref(),
+            labels: &self.labels,
+
+            collector: None,
+            collectors,
+
+            sub_collector_iter: None,
+            sub_registries,
+        }
+    }
 }
 
-/// Iterator iterating both the metrics registered directly with the registry as
-/// well as all metrics registered with sub-registries.
+/// Iterator iterating both the metrics registered directly with the
+/// [`Registry`] as well as all metrics registered with sub [`Registry`]s.
 #[derive(Debug)]
-pub struct RegistryIterator<'a> {
+pub struct MetricIterator<'a> {
     metrics: std::slice::Iter<'a, (Descriptor, Box<dyn Metric>)>,
     sub_registries: std::slice::Iter<'a, Registry>,
-    sub_registry: Option<Box<RegistryIterator<'a>>>,
+    sub_registry: Option<Box<MetricIterator<'a>>>,
 }
 
-impl<'a> Iterator for RegistryIterator<'a> {
+impl<'a> Iterator for MetricIterator<'a> {
     type Item = &'a (Descriptor, Box<dyn Metric>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(metric) = self.metrics.next() {
-            return Some(metric);
-        }
-
         loop {
+            if let Some(m) = self.metrics.next() {
+                return Some(m);
+            }
+
             if let Some(metric) = self.sub_registry.as_mut().and_then(|i| i.next()) {
                 return Some(metric);
             }
 
-            self.sub_registry = self.sub_registries.next().map(|r| Box::new(r.iter()));
+            self.sub_registry = self
+                .sub_registries
+                .next()
+                .map(|r| Box::new(r.iter_metrics()));
 
             if self.sub_registry.is_none() {
                 break;
@@ -273,8 +320,90 @@ impl<'a> Iterator for RegistryIterator<'a> {
     }
 }
 
+/// Iterator iterating metrics retrieved from [`Collector`]s registered with the [`Registry`] or sub [`Registry`]s.
+pub struct CollectorIterator<'a> {
+    prefix: Option<&'a Prefix>,
+    labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
+
+    #[allow(clippy::type_complexity)]
+    collector: Option<
+        Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>)> + 'a>,
+    >,
+    collectors: std::slice::Iter<'a, Box<dyn Collector>>,
+
+    sub_collector_iter: Option<Box<CollectorIterator<'a>>>,
+    sub_registries: std::slice::Iter<'a, Registry>,
+}
+
+impl<'a> std::fmt::Debug for CollectorIterator<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CollectorIterator")
+            .field("prefix", &self.prefix)
+            .field("labels", &self.labels)
+            .finish()
+    }
+}
+
+impl<'a> Iterator for CollectorIterator<'a> {
+    type Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(m) = self
+                .collector
+                .as_mut()
+                .and_then(|c| c.next())
+                .or_else(|| self.sub_collector_iter.as_mut().and_then(|i| i.next()))
+                .map(|(descriptor, metric)| {
+                    if self.prefix.is_some() || !self.labels.is_empty() {
+                        let Descriptor {
+                            name,
+                            help,
+                            unit,
+                            labels,
+                        } = descriptor.as_ref();
+                        let mut labels = labels.to_vec();
+                        labels.extend_from_slice(self.labels);
+                        let enriched_descriptor =
+                            Descriptor::new(name, help, unit.to_owned(), self.prefix, labels);
+
+                        Some((Cow::Owned(enriched_descriptor), metric))
+                    } else {
+                        Some((descriptor, metric))
+                    }
+                })
+            {
+                return m;
+            }
+
+            if let Some(collector) = self.collectors.next() {
+                self.collector = Some(collector.collect());
+                continue;
+            }
+
+            if let Some(collector_iter) = self
+                .sub_registries
+                .next()
+                .map(|r| Box::new(r.iter_collectors()))
+            {
+                self.sub_collector_iter = Some(collector_iter);
+                continue;
+            }
+
+            return None;
+        }
+    }
+}
+
+/// Metric prefix
 #[derive(Clone, Debug)]
-struct Prefix(String);
+pub struct Prefix(String);
+
+impl Prefix {
+    fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
 
 impl From<String> for Prefix {
     fn from(s: String) -> Self {
@@ -282,14 +411,8 @@ impl From<String> for Prefix {
     }
 }
 
-impl From<Prefix> for String {
-    fn from(p: Prefix) -> Self {
-        p.0
-    }
-}
-
 /// OpenMetrics metric descriptor.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Descriptor {
     name: String,
     help: String,
@@ -298,6 +421,30 @@ pub struct Descriptor {
 }
 
 impl Descriptor {
+    /// Create new [`Descriptor`].
+    pub fn new<N: Into<String>, H: Into<String>>(
+        name: N,
+        help: H,
+        unit: Option<Unit>,
+        prefix: Option<&Prefix>,
+        labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
+    ) -> Self {
+        let mut name = name.into();
+        if let Some(prefix) = prefix {
+            name.insert(0, '_');
+            name.insert_str(0, prefix.as_str());
+        }
+
+        let help = help.into() + ".";
+
+        Descriptor {
+            name,
+            help,
+            unit,
+            labels,
+        }
+    }
+
     /// Returns the name of the OpenMetrics metric [`Descriptor`].
     pub fn name(&self) -> &str {
         &self.name
@@ -322,7 +469,7 @@ impl Descriptor {
 /// Metric units recommended by Open Metrics.
 ///
 /// See [`Unit::Other`] to specify alternative units.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(missing_docs)]
 pub enum Unit {
     Amperes,
@@ -361,6 +508,11 @@ pub trait Metric: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug 
 impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
 {}
 
+/// Similar to [`Metric`], but without the [`Send`] and [`Sync`] requirement.
+pub trait LocalMetric: crate::encoding::EncodeMetric + std::fmt::Debug {}
+
+impl<T> LocalMetric for T where T: crate::encoding::EncodeMetric + std::fmt::Debug {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,7 +524,7 @@ mod tests {
         let counter: Counter = Counter::default();
         registry.register("my_counter", "My counter", counter);
 
-        assert_eq!(1, registry.iter().count())
+        assert_eq!(1, registry.iter_metrics().count())
     }
 
     #[test]
@@ -411,7 +563,7 @@ mod tests {
         sub_registry.register(prefix_3_metric_name, "some help", counter);
 
         let mut metric_iter = registry
-            .iter()
+            .iter_metrics()
             .map(|(desc, _)| (desc.name.clone(), desc.labels.clone()));
         assert_eq!(
             Some((top_level_metric_name.to_string(), vec![])),
