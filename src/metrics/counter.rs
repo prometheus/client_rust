@@ -189,7 +189,7 @@ where
 
 /// As a [`Counter`], but constant, meaning it cannot change once created.
 ///
-/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::registry::Collector).
+/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::collector::Collector).
 #[derive(Debug, Default)]
 pub struct ConstCounter<N = u64> {
     value: N,

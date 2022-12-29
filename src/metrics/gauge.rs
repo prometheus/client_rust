@@ -255,7 +255,7 @@ where
 
 /// As a [`Gauge`], but constant, meaning it cannot change once created.
 ///
-/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::registry::Collector).
+/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::collector::Collector).
 #[derive(Debug, Default)]
 pub struct ConstGauge<N = i64> {
     value: N,

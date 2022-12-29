@@ -12,7 +12,7 @@ use crate::MaybeOwned;
 /// First off one registers metrics with the registry via
 /// [`Registry::register`]. Later on the [`Registry`] is passed to an encoder
 /// collecting samples of each metric by iterating all metrics in the
-/// [`Registry`] via [`Registry::iter`].
+/// [`Registry`].
 ///
 /// [`Registry`] is the core building block, generic over the metric type being
 /// registered. Out of convenience, the generic type parameter is set to use
