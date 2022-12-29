@@ -155,9 +155,9 @@ impl Registry {
     /// Register a [`Collector`].
     ///
     /// ```
-    /// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
-    /// # use prometheus_client::registry::{Descriptor, Registry};
-    /// # use prometheus_client::collector::{Collector, Metric};
+    /// # use prometheus_client::metrics::counter::ConstCounter;
+    /// # use prometheus_client::registry::{Descriptor, Registry, LocalMetric};
+    /// # use prometheus_client::collector::Collector;
     /// # use prometheus_client::MaybeOwned;
     /// # use std::borrow::Cow;
     /// #
@@ -165,9 +165,8 @@ impl Registry {
     /// struct MyCollector {}
     ///
     /// impl Collector for MyCollector {
-    ///   fn collect<'a>(&'a self) -> Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn Metric>>)> + 'a> {
-    ///     let c: Counter = Counter::default();
-    ///     let c: Box<dyn Metric> = Box::new(c);
+    ///   fn collect<'a>(&'a self) -> Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>)> + 'a> {
+    ///     let c: Box<dyn LocalMetric> = Box::new(ConstCounter::new(42));
     ///     let descriptor = Descriptor::new(
     ///       "my_counter",
     ///       "This is my counter",
