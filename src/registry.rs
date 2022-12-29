@@ -327,14 +327,7 @@ pub struct CollectorIterator<'a> {
     labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 
     collector: Option<
-        Box<
-            dyn Iterator<
-                    Item = (
-                        Cow<'a, Descriptor>,
-                        MaybeOwned<'a, Box<dyn crate::collector::Metric>>,
-                    ),
-                > + 'a,
-        >,
+        Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>)> + 'a>,
     >,
     collectors: std::slice::Iter<'a, Box<dyn Collector>>,
 
@@ -352,10 +345,7 @@ impl<'a> std::fmt::Debug for CollectorIterator<'a> {
 }
 
 impl<'a> Iterator for CollectorIterator<'a> {
-    type Item = (
-        Cow<'a, Descriptor>,
-        MaybeOwned<'a, Box<dyn crate::collector::Metric>>,
-    );
+    type Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -517,6 +507,11 @@ pub trait Metric: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug 
 
 impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
 {}
+
+/// Similar to [`Metric`], but without the [`Send`] and [`Sync`] requirement.
+pub trait LocalMetric: crate::encoding::EncodeMetric + std::fmt::Debug {}
+
+impl<T> LocalMetric for T where T: crate::encoding::EncodeMetric + std::fmt::Debug {}
 
 #[cfg(test)]
 mod tests {

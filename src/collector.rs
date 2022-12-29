@@ -4,7 +4,10 @@
 
 use std::borrow::Cow;
 
-use crate::{registry::Descriptor, MaybeOwned};
+use crate::{
+    registry::{Descriptor, LocalMetric},
+    MaybeOwned,
+};
 
 /// The [`Collector`] abstraction allows users to provide additional metrics and
 /// their description on each scrape.
@@ -21,11 +24,5 @@ pub trait Collector: std::fmt::Debug + Send + Sync + 'static {
     /// or borrowed (performant) descriptions and metrics.
     fn collect<'a>(
         &'a self,
-    ) -> Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn Metric>>)> + 'a>;
+    ) -> Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>)> + 'a>;
 }
-
-// TODO: Footgun as it is hard to differentiate with registry::Metric.
-/// Super trait representing an abstract Prometheus metric.
-pub trait Metric: crate::encoding::EncodeMetric + std::fmt::Debug {}
-
-impl<T> Metric for T where T: crate::encoding::EncodeMetric + std::fmt::Debug {}
