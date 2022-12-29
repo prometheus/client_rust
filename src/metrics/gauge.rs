@@ -253,7 +253,7 @@ where
     }
 }
 
-/// As [`Gauge`] but constant, that is can not change once created.
+/// As a [`Gauge`], but constant, meaning it cannot change once created.
 ///
 /// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::registry::Collector).
 #[derive(Debug, Default)]
@@ -279,6 +279,7 @@ where
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_gauge(&self.value)
     }
+
     fn metric_type(&self) -> MetricType {
         Self::TYPE
     }

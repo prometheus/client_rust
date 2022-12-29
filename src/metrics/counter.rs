@@ -187,7 +187,7 @@ where
     }
 }
 
-/// As [`Counter`] but constant, that is can not change once created.
+/// As a [`Counter`], but constant, meaning it cannot change once created.
 ///
 /// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::registry::Collector).
 #[derive(Debug, Default)]

@@ -327,9 +327,6 @@ where
     }
 }
 
-// TODO: When we split the dispatched type for the standard registered metrics
-// and the collector metrics and only require Sync for the former, we can use a
-// RefCell here.
 impl<S: EncodeLabelSet, M: EncodeMetric + TypedMetric, T: Iterator<Item = (S, M)>> EncodeMetric
     for RefCell<T>
 {

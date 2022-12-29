@@ -4,9 +4,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.19.0] - unreleased
+## [0.19.0]
+
+This is a large release including multiple breaking changes. Major user-facing
+improvement of this release is support for the OpenMetrics Protobuf format.
+
+### Upgrade guide:
+
+- Don't box before registering.
+
+  ```diff
+    registry.register(
+        "my_metric",
+        "This is my metric",
+  -      Box::new(my_metric.clone()),
+  +      my_metric.clone(),
+    );
+  ```
+
+- Gauge uses `i64` instead of `u64`.
+
+  ```diff
+    my_gauge
+  -     .set(42u64);
+  +     .set(42i64);
+  ```
+
+- Derive `EncodeLabelSet` for `struct` and `EncodeLabelValue` for `enum` instead of just `Encode` for all and require `Debug`.
+
+  ```diff
+  - #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+  + #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug)]
+    struct Labels {
+        path: String,
+        method: Method,
+        some_number: u64,
+    }
+
+  - #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+  + #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelValue, Debug)]
+    enum Method {
+        Get,
+        #[allow(dead_code)]
+        Put,
+    }
+  ```
+
+- Encode as utf-8 and not as `[u8]`.
+
+  ```diff
+  - let mut buffer = vec![];
+  + let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+  ```
+
+For details on each of these, see changelog entries below.
 
 ### Added
+
 - Added support for the OpenMetrics protobuf format. See [PR 83].
 - Added a `remove` method to `Family` to allow the removal of a specified label
   set from a family. See [PR 85].
