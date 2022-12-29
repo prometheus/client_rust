@@ -333,7 +333,7 @@ impl<S: EncodeLabelSet, M: EncodeMetric + TypedMetric, T: Iterator<Item = (S, M)
     fn encode(&self, mut encoder: MetricEncoder<'_, '_>) -> Result<(), std::fmt::Error> {
         let mut iter = self.borrow_mut();
 
-        while let Some((label_set, m)) = iter.next() {
+        for (label_set, m) in iter.by_ref() {
             let encoder = encoder.encode_family(&label_set)?;
             m.encode(encoder)?;
         }

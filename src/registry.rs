@@ -326,6 +326,7 @@ pub struct CollectorIterator<'a> {
     prefix: Option<&'a Prefix>,
     labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 
+    #[allow(clippy::type_complexity)]
     collector: Option<
         Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>)> + 'a>,
     >,
@@ -431,7 +432,7 @@ impl Descriptor {
     ) -> Self {
         let mut name = name.into();
         if let Some(prefix) = prefix {
-            name.insert_str(0, "_");
+            name.insert(0, '_');
             name.insert_str(0, prefix.as_str());
         }
 

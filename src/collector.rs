@@ -22,6 +22,7 @@ pub trait Collector: std::fmt::Debug + Send + Sync + 'static {
     ///
     /// Note that the return type allows you to either return owned (convenient)
     /// or borrowed (performant) descriptions and metrics.
+    #[allow(clippy::type_complexity)]
     fn collect<'a>(
         &'a self,
     ) -> Box<dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>)> + 'a>;

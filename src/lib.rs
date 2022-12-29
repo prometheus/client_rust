@@ -102,7 +102,7 @@ impl<'a, T> std::ops::Deref for MaybeOwned<'a, T> {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            Self::Owned(t) => &t,
+            Self::Owned(t) => t,
             Self::Borrowed(t) => t,
         }
     }
