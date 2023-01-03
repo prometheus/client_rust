@@ -156,13 +156,12 @@ fn flatten() {
     registry.register("my_counter", "This is my counter", family.clone());
 
     // Record a single HTTP GET request.
-    family.get_or_create(&Labels {
-        unique: 1,
-        common: CommonLabels{
-            a: 2,
-            b: 3,
-        },
-    }).inc();
+    family
+        .get_or_create(&Labels {
+            unique: 1,
+            common: CommonLabels { a: 2, b: 3 },
+        })
+        .inc();
 
     // Encode all metrics in the registry in the text format.
     let mut buffer = String::new();

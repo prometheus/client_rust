@@ -22,19 +22,24 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
             syn::Fields::Named(syn::FieldsNamed { named, .. }) => named
                 .into_iter()
                 .map(|f| {
-                    let flatten = f
+                    let attribute = f
                         .attrs
                         .iter()
                         .find(|a| a.path.is_ident("prometheus"))
-                        .map(|a| a.parse_args::<syn::Ident>().unwrap().to_string() == "flatten")
-                        .unwrap_or(false);
+                        .map(|a| a.parse_args::<syn::Ident>().unwrap().to_string());
+                    let flatten = match attribute.as_deref() {
+                        Some("flatten") => true,
+                        Some(other) => {
+                            panic!("Provided attribute '{other}', but only 'flatten' is supported")
+                        }
+                        None => false,
+                    };
+                    let ident = f.ident.unwrap();
                     if flatten {
-                        let ident = f.ident.unwrap();
                         quote! {
-                            self.#ident.encode(encoder)?;
+                             EncodeLabelSet::encode(&self.#ident, encoder)?;
                         }
                     } else {
-                        let ident = f.ident.unwrap();
                         let ident_string = KEYWORD_IDENTIFIERS
                             .iter()
                             .find(|pair| ident == pair.1)
