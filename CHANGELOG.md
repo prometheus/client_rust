@@ -11,7 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Introduce `Collector` abstraction allowing users to provide additional metrics
   and their description on each scrape. See [PR 82].
 - Introduce a `#[prometheus(flatten)]` attribute which can be used when deriving `EncodeLabelSet`, allowing
-  a nested struct the be flattened during encoding. See [PR 118].
+  a nested struct to be flattened during encoding. See [PR 118].
+  For example:
+  ```rust
+  #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+  struct CommonLabels {
+      a: u64,
+      b: u64,
+  }
+  #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+  struct Labels {
+      unique: u64,
+      #[prometheus(flatten)]
+      common: CommonLabels,
+  }
+
+  // Would result in `my_metric{a="42",b="42",unique="42"} 42
+  ```
 
 [PR 82]: https://github.com/prometheus/client_rust/pull/82
 [PR 118]: https://github.com/prometheus/client_rust/pull/118
