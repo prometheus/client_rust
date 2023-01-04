@@ -136,3 +136,40 @@ fn remap_keyword_identifiers() {
         + "# EOF\n";
     assert_eq!(expected, buffer);
 }
+
+#[test]
+fn flatten() {
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    struct CommonLabels {
+        a: u64,
+        b: u64,
+    }
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    struct Labels {
+        unique: u64,
+        #[prometheus(flatten)]
+        common: CommonLabels,
+    }
+
+    let mut registry = Registry::default();
+    let family = Family::<Labels, Counter>::default();
+    registry.register("my_counter", "This is my counter", family.clone());
+
+    // Record a single HTTP GET request.
+    family
+        .get_or_create(&Labels {
+            unique: 1,
+            common: CommonLabels { a: 2, b: 3 },
+        })
+        .inc();
+
+    // Encode all metrics in the registry in the text format.
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+
+    let expected = "# HELP my_counter This is my counter.\n".to_owned()
+        + "# TYPE my_counter counter\n"
+        + "my_counter_total{unique=\"1\",a=\"2\",b=\"3\"} 1\n"
+        + "# EOF\n";
+    assert_eq!(expected, buffer);
+}
