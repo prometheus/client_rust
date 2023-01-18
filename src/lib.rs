@@ -30,7 +30,7 @@
 //! //
 //! // You could as well use `(String, String)` to represent a label set,
 //! // instead of the custom type below.
-//! #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+//! #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, EncodeLabelSet)]
 //! struct Labels {
 //!   // Use your own enum types to represent label values.
 //!   method: Method,
@@ -38,7 +38,7 @@
 //!   path: String,
 //! };
 //!
-//! #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
+//! #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, EncodeLabelValue)]
 //! enum Method {
 //!   GET,
 //!   PUT,

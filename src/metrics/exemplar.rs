@@ -42,12 +42,12 @@ pub struct Exemplar<S, V> {
 /// # use prometheus_client::metrics::histogram::exponential_buckets;
 /// # use prometheus_client::metrics::family::Family;
 /// # use prometheus_client_derive_encode::EncodeLabelSet;
-/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug, Default)]
+/// #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, EncodeLabelSet, Debug, Default)]
 /// pub struct ResultLabel {
 ///     pub result: String,
 /// }
 ///
-/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug, Default)]
+/// #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, EncodeLabelSet, Debug, Default)]
 /// pub struct TraceLabel {
 ///     pub trace_id: String,
 /// }
@@ -183,12 +183,12 @@ where
 /// # use prometheus_client::metrics::histogram::exponential_buckets;
 /// # use prometheus_client::metrics::family::Family;
 /// # use prometheus_client::encoding::EncodeLabelSet;
-/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug, Default)]
+/// #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, EncodeLabelSet, Debug, Default)]
 /// pub struct ResultLabel {
 ///     pub result: String,
 /// }
 ///
-/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug, Default)]
+/// #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, EncodeLabelSet, Debug, Default)]
 /// pub struct TraceLabel {
 ///     pub trace_id: String,
 /// }

@@ -7,7 +7,7 @@ use crate::encoding::{EncodeLabelSet, EncodeMetric, MetricEncoder};
 use super::{MetricType, TypedMetric};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 /// Representation of the OpenMetrics *MetricFamily* data type.
@@ -69,12 +69,12 @@ use std::sync::Arc;
 /// # use std::io::Write;
 /// #
 /// # let mut registry = Registry::default();
-/// #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+/// #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, EncodeLabelSet)]
 /// struct Labels {
 ///   method: Method,
 /// };
 ///
-/// #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
+/// #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, EncodeLabelValue)]
 /// enum Method {
 ///   GET,
 ///   PUT,
@@ -100,9 +100,8 @@ use std::sync::Arc;
 /// #                "# EOF\n";
 /// # assert_eq!(expected, buffer);
 /// ```
-// TODO: Consider exposing hash algorithm.
 pub struct Family<S, M, C = fn() -> M> {
-    metrics: Arc<RwLock<HashMap<S, M>>>,
+    metrics: Arc<RwLock<BTreeMap<S, M>>>,
     /// Function that when called constructs a new metric.
     ///
     /// For most metric types this would simply be its [`Default`]
@@ -169,7 +168,7 @@ impl<M, F: Fn() -> M> MetricConstructor<M> for F {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
+impl<S: Clone + Eq, M: Default> Default for Family<S, M> {
     fn default() -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Default::default())),
@@ -178,7 +177,7 @@ impl<S: Clone + std::hash::Hash + Eq, M: Default> Default for Family<S, M> {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M, C> Family<S, M, C> {
+impl<S: Clone + Eq, M, C> Family<S, M, C> {
     /// Create a metric family using a custom constructor to construct new
     /// metrics.
     ///
@@ -208,7 +207,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C> Family<S, M, C> {
     }
 }
 
-impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C> {
+impl<S: Clone + Eq + Ord, M, C: MetricConstructor<M>> Family<S, M, C> {
     /// Access a metric with the given label set, creating it if one does not
     /// yet exist.
     ///
@@ -289,7 +288,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         self.metrics.write().clear()
     }
 
-    pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
+    pub(crate) fn read(&self) -> RwLockReadGuard<BTreeMap<S, M>> {
         self.metrics.read()
     }
 }
@@ -309,7 +308,7 @@ impl<S, M: TypedMetric, C> TypedMetric for Family<S, M, C> {
 
 impl<S, M, C> EncodeMetric for Family<S, M, C>
 where
-    S: Clone + std::hash::Hash + Eq + EncodeLabelSet,
+    S: Clone + Eq + Ord + EncodeLabelSet,
     M: EncodeMetric + TypedMetric,
     C: MetricConstructor<M>,
 {

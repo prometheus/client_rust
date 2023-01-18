@@ -751,4 +751,52 @@ def parse(input):
                 .unwrap();
         })
     }
+
+    #[test]
+    fn metrics_are_sorted_by_registration_order() {
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        let another_counter: Counter = Counter::default();
+        registry.register("my_counter", "My counter", counter);
+        registry.register("another_counter", "Another counter", another_counter);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_counter My counter.\n".to_owned()
+            + "# TYPE my_counter counter\n"
+            + "my_counter_total 0\n"
+            + "# HELP another_counter Another counter.\n"
+            + "# TYPE another_counter counter\n"
+            + "another_counter_total 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn metric_family_is_sorted_by_registration_order() {
+        let mut registry = Registry::default();
+        let gauge = Family::<Vec<(String, String)>, Gauge>::default();
+        registry.register("my_gauge", "My gauge", gauge.clone());
+
+        {
+            let gauge0 = gauge.get_or_create(&vec![("label".to_string(), "0".to_string())]);
+            gauge0.set(0);
+        }
+
+        {
+            let gauge1 = gauge.get_or_create(&vec![("label".to_string(), "1".to_string())]);
+            gauge1.set(1);
+        }
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_gauge My gauge.\n".to_owned()
+            + "# TYPE my_gauge gauge\n"
+            + "my_gauge{label=\"0\"} 0\n"
+            + "my_gauge{label=\"1\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+    }
 }
