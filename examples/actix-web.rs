@@ -8,13 +8,13 @@ use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, EncodeLabelValue)]
 pub enum Method {
     Get,
     Post,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, EncodeLabelSet)]
 pub struct MethodLabels {
     pub method: Method,
 }
