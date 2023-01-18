@@ -753,7 +753,7 @@ def parse(input):
     }
 
     #[test]
-    fn metrics_are_sorted_by_registration_order() {
+    fn metrics_are_sorted_in_registration_order() {
         let mut registry = Registry::default();
         let counter: Counter = Counter::default();
         let another_counter: Counter = Counter::default();
@@ -774,20 +774,20 @@ def parse(input):
     }
 
     #[test]
-    fn metric_family_is_sorted_by_registration_order() {
+    fn metric_family_is_sorted_lexicographically() {
         let mut registry = Registry::default();
         let gauge = Family::<Vec<(String, String)>, Gauge>::default();
         registry.register("my_gauge", "My gauge", gauge.clone());
 
-        {
-            let gauge0 = gauge.get_or_create(&vec![("label".to_string(), "0".to_string())]);
-            gauge0.set(0);
-        }
-
-        {
-            let gauge1 = gauge.get_or_create(&vec![("label".to_string(), "1".to_string())]);
-            gauge1.set(1);
-        }
+        gauge
+            .get_or_create(&vec![("label".to_string(), "0".to_string())])
+            .set(0);
+        gauge
+            .get_or_create(&vec![("label".to_string(), "2".to_string())])
+            .set(2);
+        gauge
+            .get_or_create(&vec![("label".to_string(), "1".to_string())])
+            .set(1);
 
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -796,6 +796,7 @@ def parse(input):
             + "# TYPE my_gauge gauge\n"
             + "my_gauge{label=\"0\"} 0\n"
             + "my_gauge{label=\"1\"} 1\n"
+            + "my_gauge{label=\"2\"} 2\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
     }
