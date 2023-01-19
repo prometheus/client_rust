@@ -193,6 +193,7 @@ impl<'a> MetricEncoder<'a> {
         &'b mut self,
         label_set: &S,
     ) -> Result<MetricEncoder<'b>, std::fmt::Error> {
+        self.labels.clear();
         label_set.encode(
             LabelSetEncoder {
                 labels: self.labels,
