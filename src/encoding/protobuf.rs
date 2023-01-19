@@ -585,11 +585,13 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        // GET, 200
+        // the first label
         let metric = family.metrics.first().unwrap();
         assert_eq!(2, metric.labels.len());
         assert_eq!("method", metric.labels[0].name);
-        assert_eq!("GET", metric.labels[0].value);
+        // The order of the labels is not deterministic so we are testing the value to be either
+        // GET or POST.
+        assert!(vec!["GET", "POST"].contains(&metric.labels[0].value.as_str()));
         assert_eq!("status", metric.labels[1].name);
         assert_eq!("200", metric.labels[1].value);
 
@@ -603,13 +605,12 @@ mod tests {
             _ => panic!("wrong value type"),
         }
 
-        // POST, 200
-        let metric = &family.metrics[1];
-        assert_eq!(2, metric.labels.len());
-        assert_eq!("method", metric.labels[0].name);
-        assert_eq!("POST", metric.labels[0].value);
-        assert_eq!("status", metric.labels[1].name);
-        assert_eq!("200", metric.labels[1].value);
+        // the second label
+        let metric2 = &family.metrics[1];
+        assert_eq!(2, metric2.labels.len());
+        assert!(vec!["GET", "POST"].contains(&metric.labels[0].value.as_str()));
+        assert_eq!("status", metric2.labels[1].name);
+        assert_eq!("200", metric2.labels[1].value);
     }
 
     #[test]
