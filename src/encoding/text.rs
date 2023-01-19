@@ -570,7 +570,7 @@ mod tests {
     fn encode_const_counter_with_timestamp() {
         let mut registry = Registry::default();
         let counter =
-            ConstCounter::new_with_timestamp(123, UNIX_EPOCH.add(Duration::from_secs(1674086890)));
+            ConstCounter::new_with_timestamp(123, UNIX_EPOCH.add(Duration::from_millis(1674086890123)));
         registry.register("my_counter", "My counter", counter);
 
         let mut encoded = String::new();
@@ -578,7 +578,7 @@ mod tests {
 
         let expected = "# HELP my_counter My counter.\n".to_owned()
             + "# TYPE my_counter counter\n"
-            + "my_counter_total 123 1674086890000\n"
+            + "my_counter_total 123 1674086890123\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
