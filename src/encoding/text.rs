@@ -31,6 +31,7 @@ use crate::registry::{Descriptor, Registry, Unit};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Encode the metrics registered with the provided [`Registry`] into the
 /// provided [`Write`]r using the OpenMetrics text format.
@@ -136,6 +137,7 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
         &mut self,
         v: &CounterValue,
         exemplar: Option<&Exemplar<S, ExemplarValue>>,
+        timestamp: Option<SystemTime>,
     ) -> Result<(), std::fmt::Error> {
         self.write_name_and_unit()?;
 
@@ -149,6 +151,10 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
             }
             .into(),
         )?;
+
+        if let Some(timestamp) = timestamp {
+            self.write_timestamp(timestamp)?;
+        }
 
         if let Some(exemplar) = exemplar {
             self.encode_exemplar(exemplar)?;
@@ -336,6 +342,15 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
 
         Ok(())
     }
+
+    fn write_timestamp(&mut self, timestamp: SystemTime) -> Result<(), std::fmt::Error> {
+        if let Ok(time) = timestamp.duration_since(UNIX_EPOCH) {
+            self.writer.write_char(' ')?;
+            return self.writer.write_str(&time.as_secs().to_string());
+        }
+
+        Ok(())
+    }
 }
 
 pub(crate) struct CounterValueEncoder<'a> {
@@ -507,6 +522,7 @@ impl<'a> std::fmt::Write for LabelValueEncoder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::metrics::counter::ConstCounter;
     use crate::metrics::exemplar::HistogramWithExemplars;
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
@@ -515,6 +531,8 @@ mod tests {
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
+    use std::ops::Add;
+    use std::time::Duration;
 
     #[test]
     fn encode_counter() {
@@ -546,6 +564,23 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_const_counter_with_timestamp() {
+        let mut registry = Registry::default();
+        let counter =
+            ConstCounter::new_with_timestamp(123, UNIX_EPOCH.add(Duration::from_secs(1674086890)));
+        registry.register("my_counter", "My counter", counter);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_counter My counter.\n".to_owned()
+            + "# TYPE my_counter counter\n"
+            + "my_counter_total 123 1674086890\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
     }
 
     #[test]

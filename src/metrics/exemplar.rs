@@ -157,7 +157,7 @@ where
 {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
         let (value, exemplar) = self.get();
-        encoder.encode_counter(&value, exemplar.as_ref())
+        encoder.encode_counter(&value, exemplar.as_ref(), None)
     }
 
     fn metric_type(&self) -> MetricType {
