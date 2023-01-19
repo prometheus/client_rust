@@ -346,7 +346,7 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
     fn write_timestamp(&mut self, timestamp: SystemTime) -> Result<(), std::fmt::Error> {
         if let Ok(time) = timestamp.duration_since(UNIX_EPOCH) {
             self.writer.write_char(' ')?;
-            return self.writer.write_str(&time.as_secs().to_string());
+            return self.writer.write_str(&time.as_millis().to_string());
         }
 
         Ok(())
@@ -578,9 +578,11 @@ mod tests {
 
         let expected = "# HELP my_counter My counter.\n".to_owned()
             + "# TYPE my_counter counter\n"
-            + "my_counter_total 123 1674086890\n"
+            + "my_counter_total 123 1674086890000\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
     }
 
     #[test]
