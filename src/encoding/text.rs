@@ -569,8 +569,10 @@ mod tests {
     #[test]
     fn encode_const_counter_with_timestamp() {
         let mut registry = Registry::default();
-        let counter =
-            ConstCounter::new_with_timestamp(123, UNIX_EPOCH.add(Duration::from_millis(1674086890123)));
+        let counter = ConstCounter::new_with_timestamp(
+            123,
+            UNIX_EPOCH.add(Duration::from_millis(1674086890123)),
+        );
         registry.register("my_counter", "My counter", counter);
 
         let mut encoded = String::new();
