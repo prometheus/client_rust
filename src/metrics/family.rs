@@ -167,7 +167,7 @@ impl<M, F: Fn() -> M> MetricConstructor<M> for F {
     }
 }
 
-impl<S: Clone + Eq, M: Default> Default for Family<S, M> {
+impl<S: Clone + Eq + Ord, M: Default> Default for Family<S, M> {
     fn default() -> Self {
         Self {
             metrics: Arc::new(RwLock::new(Default::default())),
@@ -176,7 +176,7 @@ impl<S: Clone + Eq, M: Default> Default for Family<S, M> {
     }
 }
 
-impl<S: Clone + Eq, M, C> Family<S, M, C> {
+impl<S: Clone + Eq + Ord, M, C> Family<S, M, C> {
     /// Create a metric family using a custom constructor to construct new
     /// metrics.
     ///
