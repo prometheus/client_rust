@@ -38,6 +38,7 @@ impl MetricType {
             MetricType::Counter => "counter",
             MetricType::Gauge => "gauge",
             MetricType::Histogram => "histogram",
+            MetricType::Summary => "summary",
             MetricType::Info => "info",
             MetricType::Unknown => "unknown",
         }

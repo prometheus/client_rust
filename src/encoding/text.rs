@@ -211,6 +211,40 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
         })
     }
 
+    pub fn encode_summary<S: EncodeLabelSet>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        quantiles: &[(f64, f64)],
+    ) -> Result<(), std::fmt::Error> {
+        self.write_name_and_unit()?;
+        self.write_suffix("sum")?;
+        self.encode_labels::<()>(None)?;
+        self.writer.write_str(" ")?;
+        self.writer.write_str(dtoa::Buffer::new().format(sum))?;
+        self.newline()?;
+
+        self.write_name_and_unit()?;
+        self.write_suffix("count")?;
+        self.encode_labels::<()>(None)?;
+        self.writer.write_str(" ")?;
+        self.writer.write_str(itoa::Buffer::new().format(count))?;
+        self.newline()?;
+
+        for (_, (quantile, result)) in quantiles.iter().enumerate() {
+            self.write_name_and_unit()?;
+            self.encode_labels(Some(&[("quantile", *quantile)]))?;
+
+            self.writer.write_str(" ")?;
+            self.writer
+                .write_str(result.to_string().as_str())?;
+
+            self.newline()?;
+        }
+
+        Ok(())
+    }
+
     pub fn encode_histogram<S: EncodeLabelSet>(
         &mut self,
         sum: f64,
@@ -511,6 +545,7 @@ mod tests {
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{exponential_buckets, Histogram};
+    use crate::metrics::summary::Summary;
     use crate::metrics::info::Info;
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
@@ -732,8 +767,7 @@ mod tests {
         summary.observe(0.20);
         summary.observe(0.30);
 
-        let mut encoded = Vec::new();
-
+        let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
 
         let expected = "# HELP my_summary My summary.\n".to_owned()
@@ -744,9 +778,9 @@ mod tests {
             + "my_summary{quantile=\"0.9\"} 0.3\n"
             + "my_summary{quantile=\"0.99\"} 0.3\n"
             + "# EOF\n";
-        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
+        assert_eq!(expected, encoded);
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     fn parse_with_python_client(input: String) {

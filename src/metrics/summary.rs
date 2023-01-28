@@ -2,6 +2,8 @@
 //!
 //! See [`Summary`] for details.
 
+use crate::encoding::{EncodeMetric, MetricEncoder};
+
 use super::{MetricType, TypedMetric};
 //use owning_ref::OwningRef;
 //use std::iter::{self, once};
@@ -125,6 +127,18 @@ impl Summary {
 impl TypedMetric for Summary {
     const TYPE: MetricType = MetricType::Summary;
 }
+
+impl EncodeMetric for Summary {
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        let (sum, count, quantiles) = self.get();
+        encoder.encode_summary::<()>(sum, count, &quantiles)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
