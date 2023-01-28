@@ -14,654 +14,505 @@
 //! #   counter.clone(),
 //! # );
 //! # counter.inc();
-//! let mut buffer = vec![];
+//! let mut buffer = String::new();
 //! encode(&mut buffer, &registry).unwrap();
 //!
 //! let expected = "# HELP my_counter This is my counter.\n".to_owned() +
 //!                "# TYPE my_counter counter\n" +
 //!                "my_counter_total 1\n" +
 //!                "# EOF\n";
-//! assert_eq!(expected, String::from_utf8(buffer).unwrap());
+//! assert_eq!(expected, buffer);
 //! ```
 
-use crate::metrics::counter::{self, Counter};
-use crate::metrics::exemplar::{CounterWithExemplar, Exemplar, HistogramWithExemplars};
-use crate::metrics::family::{Family, MetricConstructor};
-use crate::metrics::gauge::{self, Gauge};
-use crate::metrics::histogram::Histogram;
-use crate::metrics::summary::Summary;
-use crate::metrics::info::Info;
-use crate::metrics::{MetricType, TypedMetric};
-use crate::registry::{Registry, Unit};
+use crate::encoding::{EncodeExemplarValue, EncodeLabelSet, EncodeMetric};
+use crate::metrics::exemplar::Exemplar;
+use crate::registry::{Descriptor, Registry, Unit};
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io::Write;
-use std::ops::Deref;
+use std::fmt::Write;
 
 /// Encode the metrics registered with the provided [`Registry`] into the
 /// provided [`Write`]r using the OpenMetrics text format.
-pub fn encode<W, M>(writer: &mut W, registry: &Registry<M>) -> Result<(), std::io::Error>
+pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Error>
 where
     W: Write,
-    M: EncodeMetric,
 {
-    for (desc, metric) in registry.iter() {
-        writer.write_all(b"# HELP ")?;
-        writer.write_all(desc.name().as_bytes())?;
-        if let Some(unit) = desc.unit() {
-            writer.write_all(b"_")?;
-            unit.encode(writer)?;
-        }
-        writer.write_all(b" ")?;
-        writer.write_all(desc.help().as_bytes())?;
-        writer.write_all(b"\n")?;
-
-        writer.write_all(b"# TYPE ")?;
-        writer.write_all(desc.name().as_bytes())?;
-        if let Some(unit) = desc.unit() {
-            writer.write_all(b"_")?;
-            unit.encode(writer)?;
-        }
-        writer.write_all(b" ")?;
-        metric.metric_type().encode(writer)?;
-        writer.write_all(b"\n")?;
-
-        if let Some(unit) = desc.unit() {
-            writer.write_all(b"# UNIT ")?;
-            writer.write_all(desc.name().as_bytes())?;
-            writer.write_all(b"_")?;
-            unit.encode(writer)?;
-            writer.write_all(b" ")?;
-            unit.encode(writer)?;
-            writer.write_all(b"\n")?;
-        }
-
-        let encoder = Encoder {
-            writer,
-            name: desc.name(),
-            unit: desc.unit(),
-            const_labels: desc.labels(),
-            labels: None,
-        };
-
-        metric.encode(encoder)?;
+    for (desc, metric) in registry.iter_metrics() {
+        encode_metric(writer, desc, metric.as_ref())?;
+    }
+    for (desc, metric) in registry.iter_collectors() {
+        encode_metric(writer, desc.as_ref(), metric.as_ref())?;
     }
 
-    writer.write_all(b"# EOF\n")?;
+    writer.write_str("# EOF\n")?;
 
     Ok(())
 }
 
-/// OpenMetrics text encoding for a value.
-pub trait Encode {
-    /// Encode to OpenMetrics text encoding.
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error>;
-}
-
-impl Encode for f64 {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        writer.write_all(dtoa::Buffer::new().format(*self).as_bytes())?;
-        Ok(())
+fn encode_metric<W>(
+    writer: &mut W,
+    desc: &Descriptor,
+    metric: &(impl EncodeMetric + ?Sized),
+) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
+    writer.write_str("# HELP ")?;
+    writer.write_str(desc.name())?;
+    if let Some(unit) = desc.unit() {
+        writer.write_str("_")?;
+        writer.write_str(unit.as_str())?;
     }
-}
+    writer.write_str(" ")?;
+    writer.write_str(desc.help())?;
+    writer.write_str("\n")?;
 
-impl Encode for u64 {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        writer.write_all(itoa::Buffer::new().format(*self).as_bytes())?;
-        Ok(())
+    writer.write_str("# TYPE ")?;
+    writer.write_str(desc.name())?;
+    if let Some(unit) = desc.unit() {
+        writer.write_str("_")?;
+        writer.write_str(unit.as_str())?;
     }
-}
+    writer.write_str(" ")?;
+    writer.write_str(EncodeMetric::metric_type(metric).as_str())?;
+    writer.write_str("\n")?;
 
-impl Encode for u32 {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        writer.write_all(itoa::Buffer::new().format(*self).as_bytes())?;
-        Ok(())
+    if let Some(unit) = desc.unit() {
+        writer.write_str("# UNIT ")?;
+        writer.write_str(desc.name())?;
+        writer.write_str("_")?;
+        writer.write_str(unit.as_str())?;
+        writer.write_str(" ")?;
+        writer.write_str(unit.as_str())?;
+        writer.write_str("\n")?;
     }
-}
 
-impl<T: Encode> Encode for &[T] {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        if self.is_empty() {
-            return Ok(());
-        }
-
-        let mut iter = self.iter().peekable();
-        while let Some(x) = iter.next() {
-            x.encode(writer)?;
-
-            if iter.peek().is_some() {
-                writer.write_all(b",")?;
-            }
-        }
-
-        Ok(())
+    let encoder = MetricEncoder {
+        writer,
+        name: desc.name(),
+        unit: desc.unit(),
+        const_labels: desc.labels(),
+        family_labels: None,
     }
-}
+    .into();
 
-impl<T: Encode> Encode for Vec<T> {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        self.as_slice().encode(writer)
-    }
-}
+    EncodeMetric::encode(metric, encoder)?;
 
-impl<K: Encode, V: Encode> Encode for (K, V) {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        let (key, value) = self;
-
-        key.encode(writer)?;
-        writer.write_all(b"=\"")?;
-
-        value.encode(writer)?;
-        writer.write_all(b"\"")?;
-
-        Ok(())
-    }
-}
-
-impl Encode for &str {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        // TODO: Can we do better?
-        writer.write_all(self.as_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for String {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        self.as_str().encode(writer)
-    }
-}
-
-impl<'a> Encode for Cow<'a, str> {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        self.as_ref().encode(writer)
-    }
-}
-
-impl Encode for MetricType {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        let t = match self {
-            MetricType::Counter => "counter",
-            MetricType::Gauge => "gauge",
-            MetricType::Histogram => "histogram",
-            MetricType::Info => "info",
-            MetricType::Unknown => "unknown",
-            MetricType::Summary => "summary",
-        };
-
-        writer.write_all(t.as_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for Unit {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        writer.write_all(self.as_str().as_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for () {
-    fn encode(&self, _writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        Ok(())
-    }
+    Ok(())
 }
 
 /// Helper type for [`EncodeMetric`], see [`EncodeMetric::encode`].
-///
-// `Encoder` does not take a trait parameter for `writer` and `labels` because
-// `EncodeMetric` which uses `Encoder` needs to be usable as a trait object in
-// order to be able to register different metric types with a `Registry`. Trait
-// objects can not use type parameters.
-//
-// TODO: Alternative solutions to the above are very much appreciated.
-#[allow(missing_debug_implementations)]
-pub struct Encoder<'a, 'b> {
+pub(crate) struct MetricEncoder<'a, 'b> {
     writer: &'a mut dyn Write,
     name: &'a str,
     unit: &'a Option<Unit>,
     const_labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
-    labels: Option<&'b dyn Encode>,
+    family_labels: Option<&'b dyn super::EncodeLabelSet>,
 }
 
-impl<'a, 'b> Encoder<'a, 'b> {
-    /// Encode a metric suffix, e.g. in the case of [`Counter`] the suffic `_total`.
-    pub fn encode_suffix(&mut self, suffix: &'static str) -> Result<BucketEncoder, std::io::Error> {
-        self.write_name_and_unit()?;
-
-        self.writer.write_all(b"_")?;
-        self.writer.write_all(suffix.as_bytes()).map(|_| ())?;
-
-        self.encode_labels()
-    }
-
-    /// Signal that the metric has no suffix.
-    pub fn no_suffix(&mut self) -> Result<BucketEncoder, std::io::Error> {
-        self.write_name_and_unit()?;
-
-        self.encode_labels()
-    }
-
-    fn write_name_and_unit(&mut self) -> Result<(), std::io::Error> {
-        self.writer.write_all(self.name.as_bytes())?;
-        if let Some(unit) = self.unit {
-            self.writer.write_all(b"_")?;
-            unit.encode(self.writer)?;
+impl<'a, 'b> std::fmt::Debug for MetricEncoder<'a, 'b> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut labels = String::new();
+        if let Some(l) = self.family_labels {
+            l.encode(LabelSetEncoder::new(&mut labels).into())?;
         }
+
+        f.debug_struct("Encoder")
+            .field("name", &self.name)
+            .field("unit", &self.unit)
+            .field("const_labels", &self.const_labels)
+            .field("labels", &labels.as_str())
+            .finish()
+    }
+}
+
+impl<'a, 'b> MetricEncoder<'a, 'b> {
+    pub fn encode_counter<
+        S: EncodeLabelSet,
+        CounterValue: super::EncodeCounterValue,
+        ExemplarValue: EncodeExemplarValue,
+    >(
+        &mut self,
+        v: &CounterValue,
+        exemplar: Option<&Exemplar<S, ExemplarValue>>,
+    ) -> Result<(), std::fmt::Error> {
+        self.write_name_and_unit()?;
+
+        self.write_suffix("total")?;
+
+        self.encode_labels::<()>(None)?;
+
+        v.encode(
+            &mut CounterValueEncoder {
+                writer: self.writer,
+            }
+            .into(),
+        )?;
+
+        if let Some(exemplar) = exemplar {
+            self.encode_exemplar(exemplar)?;
+        }
+
+        self.newline()?;
+
+        Ok(())
+    }
+
+    pub fn encode_gauge<GaugeValue: super::EncodeGaugeValue>(
+        &mut self,
+        v: &GaugeValue,
+    ) -> Result<(), std::fmt::Error> {
+        self.write_name_and_unit()?;
+
+        self.encode_labels::<()>(None)?;
+
+        v.encode(
+            &mut GaugeValueEncoder {
+                writer: self.writer,
+            }
+            .into(),
+        )?;
+
+        self.newline()?;
+
+        Ok(())
+    }
+
+    pub fn encode_info<S: EncodeLabelSet>(&mut self, label_set: &S) -> Result<(), std::fmt::Error> {
+        self.write_name_and_unit()?;
+
+        self.write_suffix("info")?;
+
+        self.encode_labels(Some(label_set))?;
+
+        self.writer.write_str(" ")?;
+        self.writer.write_str(itoa::Buffer::new().format(1))?;
+
+        self.newline()?;
+
+        Ok(())
+    }
+
+    /// Encode a set of labels. Used by wrapper metric types like
+    /// [`Family`](crate::metrics::family::Family).
+    pub fn encode_family<'c, 'd, S: EncodeLabelSet>(
+        &'c mut self,
+        label_set: &'d S,
+    ) -> Result<MetricEncoder<'c, 'd>, std::fmt::Error> {
+        debug_assert!(self.family_labels.is_none());
+
+        Ok(MetricEncoder {
+            writer: self.writer,
+            name: self.name,
+            unit: self.unit,
+            const_labels: self.const_labels,
+            family_labels: Some(label_set),
+        })
+    }
+
+    pub fn encode_histogram<S: EncodeLabelSet>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        buckets: &[(f64, u64)],
+        exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
+    ) -> Result<(), std::fmt::Error> {
+        self.write_name_and_unit()?;
+        self.write_suffix("sum")?;
+        self.encode_labels::<()>(None)?;
+        self.writer.write_str(" ")?;
+        self.writer.write_str(dtoa::Buffer::new().format(sum))?;
+        self.newline()?;
+
+        self.write_name_and_unit()?;
+        self.write_suffix("count")?;
+        self.encode_labels::<()>(None)?;
+        self.writer.write_str(" ")?;
+        self.writer.write_str(itoa::Buffer::new().format(count))?;
+        self.newline()?;
+
+        let mut cummulative = 0;
+        for (i, (upper_bound, count)) in buckets.iter().enumerate() {
+            cummulative += count;
+
+            self.write_name_and_unit()?;
+            self.write_suffix("bucket")?;
+
+            if *upper_bound == f64::MAX {
+                self.encode_labels(Some(&[("le", "+Inf")]))?;
+            } else {
+                self.encode_labels(Some(&[("le", *upper_bound)]))?;
+            }
+
+            self.writer.write_str(" ")?;
+            self.writer
+                .write_str(itoa::Buffer::new().format(cummulative))?;
+
+            if let Some(exemplar) = exemplars.and_then(|e| e.get(&i)) {
+                self.encode_exemplar(exemplar)?
+            }
+
+            self.newline()?;
+        }
+
+        Ok(())
+    }
+
+    /// Encode an exemplar for the given metric.
+    fn encode_exemplar<S: EncodeLabelSet, V: EncodeExemplarValue>(
+        &mut self,
+        exemplar: &Exemplar<S, V>,
+    ) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(" # {")?;
+        exemplar
+            .label_set
+            .encode(LabelSetEncoder::new(self.writer).into())?;
+        self.writer.write_str("} ")?;
+        exemplar.value.encode(
+            ExemplarValueEncoder {
+                writer: self.writer,
+            }
+            .into(),
+        )?;
+        Ok(())
+    }
+
+    fn newline(&mut self) -> Result<(), std::fmt::Error> {
+        self.writer.write_str("\n")
+    }
+    fn write_name_and_unit(&mut self) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(self.name)?;
+        if let Some(unit) = self.unit {
+            self.writer.write_str("_")?;
+            self.writer.write_str(unit.as_str())?;
+        }
+
+        Ok(())
+    }
+
+    fn write_suffix(&mut self, suffix: &'static str) -> Result<(), std::fmt::Error> {
+        self.writer.write_str("_")?;
+        self.writer.write_str(suffix)?;
 
         Ok(())
     }
 
     // TODO: Consider caching the encoded labels for Histograms as they stay the
     // same but are currently encoded multiple times.
-    fn encode_labels(&mut self) -> Result<BucketEncoder, std::io::Error> {
-        let mut opened_curly_brackets = false;
-
-        if !self.const_labels.is_empty() {
-            self.writer.write_all(b"{")?;
-            opened_curly_brackets = true;
-
-            self.const_labels.encode(self.writer)?;
-        }
-
-        if let Some(labels) = &self.labels {
-            if opened_curly_brackets {
-                self.writer.write_all(b",")?;
-            } else {
-                opened_curly_brackets = true;
-                self.writer.write_all(b"{")?;
-            }
-            labels.encode(self.writer)?;
-        }
-
-        Ok(BucketEncoder {
-            opened_curly_brackets,
-            writer: self.writer,
-        })
-    }
-
-    /// Encode a set of labels. Used by wrapper metric types like [`Family`].
-    pub fn with_label_set<'c, 'd>(&'c mut self, label_set: &'d dyn Encode) -> Encoder<'c, 'd> {
-        debug_assert!(self.labels.is_none());
-
-        Encoder {
-            writer: self.writer,
-            name: self.name,
-            unit: self.unit,
-            const_labels: self.const_labels,
-            labels: Some(label_set),
-        }
-    }
-}
-
-/// Used to encode an OpenMetrics Histogram bucket.
-#[allow(missing_debug_implementations)]
-#[must_use]
-pub struct BucketEncoder<'a> {
-    writer: &'a mut dyn Write,
-    opened_curly_brackets: bool,
-}
-
-impl<'a> BucketEncoder<'a> {
-    /// Encode a bucket. Used for the [`Histogram`] metric type.
-    pub fn encode_bucket(&mut self, upper_bound: f64) -> Result<ValueEncoder, std::io::Error> {
-        if self.opened_curly_brackets {
-            self.writer.write_all(b",")?;
-        } else {
-            self.writer.write_all(b"{")?;
-        }
-
-        self.writer.write_all(b"le=\"")?;
-        if upper_bound == f64::MAX {
-            self.writer.write_all(b"+Inf")?;
-        } else {
-            upper_bound.encode(self.writer)?;
-        }
-        self.writer.write_all(b"\"}")?;
-
-        Ok(ValueEncoder {
-            writer: self.writer,
-        })
-    }
-
-     /// Encode a quantile. Used for the [`Summary`] metric type.
-     pub fn encode_quantile(&mut self, quantile: f64) -> Result<ValueEncoder, std::io::Error> {
-        if self.opened_curly_brackets {
-            self.writer.write_all(b",")?;
-        } else {
-            self.writer.write_all(b"{")?;
-        }
-
-        self.writer.write_all(b"quantile=\"")?;
-        quantile.encode(self.writer)?;
-        self.writer.write_all(b"\"}")?;
-
-        Ok(ValueEncoder {
-            writer: self.writer,
-        })
-    }
-
-    /// Signal that the metric type has no bucket.
-    pub fn no_bucket(&mut self) -> Result<ValueEncoder, std::io::Error> {
-        if self.opened_curly_brackets {
-            self.writer.write_all(b"}")?;
-        }
-        Ok(ValueEncoder {
-            writer: self.writer,
-        })
-    }
-}
-
-/// Used to encode an OpenMetrics metric value.
-#[allow(missing_debug_implementations)]
-#[must_use]
-pub struct ValueEncoder<'a> {
-    writer: &'a mut dyn Write,
-}
-
-impl<'a> ValueEncoder<'a> {
-    /// Encode the metric value. E.g. in the case of [`Counter`] the
-    /// monotonically increasing counter value.
-    pub fn encode_value<V: Encode>(&mut self, v: V) -> Result<ExemplarEncoder, std::io::Error> {
-        self.writer.write_all(b" ")?;
-        v.encode(self.writer)?;
-        Ok(ExemplarEncoder {
-            writer: self.writer,
-        })
-    }
-}
-
-/// Used to encode an OpenMetrics Exemplar.
-#[allow(missing_debug_implementations)]
-#[must_use]
-pub struct ExemplarEncoder<'a> {
-    writer: &'a mut dyn Write,
-}
-
-impl<'a> ExemplarEncoder<'a> {
-    /// Encode an exemplar for the given metric.
-    pub fn encode_exemplar<S: Encode, V: Encode>(
+    fn encode_labels<S: EncodeLabelSet>(
         &mut self,
-        exemplar: &Exemplar<S, V>,
-    ) -> Result<(), std::io::Error> {
-        self.writer.write_all(b" # {")?;
-        exemplar.label_set.encode(self.writer)?;
-        self.writer.write_all(b"} ")?;
-        exemplar.value.encode(self.writer)?;
-        self.writer.write_all(b"\n")?;
-        Ok(())
-    }
-
-    /// Signal that the metric type has no exemplar.
-    pub fn no_exemplar(&mut self) -> Result<(), std::io::Error> {
-        self.writer.write_all(b"\n")?;
-        Ok(())
-    }
-}
-
-/// Trait implemented by each metric type, e.g. [`Counter`], to implement its encoding in the OpenMetric text format.
-pub trait EncodeMetric {
-    /// Encode the given instance in the OpenMetrics text encoding.
-    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error>;
-
-    /// The OpenMetrics metric type of the instance.
-    // One can not use [`TypedMetric`] directly, as associated constants are not
-    // object safe and thus can not be used with dynamic dispatching.
-    fn metric_type(&self) -> MetricType;
-}
-
-impl EncodeMetric for Box<dyn EncodeMetric> {
-    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
-        self.deref().encode(encoder)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        self.deref().metric_type()
-    }
-}
-
-/// Trait combining [`EncodeMetric`], [`Send`] and [`Sync`].
-pub trait SendSyncEncodeMetric: EncodeMetric + Send + Sync {}
-
-impl<T: EncodeMetric + Send + Sync> SendSyncEncodeMetric for T {}
-
-impl EncodeMetric for Box<dyn SendSyncEncodeMetric> {
-    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
-        self.deref().encode(encoder)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        self.deref().metric_type()
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////
-// Counter
-
-impl<N, A> EncodeMetric for Counter<N, A>
-where
-    N: Encode,
-    A: counter::Atomic<N>,
-{
-    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
-        // TODO: Would be better to use never type instead of `()`.
-        encode_counter_with_maybe_exemplar::<(), _>(self.get(), None, encoder)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Self::TYPE
-    }
-}
-
-// TODO: S, V, N, A are hard to grasp.
-impl<S, N, A> EncodeMetric for CounterWithExemplar<S, N, A>
-where
-    S: Encode,
-    N: Encode + Clone,
-    A: counter::Atomic<N>,
-{
-    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
-        let (value, exemplar) = self.get();
-        encode_counter_with_maybe_exemplar(value, exemplar.as_ref(), encoder)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Counter::<N, A>::TYPE
-    }
-}
-
-fn encode_counter_with_maybe_exemplar<S, N>(
-    value: N,
-    exemplar: Option<&Exemplar<S, N>>,
-    mut encoder: Encoder,
-) -> Result<(), std::io::Error>
-where
-    S: Encode,
-    N: Encode,
-{
-    let mut bucket_encoder = encoder.encode_suffix("total")?;
-    let mut value_encoder = bucket_encoder.no_bucket()?;
-    let mut exemplar_encoder = value_encoder.encode_value(value)?;
-
-    match exemplar {
-        Some(exemplar) => exemplar_encoder.encode_exemplar(exemplar)?,
-        None => exemplar_encoder.no_exemplar()?,
-    }
-
-    Ok(())
-}
-
-/////////////////////////////////////////////////////////////////////////////////
-// Gauge
-
-impl<N, A> EncodeMetric for Gauge<N, A>
-where
-    N: Encode,
-    A: gauge::Atomic<N>,
-{
-    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
-        encoder
-            .no_suffix()?
-            .no_bucket()?
-            .encode_value(self.get())?
-            .no_exemplar()?;
-
-        Ok(())
-    }
-    fn metric_type(&self) -> MetricType {
-        Self::TYPE
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////
-// Family
-
-impl<S, M, C> EncodeMetric for Family<S, M, C>
-where
-    S: Clone + std::hash::Hash + Eq + Encode,
-    M: EncodeMetric + TypedMetric,
-    C: MetricConstructor<M>,
-{
-    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
-        let guard = self.read();
-        for (label_set, m) in guard.iter() {
-            let encoder = encoder.with_label_set(label_set);
-            m.encode(encoder)?;
+        additional_labels: Option<&S>,
+    ) -> Result<(), std::fmt::Error> {
+        if self.const_labels.is_empty()
+            && additional_labels.is_none()
+            && self.family_labels.is_none()
+        {
+            return Ok(());
         }
+
+        self.writer.write_str("{")?;
+
+        self.const_labels
+            .encode(LabelSetEncoder::new(self.writer).into())?;
+
+        if let Some(additional_labels) = additional_labels {
+            if !self.const_labels.is_empty() {
+                self.writer.write_str(",")?;
+            }
+
+            additional_labels.encode(LabelSetEncoder::new(self.writer).into())?;
+        }
+
+        if let Some(labels) = &self.family_labels {
+            if !self.const_labels.is_empty() || additional_labels.is_some() {
+                self.writer.write_str(",")?;
+            }
+
+            labels.encode(LabelSetEncoder::new(self.writer).into())?;
+        }
+
+        self.writer.write_str("}")?;
+
+        Ok(())
+    }
+}
+
+pub(crate) struct CounterValueEncoder<'a> {
+    writer: &'a mut dyn Write,
+}
+
+impl<'a> std::fmt::Debug for CounterValueEncoder<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CounterValueEncoder").finish()
+    }
+}
+
+impl<'a> CounterValueEncoder<'a> {
+    pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(" ")?;
+        self.writer.write_str(dtoa::Buffer::new().format(v))?;
         Ok(())
     }
 
-    fn metric_type(&self) -> MetricType {
-        M::TYPE
+    pub fn encode_u64(&mut self, v: u64) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(" ")?;
+        self.writer.write_str(itoa::Buffer::new().format(v))?;
+        Ok(())
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////
-// Histogram
+pub(crate) struct GaugeValueEncoder<'a> {
+    writer: &'a mut dyn Write,
+}
 
-impl EncodeMetric for Histogram {
-    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
-        let (sum, count, buckets) = self.get();
-        // TODO: Would be better to use never type instead of `()`.
-        encode_histogram_with_maybe_exemplars::<()>(sum, count, &buckets, None, encoder)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Self::TYPE
+impl<'a> std::fmt::Debug for GaugeValueEncoder<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GaugeValueEncoder").finish()
     }
 }
 
-impl<S: Encode> EncodeMetric for HistogramWithExemplars<S> {
-    fn encode(&self, encoder: Encoder) -> Result<(), std::io::Error> {
-        let inner = self.inner();
-        let (sum, count, buckets) = inner.histogram.get();
-        encode_histogram_with_maybe_exemplars(sum, count, &buckets, Some(&inner.exemplars), encoder)
+impl<'a> GaugeValueEncoder<'a> {
+    pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(" ")?;
+        self.writer.write_str(dtoa::Buffer::new().format(v))?;
+        Ok(())
     }
 
-    fn metric_type(&self) -> MetricType {
-        Histogram::TYPE
+    pub fn encode_i64(&mut self, v: i64) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(" ")?;
+        self.writer.write_str(itoa::Buffer::new().format(v))?;
+        Ok(())
     }
 }
 
-fn encode_histogram_with_maybe_exemplars<S: Encode>(
-    sum: f64,
-    count: u64,
-    buckets: &[(f64, u64)],
-    exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
-    mut encoder: Encoder,
-) -> Result<(), std::io::Error> {
-    encoder
-        .encode_suffix("sum")?
-        .no_bucket()?
-        .encode_value(sum)?
-        .no_exemplar()?;
-    encoder
-        .encode_suffix("count")?
-        .no_bucket()?
-        .encode_value(count)?
-        .no_exemplar()?;
+pub(crate) struct ExemplarValueEncoder<'a> {
+    writer: &'a mut dyn Write,
+}
 
-    let mut cummulative = 0;
-    for (i, (upper_bound, count)) in buckets.iter().enumerate() {
-        cummulative += count;
-        let mut bucket_encoder = encoder.encode_suffix("bucket")?;
-        let mut value_encoder = bucket_encoder.encode_bucket(*upper_bound)?;
-        let mut exemplar_encoder = value_encoder.encode_value(cummulative)?;
+impl<'a> std::fmt::Debug for ExemplarValueEncoder<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExemplarValueEncoder").finish()
+    }
+}
 
-        match exemplars.and_then(|es| es.get(&i)) {
-            Some(exemplar) => exemplar_encoder.encode_exemplar(exemplar)?,
-            None => exemplar_encoder.no_exemplar()?,
+impl<'a> ExemplarValueEncoder<'a> {
+    pub fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(dtoa::Buffer::new().format(v))
+    }
+}
+
+pub(crate) struct LabelSetEncoder<'a> {
+    writer: &'a mut dyn Write,
+    first: bool,
+}
+
+impl<'a> std::fmt::Debug for LabelSetEncoder<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LabelSetEncoder")
+            .field("first", &self.first)
+            .finish()
+    }
+}
+
+impl<'a> LabelSetEncoder<'a> {
+    fn new(writer: &'a mut dyn Write) -> Self {
+        Self {
+            writer,
+            first: true,
         }
     }
 
-    Ok(())
-}
-
-
-/////////////////////////////////////////////////////////////////////////////////
-// Summary
-
-impl EncodeMetric for Summary {
-    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
-        let (sum, count, quantiles) = self.get();
-
-        encoder
-        .encode_suffix("sum")?
-        .no_bucket()?
-        .encode_value(sum)?
-        .no_exemplar()?;
-        encoder
-        .encode_suffix("count")?
-        .no_bucket()?
-        .encode_value(count)?
-        .no_exemplar()?;
-
-        for (_, (quantile, result)) in quantiles.iter().enumerate() {
-            let mut bucket_encoder = encoder.no_suffix()?;
-            let mut value_encoder = bucket_encoder.encode_quantile(*quantile)?;
-            let mut exemplar_encoder = value_encoder.encode_value(*result)?;
-            exemplar_encoder.no_exemplar()?
+    pub fn encode_label(&mut self) -> LabelEncoder {
+        let first = self.first;
+        self.first = false;
+        LabelEncoder {
+            writer: self.writer,
+            first,
         }
-
-        Result::Ok(())
-    }
-
-    fn metric_type(&self) -> MetricType {
-        Self::TYPE
     }
 }
 
+pub(crate) struct LabelEncoder<'a> {
+    writer: &'a mut dyn Write,
+    first: bool,
+}
 
-/////////////////////////////////////////////////////////////////////////////////
-// Info
-
-impl<S> EncodeMetric for Info<S>
-where
-    S: Clone + std::hash::Hash + Eq + Encode,
-{
-    fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
-        encoder
-            .with_label_set(&self.0)
-            .encode_suffix("info")?
-            .no_bucket()?
-            .encode_value(1u32)?
-            .no_exemplar()?;
-
-        Ok(())
+impl<'a> std::fmt::Debug for LabelEncoder<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LabelEncoder")
+            .field("first", &self.first)
+            .finish()
     }
+}
 
-    fn metric_type(&self) -> MetricType {
-        Self::TYPE
+impl<'a> LabelEncoder<'a> {
+    pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder, std::fmt::Error> {
+        if !self.first {
+            self.writer.write_str(",")?;
+        }
+        Ok(LabelKeyEncoder {
+            writer: self.writer,
+        })
+    }
+}
+
+pub(crate) struct LabelKeyEncoder<'a> {
+    writer: &'a mut dyn Write,
+}
+
+impl<'a> std::fmt::Debug for LabelKeyEncoder<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LabelKeyEncoder").finish()
+    }
+}
+
+impl<'a> LabelKeyEncoder<'a> {
+    pub fn encode_label_value(self) -> Result<LabelValueEncoder<'a>, std::fmt::Error> {
+        self.writer.write_str("=\"")?;
+        Ok(LabelValueEncoder {
+            writer: self.writer,
+        })
+    }
+}
+
+impl<'a> std::fmt::Write for LabelKeyEncoder<'a> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.writer.write_str(s)
+    }
+}
+
+pub(crate) struct LabelValueEncoder<'a> {
+    writer: &'a mut dyn Write,
+}
+
+impl<'a> std::fmt::Debug for LabelValueEncoder<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LabelValueEncoder").finish()
+    }
+}
+
+impl<'a> LabelValueEncoder<'a> {
+    pub fn finish(self) -> Result<(), std::fmt::Error> {
+        self.writer.write_str("\"")
+    }
+}
+
+impl<'a> std::fmt::Write for LabelValueEncoder<'a> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.writer.write_str(s)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::metrics::counter::Counter;
+    use crate::metrics::exemplar::HistogramWithExemplars;
+    use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
-    use crate::metrics::histogram::exponential_buckets;
+    use crate::metrics::histogram::{exponential_buckets, Histogram};
+    use crate::metrics::info::Info;
+    use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
 
@@ -671,11 +522,11 @@ mod tests {
         let mut registry = Registry::default();
         registry.register("my_counter", "My counter", counter);
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -684,7 +535,7 @@ mod tests {
         let counter: Counter = Counter::default();
         registry.register_with_unit("my_counter", "My counter", Unit::Seconds, counter);
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
 
         let expected = "# HELP my_counter_seconds My counter.\n".to_owned()
@@ -692,16 +543,16 @@ mod tests {
             + "# UNIT my_counter_seconds seconds\n"
             + "my_counter_seconds_total 0\n"
             + "# EOF\n";
-        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
+        assert_eq!(expected, encoded);
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
     fn encode_counter_with_exemplar() {
         let mut registry = Registry::default();
 
-        let counter_with_exemplar: CounterWithExemplar<(String, u64)> =
+        let counter_with_exemplar: CounterWithExemplar<Vec<(String, u64)>> =
             CounterWithExemplar::default();
         registry.register_with_unit(
             "my_counter_with_exemplar",
@@ -710,20 +561,20 @@ mod tests {
             counter_with_exemplar.clone(),
         );
 
-        counter_with_exemplar.inc_by(1, Some(("user_id".to_string(), 42)));
+        counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), 42)]));
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
 
         let expected = "# HELP my_counter_with_exemplar_seconds My counter with exemplar.\n"
             .to_owned()
             + "# TYPE my_counter_with_exemplar_seconds counter\n"
             + "# UNIT my_counter_with_exemplar_seconds seconds\n"
-            + "my_counter_with_exemplar_seconds_total 1 # {user_id=\"42\"} 1\n"
+            + "my_counter_with_exemplar_seconds_total 1 # {user_id=\"42\"} 1.0\n"
             + "# EOF\n";
-        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
+        assert_eq!(expected, encoded);
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -732,11 +583,11 @@ mod tests {
         let gauge: Gauge = Gauge::default();
         registry.register("my_gauge", "My gauge", gauge);
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -752,11 +603,11 @@ mod tests {
             ])
             .inc();
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -775,7 +626,7 @@ mod tests {
             ])
             .inc();
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
 
@@ -784,9 +635,9 @@ mod tests {
             + "# TYPE my_prefix_my_counter_family counter\n"
             + "my_prefix_my_counter_family_total{my_key=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
             + "# EOF\n";
-        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
+        assert_eq!(expected, encoded);
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -795,16 +646,16 @@ mod tests {
         let info = Info::new(vec![("os".to_string(), "GNU/linux".to_string())]);
         registry.register("my_info_metric", "My info metric", info);
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
 
         let expected = "# HELP my_info_metric My info metric.\n".to_owned()
             + "# TYPE my_info_metric info\n"
             + "my_info_metric_info{os=\"GNU/linux\"} 1\n"
             + "# EOF\n";
-        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
+        assert_eq!(expected, encoded);
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -814,11 +665,11 @@ mod tests {
         registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0);
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -834,11 +685,11 @@ mod tests {
             ])
             .observe(1.0);
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -846,9 +697,9 @@ mod tests {
         let mut registry = Registry::default();
         let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my_histogram", "My histogram", histogram.clone());
-        histogram.observe(1.0, Some(("user_id".to_string(), 42u64)));
+        histogram.observe(1.0, Some([("user_id".to_string(), 42u64)]));
 
-        let mut encoded = Vec::new();
+        let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
 
         let expected = "# HELP my_histogram My histogram.\n".to_owned()
@@ -867,9 +718,9 @@ mod tests {
             + "my_histogram_bucket{le=\"512.0\"} 1\n"
             + "my_histogram_bucket{le=\"+Inf\"} 1\n"
             + "# EOF\n";
-        assert_eq!(expected, String::from_utf8(encoded.clone()).unwrap());
+        assert_eq!(expected, encoded);
 
-        parse_with_python_client(String::from_utf8(encoded).unwrap());
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -921,7 +772,7 @@ def parse(input):
             parser
                 .getattr("parse")
                 .expect("`parse` to exist.")
-                .call1((input,))
+                .call1((input.clone(),))
                 .map_err(|e| e.to_string())
                 .unwrap();
         })

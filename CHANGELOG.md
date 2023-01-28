@@ -4,9 +4,99 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.19.0] - unreleased
+## [0.20.0] [unreleased]
 
 ### Added
+
+- Introduce `Collector` abstraction allowing users to provide additional metrics
+  and their description on each scrape. See [PR 82].
+
+- Introduce a `#[prometheus(flatten)]` attribute which can be used when deriving `EncodeLabelSet`, allowing
+  a nested struct to be flattened during encoding. See [PR 118].
+
+  For example:
+
+  ```rust
+  #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+  struct CommonLabels {
+      a: u64,
+      b: u64,
+  }
+  #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+  struct Labels {
+      unique: u64,
+      #[prometheus(flatten)]
+      common: CommonLabels,
+  }
+  ```
+
+  Would be encoded as:
+
+  ```
+  my_metric{a="42",b="42",unique="42"} 42
+  ```
+
+[PR 82]: https://github.com/prometheus/client_rust/pull/82
+[PR 118]: https://github.com/prometheus/client_rust/pull/118
+
+## [0.19.0]
+
+This is a large release including multiple breaking changes. Major user-facing
+improvement of this release is support for the OpenMetrics Protobuf format.
+
+### Upgrade guide:
+
+- Don't box before registering.
+
+  ```diff
+    registry.register(
+        "my_metric",
+        "This is my metric",
+  -      Box::new(my_metric.clone()),
+  +      my_metric.clone(),
+    );
+  ```
+
+- Gauge uses `i64` instead of `u64`.
+
+  ```diff
+    my_gauge
+  -     .set(42u64);
+  +     .set(42i64);
+  ```
+
+- Derive `EncodeLabelSet` for `struct` and `EncodeLabelValue` for `enum` instead of just `Encode` for all and require `Debug`.
+
+  ```diff
+  - #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+  + #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug)]
+    struct Labels {
+        path: String,
+        method: Method,
+        some_number: u64,
+    }
+
+  - #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+  + #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelValue, Debug)]
+    enum Method {
+        Get,
+        #[allow(dead_code)]
+        Put,
+    }
+  ```
+
+- Encode as utf-8 and not as `[u8]`.
+
+  ```diff
+  - let mut buffer = vec![];
+  + let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+  ```
+
+For details on each of these, see changelog entries below.
+
+### Added
+
 - Added support for the OpenMetrics protobuf format. See [PR 83].
 - Added a `remove` method to `Family` to allow the removal of a specified label
   set from a family. See [PR 85].
@@ -16,11 +106,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Move`Encode` trait from `prometheus_client::encoding::text` to `prometheus_client::encoding`. See [PR 83].
+- Always use dynamic dispatch on `Registry`, i.e. remove generic type parameter `M` from `Registry`. See [PR 105].
+- Refactor encoding. See [PR 105].
+  - Introducing separate traits to encode
+    - value (e.g. `EncodeCounterValue`)
+    - label set (`EncodeLabelSet`), derivable for structs via `prometheus-client-derive-encode`
+    - label (`EncodeLabel`)
+    - label key (`EncodeLabelKey`)
+    - label value (`EncodeLabelValue`), derivable for enums via `prometheus-client-derive-encode`
+  - Encode as UTF-8 strings, not bytes. I.e. use `std::fmt::Write` instead of `std::io::Write`.
+- Use signed integers for `Gauge` for compliance with OpenMetrics protobuf
+  format. See [PR 105].
 
 [PR 83]: https://github.com/prometheus/client_rust/pull/83
 [PR 85]: https://github.com/prometheus/client_rust/pull/85
 [PR 96]: https://github.com/prometheus/client_rust/pull/96
+[PR 105]: https://github.com/prometheus/client_rust/pull/105
 
 ## [0.18.1]
 

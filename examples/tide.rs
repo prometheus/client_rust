@@ -1,5 +1,5 @@
-use prometheus_client::encoding::text::encode;
-use prometheus_client::encoding::Encode;
+use prometheus_client::encoding::EncodeLabelValue;
+use prometheus_client::encoding::{text::encode, EncodeLabelSet};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
@@ -31,7 +31,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     app.at("/").get(|_| async { Ok("Hello, world!") });
     app.at("/metrics")
         .get(|req: tide::Request<State>| async move {
-            let mut encoded = Vec::new();
+            let mut encoded = String::new();
             encode(&mut encoded, &req.state().registry).unwrap();
             let response = tide::Response::builder(200)
                 .body(encoded)
@@ -44,13 +44,13 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     Ok(())
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Encode)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct Labels {
     method: Method,
     path: String,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Encode)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
 enum Method {
     Get,
     Put,
@@ -58,7 +58,7 @@ enum Method {
 
 #[derive(Clone)]
 struct State {
-    registry: Arc<Registry<Family<Labels, Counter>>>,
+    registry: Arc<Registry>,
 }
 
 #[derive(Default)]

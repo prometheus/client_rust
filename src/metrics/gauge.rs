@@ -2,11 +2,13 @@
 //!
 //! See [`Gauge`] for details.
 
+use crate::encoding::{EncodeGaugeValue, EncodeMetric, MetricEncoder};
+
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
+use std::sync::atomic::{AtomicI32, Ordering};
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 use std::sync::atomic::{AtomicI64, AtomicU64};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 /// Open Metrics [`Gauge`] to record current measurements.
@@ -15,18 +17,18 @@ use std::sync::Arc;
 ///
 /// [`Gauge`] is generic over the actual data type tracking the [`Gauge`] state
 /// as well as the data type used to interact with the [`Gauge`]. Out of
-/// convenience the generic type parameters are set to use an [`AtomicU64`] as a
-/// storage and [`u64`] on the interface by default.
+/// convenience the generic type parameters are set to use an [`AtomicI64`] as a
+/// storage and [`i64`] on the interface by default.
 ///
 /// # Examples
 ///
-/// ## Using [`AtomicU64`] as storage and [`u64`] on the interface
+/// ## Using [`AtomicI64`] as storage and [`i64`] on the interface
 ///
 /// ```
 /// # use prometheus_client::metrics::gauge::Gauge;
 /// let gauge: Gauge = Gauge::default();
-/// gauge.set(42u64);
-/// let _value: u64 = gauge.get();
+/// gauge.set(42);
+/// let _value = gauge.get();
 /// ```
 ///
 /// ## Using [`AtomicU64`] as storage and [`f64`] on the interface
@@ -40,7 +42,7 @@ use std::sync::Arc;
 /// ```
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 #[derive(Debug)]
-pub struct Gauge<N = u64, A = AtomicU64> {
+pub struct Gauge<N = i64, A = AtomicI64> {
     value: Arc<A>,
     phantom: PhantomData<N>,
 }
@@ -48,7 +50,7 @@ pub struct Gauge<N = u64, A = AtomicU64> {
 /// Open Metrics [`Gauge`] to record current measurements.
 #[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
 #[derive(Debug)]
-pub struct Gauge<N = u32, A = AtomicU32> {
+pub struct Gauge<N = i32, A = AtomicI32> {
     value: Arc<A>,
     phantom: PhantomData<N>,
 }
@@ -133,54 +135,54 @@ pub trait Atomic<N> {
 }
 
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
-impl Atomic<u64> for AtomicU64 {
-    fn inc(&self) -> u64 {
+impl Atomic<i64> for AtomicI64 {
+    fn inc(&self) -> i64 {
         self.inc_by(1)
     }
 
-    fn inc_by(&self, v: u64) -> u64 {
+    fn inc_by(&self, v: i64) -> i64 {
         self.fetch_add(v, Ordering::Relaxed)
     }
 
-    fn dec(&self) -> u64 {
+    fn dec(&self) -> i64 {
         self.dec_by(1)
     }
 
-    fn dec_by(&self, v: u64) -> u64 {
+    fn dec_by(&self, v: i64) -> i64 {
         self.fetch_sub(v, Ordering::Relaxed)
     }
 
-    fn set(&self, v: u64) -> u64 {
+    fn set(&self, v: i64) -> i64 {
         self.swap(v, Ordering::Relaxed)
     }
 
-    fn get(&self) -> u64 {
+    fn get(&self) -> i64 {
         self.load(Ordering::Relaxed)
     }
 }
 
-impl Atomic<u32> for AtomicU32 {
-    fn inc(&self) -> u32 {
+impl Atomic<i32> for AtomicI32 {
+    fn inc(&self) -> i32 {
         self.inc_by(1)
     }
 
-    fn inc_by(&self, v: u32) -> u32 {
+    fn inc_by(&self, v: i32) -> i32 {
         self.fetch_add(v, Ordering::Relaxed)
     }
 
-    fn dec(&self) -> u32 {
+    fn dec(&self) -> i32 {
         self.dec_by(1)
     }
 
-    fn dec_by(&self, v: u32) -> u32 {
+    fn dec_by(&self, v: i32) -> i32 {
         self.fetch_sub(v, Ordering::Relaxed)
     }
 
-    fn set(&self, v: u32) -> u32 {
+    fn set(&self, v: i32) -> i32 {
         self.swap(v, Ordering::Relaxed)
     }
 
-    fn get(&self) -> u32 {
+    fn get(&self) -> i32 {
         self.load(Ordering::Relaxed)
     }
 }
@@ -234,35 +236,53 @@ impl Atomic<f64> for AtomicU64 {
     }
 }
 
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
-impl Atomic<i64> for AtomicI64 {
-    fn inc(&self) -> i64 {
-        self.inc_by(1)
-    }
+impl<N, A> TypedMetric for Gauge<N, A> {
+    const TYPE: MetricType = MetricType::Gauge;
+}
 
-    fn inc_by(&self, v: i64) -> i64 {
-        self.fetch_add(v, Ordering::Relaxed)
+impl<N, A> EncodeMetric for Gauge<N, A>
+where
+    N: EncodeGaugeValue,
+    A: Atomic<N>,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_gauge(&self.get())
     }
-
-    fn dec(&self) -> i64 {
-        self.dec_by(1)
-    }
-
-    fn dec_by(&self, v: i64) -> i64 {
-        self.fetch_sub(v, Ordering::Relaxed)
-    }
-
-    fn set(&self, v: i64) -> i64 {
-        self.swap(v, Ordering::Relaxed)
-    }
-
-    fn get(&self) -> i64 {
-        self.load(Ordering::Relaxed)
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
     }
 }
 
-impl<N, A> TypedMetric for Gauge<N, A> {
+/// As a [`Gauge`], but constant, meaning it cannot change once created.
+///
+/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::collector::Collector).
+#[derive(Debug, Default)]
+pub struct ConstGauge<N = i64> {
+    value: N,
+}
+
+impl<N> ConstGauge<N> {
+    /// Creates a new [`ConstGauge`].
+    pub fn new(value: N) -> Self {
+        Self { value }
+    }
+}
+
+impl<N> TypedMetric for ConstGauge<N> {
     const TYPE: MetricType = MetricType::Gauge;
+}
+
+impl<N> EncodeMetric for ConstGauge<N>
+where
+    N: EncodeGaugeValue,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_gauge(&self.value)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
 }
 
 #[cfg(test)]

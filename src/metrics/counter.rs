@@ -2,6 +2,8 @@
 //!
 //! See [`Counter`] for details.
 
+use crate::encoding::{EncodeMetric, MetricEncoder};
+
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
@@ -169,6 +171,52 @@ impl Atomic<f64> for AtomicU64 {
 
 impl<N, A> TypedMetric for Counter<N, A> {
     const TYPE: MetricType = MetricType::Counter;
+}
+
+impl<N, A> EncodeMetric for Counter<N, A>
+where
+    N: crate::encoding::EncodeCounterValue,
+    A: Atomic<N>,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_counter::<(), _, u64>(&self.get(), None)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
+}
+
+/// As a [`Counter`], but constant, meaning it cannot change once created.
+///
+/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::collector::Collector).
+#[derive(Debug, Default)]
+pub struct ConstCounter<N = u64> {
+    value: N,
+}
+
+impl<N> ConstCounter<N> {
+    /// Creates a new [`ConstCounter`].
+    pub fn new(value: N) -> Self {
+        Self { value }
+    }
+}
+
+impl<N> TypedMetric for ConstCounter<N> {
+    const TYPE: MetricType = MetricType::Counter;
+}
+
+impl<N> EncodeMetric for ConstCounter<N>
+where
+    N: crate::encoding::EncodeCounterValue,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_counter::<(), _, u64>(&self.value, None)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        Self::TYPE
+    }
 }
 
 #[cfg(test)]

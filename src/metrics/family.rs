@@ -2,8 +2,11 @@
 //!
 //! See [`Family`] for details.
 
+use crate::encoding::{EncodeLabelSet, EncodeMetric, MetricEncoder};
+
 use super::{MetricType, TypedMetric};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -41,23 +44,24 @@ use std::sync::Arc;
 /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
 ///
 /// # // Encode all metrics in the registry in the text format.
-/// # let mut buffer = vec![];
+/// # let mut buffer = String::new();
 /// # encode(&mut buffer, &registry).unwrap();
 /// #
 /// # let expected = "# HELP my_counter This is my counter.\n".to_owned() +
 /// #                "# TYPE my_counter counter\n" +
 /// #                "my_counter_total{method=\"GET\"} 1\n" +
 /// #                "# EOF\n";
-/// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
+/// # assert_eq!(expected, buffer);
 /// ```
 ///
 /// ### [`Family`] with custom type for performance and/or type safety
 ///
-/// Using `Encode` derive macro to generate
-/// [`Encode`](crate::encoding::text::Encode) implementation.
+/// Using `EncodeLabelSet` and `EncodeLabelValue` derive macro to generate
+/// [`EncodeLabelSet`] for `struct`s and
+/// [`EncodeLabelValue`](crate::encoding::EncodeLabelValue) for `enum`s.
 ///
 /// ```
-/// # use prometheus_client::encoding::Encode;
+/// # use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 /// # use prometheus_client::encoding::text::encode;
 /// # use prometheus_client::metrics::counter::{Atomic, Counter};
 /// # use prometheus_client::metrics::family::Family;
@@ -65,12 +69,12 @@ use std::sync::Arc;
 /// # use std::io::Write;
 /// #
 /// # let mut registry = Registry::default();
-/// #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+/// #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 /// struct Labels {
 ///   method: Method,
 /// };
 ///
-/// #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+/// #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
 /// enum Method {
 ///   GET,
 ///   PUT,
@@ -87,17 +91,16 @@ use std::sync::Arc;
 /// family.get_or_create(&Labels { method: Method::GET }).inc();
 /// #
 /// # // Encode all metrics in the registry in the text format.
-/// # let mut buffer = vec![];
+/// # let mut buffer = String::new();
 /// # encode(&mut buffer, &registry).unwrap();
 /// #
 /// # let expected = "# HELP my_counter This is my counter.\n".to_owned() +
 /// #                "# TYPE my_counter counter\n" +
 /// #                "my_counter_total{method=\"GET\"} 1\n" +
 /// #                "# EOF\n";
-/// # assert_eq!(expected, String::from_utf8(buffer).unwrap());
+/// # assert_eq!(expected, buffer);
 /// ```
 // TODO: Consider exposing hash algorithm.
-#[derive(Debug)]
 pub struct Family<S, M, C = fn() -> M> {
     metrics: Arc<RwLock<HashMap<S, M>>>,
     /// Function that when called constructs a new metric.
@@ -109,6 +112,14 @@ pub struct Family<S, M, C = fn() -> M> {
     /// specific buckets, a custom constructor is set via
     /// [`Family::new_with_constructor`].
     constructor: C,
+}
+
+impl<S: std::fmt::Debug, M: std::fmt::Debug, C> std::fmt::Debug for Family<S, M, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Family")
+            .field("metrics", &self.metrics)
+            .finish()
+    }
 }
 
 /// A constructor for creating new metrics in a [`Family`] when calling
@@ -294,6 +305,44 @@ impl<S, M, C: Clone> Clone for Family<S, M, C> {
 
 impl<S, M: TypedMetric, C> TypedMetric for Family<S, M, C> {
     const TYPE: MetricType = <M as TypedMetric>::TYPE;
+}
+
+impl<S, M, C> EncodeMetric for Family<S, M, C>
+where
+    S: Clone + std::hash::Hash + Eq + EncodeLabelSet,
+    M: EncodeMetric + TypedMetric,
+    C: MetricConstructor<M>,
+{
+    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        let guard = self.read();
+        for (label_set, m) in guard.iter() {
+            let encoder = encoder.encode_family(label_set)?;
+            m.encode(encoder)?;
+        }
+        Ok(())
+    }
+
+    fn metric_type(&self) -> MetricType {
+        M::TYPE
+    }
+}
+
+impl<S: EncodeLabelSet, M: EncodeMetric + TypedMetric, T: Iterator<Item = (S, M)>> EncodeMetric
+    for RefCell<T>
+{
+    fn encode(&self, mut encoder: MetricEncoder<'_, '_>) -> Result<(), std::fmt::Error> {
+        let mut iter = self.borrow_mut();
+
+        for (label_set, m) in iter.by_ref() {
+            let encoder = encoder.encode_family(&label_set)?;
+            m.encode(encoder)?;
+        }
+        Ok(())
+    }
+
+    fn metric_type(&self) -> MetricType {
+        M::TYPE
+    }
 }
 
 #[cfg(test)]

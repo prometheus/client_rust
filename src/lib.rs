@@ -13,7 +13,7 @@
 //! # Examples
 //!
 //! ```
-//! use prometheus_client::encoding::Encode;
+//! use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 //! use prometheus_client::encoding::text::encode;
 //! use prometheus_client::metrics::counter::{Atomic, Counter};
 //! use prometheus_client::metrics::family::Family;
@@ -30,7 +30,7 @@
 //! //
 //! // You could as well use `(String, String)` to represent a label set,
 //! // instead of the custom type below.
-//! #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+//! #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 //! struct Labels {
 //!   // Use your own enum types to represent label values.
 //!   method: Method,
@@ -38,7 +38,7 @@
 //!   path: String,
 //! };
 //!
-//! #[derive(Clone, Hash, PartialEq, Eq, Encode)]
+//! #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
 //! enum Method {
 //!   GET,
 //!   PUT,
@@ -54,7 +54,7 @@
 //!   "http_requests",
 //!   // And the metric help text.
 //!   "Number of HTTP requests received",
-//!   Box::new(http_requests.clone()),
+//!   http_requests.clone(),
 //! );
 //!
 //! // Somewhere in your business logic record a single HTTP GET request.
@@ -65,19 +65,45 @@
 //! // When a monitoring system like Prometheus scrapes the local node, encode
 //! // all metrics in the registry in the text format, and send the encoded
 //! // metrics back.
-//! let mut buffer = vec![];
+//! let mut buffer = String::new();
 //! encode(&mut buffer, &registry).unwrap();
 //!
 //! let expected = "# HELP http_requests Number of HTTP requests received.\n".to_owned() +
 //!                "# TYPE http_requests counter\n" +
 //!                "http_requests_total{method=\"GET\",path=\"/metrics\"} 1\n" +
 //!                "# EOF\n";
-//! assert_eq!(expected, String::from_utf8(buffer).unwrap());
+//! assert_eq!(expected, buffer);
 //! ```
 //! See [examples] directory for more.
 //!
 //! [examples]: https://github.com/prometheus/client_rust/tree/master/examples
 
+pub mod collector;
 pub mod encoding;
 pub mod metrics;
 pub mod registry;
+
+/// Represents either borrowed or owned data.
+///
+/// In contrast to [`std::borrow::Cow`] does not require
+/// [`std::borrow::ToOwned`] or [`Clone`]respectively.
+///
+/// Needed for [`collector::Collector`].
+#[derive(Debug)]
+pub enum MaybeOwned<'a, T> {
+    /// Owned data
+    Owned(T),
+    /// Borrowed data
+    Borrowed(&'a T),
+}
+
+impl<'a, T> std::ops::Deref for MaybeOwned<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Owned(t) => t,
+            Self::Borrowed(t) => t,
+        }
+    }
+}
