@@ -85,7 +85,7 @@ fn encode_metric(
     let encoder = MetricEncoder {
         family: &mut family.metrics,
         metric_type: super::EncodeMetric::metric_type(metric),
-        labels: &mut labels,
+        labels,
     };
 
     super::EncodeMetric::encode(metric, encoder.into())?;
@@ -109,7 +109,7 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
 pub(crate) struct MetricEncoder<'a> {
     metric_type: MetricType,
     family: &'a mut Vec<openmetrics_data_model::Metric>,
-    labels: &'a mut Vec<openmetrics_data_model::Label>,
+    labels: Vec<openmetrics_data_model::Label>,
 }
 
 impl<'a> MetricEncoder<'a> {
@@ -193,10 +193,10 @@ impl<'a> MetricEncoder<'a> {
         &'b mut self,
         label_set: &S,
     ) -> Result<MetricEncoder<'b>, std::fmt::Error> {
-        self.labels.clear();
+        let mut labels = self.labels.clone();
         label_set.encode(
             LabelSetEncoder {
-                labels: self.labels,
+                labels: &mut labels,
             }
             .into(),
         )?;
@@ -204,7 +204,7 @@ impl<'a> MetricEncoder<'a> {
         Ok(MetricEncoder {
             metric_type: self.metric_type,
             family: self.family,
-            labels: self.labels,
+            labels,
         })
     }
 
