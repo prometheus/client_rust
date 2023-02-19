@@ -105,10 +105,14 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
     }
 }
 
+/// Encoder for protobuf encoding. This is an inner type for `encoding::MetricEncoder`.
 #[derive(Debug)]
 pub(crate) struct MetricEncoder<'a> {
+    /// OpenMetrics metric type of the metric.
     metric_type: MetricType,
+    /// Vector of OpenMetrics metrics to which encoded metrics are added.
     family: &'a mut Vec<openmetrics_data_model::Metric>,
+    /// Labels to be applied to the metric.
     labels: Vec<openmetrics_data_model::Label>,
 }
 
