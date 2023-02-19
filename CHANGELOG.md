@@ -36,8 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   my_metric{a="42",b="42",unique="42"} 42
   ```
 
+### Fixed
+
+- Fix label encoding in protobuf feature. See [PR 123].
+
 [PR 82]: https://github.com/prometheus/client_rust/pull/82
 [PR 118]: https://github.com/prometheus/client_rust/pull/118
+[PR 123]: https://github.com/prometheus/client_rust/pull/123
 
 ## [0.19.0]
 
