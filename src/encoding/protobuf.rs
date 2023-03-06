@@ -85,7 +85,7 @@ fn encode_metric(
     let encoder = MetricEncoder {
         family: &mut family.metrics,
         metric_type: super::EncodeMetric::metric_type(metric),
-        labels: &mut labels,
+        labels,
     };
 
     super::EncodeMetric::encode(metric, encoder.into())?;
@@ -105,11 +105,17 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
     }
 }
 
+/// Encoder for protobuf encoding.
+///
+/// This is an inner type for [`super::MetricEncoder`].
 #[derive(Debug)]
 pub(crate) struct MetricEncoder<'a> {
+    /// OpenMetrics metric type of the metric.
     metric_type: MetricType,
+    /// Vector of OpenMetrics metrics to which encoded metrics are added.
     family: &'a mut Vec<openmetrics_data_model::Metric>,
-    labels: &'a mut Vec<openmetrics_data_model::Label>,
+    /// Labels to be added to each metric.
+    labels: Vec<openmetrics_data_model::Label>,
 }
 
 impl<'a> MetricEncoder<'a> {
@@ -193,9 +199,10 @@ impl<'a> MetricEncoder<'a> {
         &'b mut self,
         label_set: &S,
     ) -> Result<MetricEncoder<'b>, std::fmt::Error> {
+        let mut labels = self.labels.clone();
         label_set.encode(
             LabelSetEncoder {
-                labels: self.labels,
+                labels: &mut labels,
             }
             .into(),
         )?;
@@ -203,7 +210,7 @@ impl<'a> MetricEncoder<'a> {
         Ok(MetricEncoder {
             metric_type: self.metric_type,
             family: self.family,
-            labels: self.labels,
+            labels,
         })
     }
 
@@ -406,6 +413,7 @@ mod tests {
     use crate::metrics::info::Info;
     use crate::registry::Unit;
     use std::borrow::Cow;
+    use std::collections::HashSet;
     use std::sync::atomic::AtomicI64;
 
     #[test]
@@ -426,7 +434,7 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        match extract_metric_point_value(metric_set) {
+        match extract_metric_point_value(&metric_set) {
             openmetrics_data_model::metric_point::Value::CounterValue(value) => {
                 let expected = openmetrics_data_model::counter_value::Total::IntValue(1);
                 assert_eq!(Some(expected), value.total);
@@ -456,7 +464,7 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        match extract_metric_point_value(metric_set) {
+        match extract_metric_point_value(&metric_set) {
             openmetrics_data_model::metric_point::Value::CounterValue(value) => {
                 // The counter should be encoded  as `DoubleValue`
                 let expected = openmetrics_data_model::counter_value::Total::DoubleValue(1.0);
@@ -507,7 +515,7 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        match extract_metric_point_value(metric_set) {
+        match extract_metric_point_value(&metric_set) {
             openmetrics_data_model::metric_point::Value::CounterValue(value) => {
                 // The counter should be encoded  as `DoubleValue`
                 let expected = openmetrics_data_model::counter_value::Total::DoubleValue(1.0);
@@ -545,7 +553,7 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        match extract_metric_point_value(metric_set) {
+        match extract_metric_point_value(&metric_set) {
             openmetrics_data_model::metric_point::Value::GaugeValue(value) => {
                 let expected = openmetrics_data_model::gauge_value::Value::IntValue(1);
                 assert_eq!(Some(expected), value.value);
@@ -567,6 +575,13 @@ mod tests {
             ])
             .inc();
 
+        family
+            .get_or_create(&vec![
+                ("method".to_string(), "POST".to_string()),
+                ("status".to_string(), "200".to_string()),
+            ])
+            .inc();
+
         let metric_set = encode(&registry).unwrap();
 
         let family = metric_set.metric_families.first().unwrap();
@@ -578,14 +593,21 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
+        // The order of the labels is not deterministic so we are testing the
+        // value to be either
+        let mut potential_method_value = HashSet::new();
+        potential_method_value.insert("GET");
+        potential_method_value.insert("POST");
+
+        // the first metric
         let metric = family.metrics.first().unwrap();
         assert_eq!(2, metric.labels.len());
         assert_eq!("method", metric.labels[0].name);
-        assert_eq!("GET", metric.labels[0].value);
+        assert!(potential_method_value.remove(&metric.labels[0].value.as_str()));
         assert_eq!("status", metric.labels[1].name);
         assert_eq!("200", metric.labels[1].value);
 
-        match extract_metric_point_value(metric_set) {
+        match extract_metric_point_value(&metric_set) {
             openmetrics_data_model::metric_point::Value::CounterValue(value) => {
                 let expected = openmetrics_data_model::counter_value::Total::IntValue(1);
                 assert_eq!(Some(expected), value.total);
@@ -594,6 +616,14 @@ mod tests {
             }
             _ => panic!("wrong value type"),
         }
+
+        // the second metric
+        let metric2 = &family.metrics[1];
+        assert_eq!(2, metric2.labels.len());
+        assert_eq!("method", metric2.labels[0].name);
+        assert!(potential_method_value.remove(&metric2.labels[0].value.as_str()));
+        assert_eq!("status", metric2.labels[1].name);
+        assert_eq!("200", metric2.labels[1].value);
     }
 
     #[test]
@@ -632,7 +662,7 @@ mod tests {
         assert_eq!("status", metric.labels[2].name);
         assert_eq!("200", metric.labels[2].value);
 
-        match extract_metric_point_value(metric_set) {
+        match extract_metric_point_value(&metric_set) {
             openmetrics_data_model::metric_point::Value::CounterValue(value) => {
                 let expected = openmetrics_data_model::counter_value::Total::IntValue(1);
                 assert_eq!(Some(expected), value.total);
@@ -661,7 +691,7 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        match extract_metric_point_value(metric_set) {
+        match extract_metric_point_value(&metric_set) {
             openmetrics_data_model::metric_point::Value::HistogramValue(value) => {
                 assert_eq!(
                     Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
@@ -694,7 +724,7 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        match extract_metric_point_value(metric_set) {
+        match extract_metric_point_value(&metric_set) {
             openmetrics_data_model::metric_point::Value::HistogramValue(value) => {
                 let exemplar = value.buckets.first().unwrap().exemplar.as_ref().unwrap();
                 assert_eq!(1.0, exemplar.value);
@@ -795,7 +825,7 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        match extract_metric_point_value(metric_set) {
+        match extract_metric_point_value(&metric_set) {
             openmetrics_data_model::metric_point::Value::InfoValue(value) => {
                 assert_eq!(1, value.info.len());
 
@@ -813,7 +843,7 @@ mod tests {
     }
 
     fn extract_metric_point_value(
-        metric_set: openmetrics_data_model::MetricSet,
+        metric_set: &openmetrics_data_model::MetricSet,
     ) -> openmetrics_data_model::metric_point::Value {
         let metric = metric_set
             .metric_families
