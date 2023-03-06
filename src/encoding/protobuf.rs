@@ -413,6 +413,7 @@ mod tests {
     use crate::metrics::info::Info;
     use crate::registry::Unit;
     use std::borrow::Cow;
+    use std::collections::HashSet;
     use std::sync::atomic::AtomicI64;
 
     #[test]
@@ -592,13 +593,17 @@ mod tests {
             extract_metric_type(&metric_set)
         );
 
-        // the first label
+        // The order of the labels is not deterministic so we are testing the
+        // value to be either
+        let mut potential_method_value = HashSet::new();
+        potential_method_value.insert("GET");
+        potential_method_value.insert("POST");
+
+        // the first metric
         let metric = family.metrics.first().unwrap();
         assert_eq!(2, metric.labels.len());
         assert_eq!("method", metric.labels[0].name);
-        // The order of the labels is not deterministic so we are testing the value to be either
-        // GET or POST.
-        assert!(vec!["GET", "POST"].contains(&metric.labels[0].value.as_str()));
+        assert!(potential_method_value.remove(&metric.labels[0].value.as_str()));
         assert_eq!("status", metric.labels[1].name);
         assert_eq!("200", metric.labels[1].value);
 
@@ -612,10 +617,11 @@ mod tests {
             _ => panic!("wrong value type"),
         }
 
-        // the second label
+        // the second metric
         let metric2 = &family.metrics[1];
         assert_eq!(2, metric2.labels.len());
-        assert!(vec!["GET", "POST"].contains(&metric.labels[0].value.as_str()));
+        assert_eq!("method", metric2.labels[0].name);
+        assert!(potential_method_value.remove(&metric2.labels[0].value.as_str()));
         assert_eq!("status", metric2.labels[1].name);
         assert_eq!("200", metric2.labels[1].value);
     }
