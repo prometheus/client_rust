@@ -107,7 +107,7 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
 
 /// Encoder for protobuf encoding.
 ///
-/// This is an inner type for [`encoding::MetricEncoder`].
+/// This is an inner type for [`super::MetricEncoder`].
 #[derive(Debug)]
 pub(crate) struct MetricEncoder<'a> {
     /// OpenMetrics metric type of the metric.
