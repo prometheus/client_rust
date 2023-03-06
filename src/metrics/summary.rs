@@ -1,13 +1,12 @@
-//! Module implementing an Open Metrics histogram.
+//! Module implementing an Open Metrics summary.
 //!
 //! See [`Summary`] for details.
 
 use crate::encoding::{EncodeMetric, MetricEncoder};
 
 use super::{MetricType, TypedMetric};
-//use owning_ref::OwningRef;
-//use std::iter::{self, once};
-use std::sync::{Arc, Mutex};
+use parking_lot::RwLock;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use quantiles::ckms::CKMS;
@@ -20,7 +19,7 @@ pub struct Summary {
     max_age_buckets: u64,
     max_age_seconds: u64,
     stream_duration: Duration,
-    inner: Arc<Mutex<InnerSummary>>,
+    inner: Arc<RwLock<InnerSummary>>,
 }
 
 impl Clone for Summary {
@@ -69,7 +68,7 @@ impl Summary {
             stream_duration,
             target_quantile,
             target_error,
-            inner: Arc::new(Mutex::new(InnerSummary {
+            inner: Arc::new(RwLock::new(InnerSummary {
                 sum: Default::default(),
                 count: Default::default(),
                 quantile_streams: streams,
@@ -83,7 +82,7 @@ impl Summary {
     pub fn observe(&self, v: f64) {
         self.rotate_buckets();
 
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.write();
         inner.sum += v;
         inner.count += 1;
 
@@ -97,7 +96,7 @@ impl Summary {
     pub fn get(&self) -> (f64, u64, Vec<(f64, f64)>) {
         self.rotate_buckets();
 
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.read();
         let sum = inner.sum;
         let count = inner.count;
         let mut quantile_values: Vec<(f64, f64)> = Vec::new();
@@ -112,7 +111,7 @@ impl Summary {
     }
 
     fn rotate_buckets(&self) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.write();
         if inner.last_rotated_timestamp.elapsed() >= self.stream_duration {
             inner.last_rotated_timestamp = Instant::now();            
             if inner.head_stream_idx == self.max_age_buckets {
