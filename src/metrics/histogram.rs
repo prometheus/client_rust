@@ -71,9 +71,23 @@ impl Histogram {
         }
     }
 
+    /// Number observed values
+    pub fn count(&self) -> u64 {
+        let inner = self.inner.read();
+
+        inner.count
+    }
+
     /// Observe the given value.
     pub fn observe(&self, v: f64) {
         self.observe_and_bucket(v);
+    }
+
+    /// Sum of observed values
+    pub fn sum(&self) -> f64 {
+        let inner = self.inner.read();
+
+        inner.sum
     }
 
     /// Observes the given value, returning the index of the first bucket the
@@ -149,6 +163,10 @@ mod tests {
     fn histogram() {
         let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
         histogram.observe(1.0);
+        histogram.observe(2.0);
+
+        assert_eq!(2, histogram.count());
+        assert_eq!(3.0, histogram.sum());
     }
 
     #[test]
