@@ -9,7 +9,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::DeriveInput;
+use syn::{DeriveInput, Ident};
 
 /// Derive `prometheus_client::encoding::EncodeLabelSet`.
 #[proc_macro_derive(EncodeLabelSet, attributes(prometheus))]
@@ -87,23 +87,56 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
+enum ValueCase {
+    Lower,
+    Upper,
+    NoChange,
+}
+
 /// Derive `prometheus_client::encoding::EncodeLabelValue`.
-#[proc_macro_derive(EncodeLabelValue)]
+#[proc_macro_derive(EncodeLabelValue, attributes(prometheus))]
 pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let name = &ast.ident;
 
     let body = match ast.clone().data {
         syn::Data::Struct(_) => {
-            panic!("Can not derive EncodeLabel for struct.")
+            panic!("Can not derive EncodeLabelValue for struct.")
         }
         syn::Data::Enum(syn::DataEnum { variants, .. }) => {
             let match_arms: TokenStream2 = variants
                 .into_iter()
                 .map(|v| {
                     let ident = v.ident;
+
+                    let attribute = v
+                        .attrs
+                        .iter()
+                        .find(|a| a.path.is_ident("prometheus"))
+                        .map(|a| a.parse_args::<syn::Ident>().unwrap().to_string());
+                    let case = match attribute.as_deref() {
+                        Some("lower") => ValueCase::Lower,
+                        Some("upper") => ValueCase::Upper,
+                        Some(other) => {
+                            panic!("Provided attribute '{other}', but only 'lower' and 'upper' are supported")
+                        }
+                        None => ValueCase::NoChange,
+                    };
+
+                    let value = match case {
+                        ValueCase::Lower => {
+                            Ident::new(&ident.to_string().to_lowercase(), ident.span())
+                        },
+                        ValueCase::Upper => {
+                            Ident::new(&ident.to_string().to_uppercase(), ident.span())
+                        },
+                        ValueCase::NoChange => {
+                            ident.clone()
+                        }
+                    };
+
                     quote! {
-                        #name::#ident => encoder.write_str(stringify!(#ident))?,
+                        #name::#ident => encoder.write_str(stringify!(#value))?,
                     }
                 })
                 .collect();
@@ -114,7 +147,7 @@ pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
                 }
             }
         }
-        syn::Data::Union(_) => panic!("Can not derive Encode for union."),
+        syn::Data::Union(_) => panic!("Can not derive EncodeLabelValue for union."),
     };
 
     let gen = quote! {

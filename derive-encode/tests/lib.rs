@@ -173,3 +173,44 @@ fn flatten() {
         + "# EOF\n";
     assert_eq!(expected, buffer);
 }
+
+#[test]
+fn case() {
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    struct Labels {
+        lower: EnumLabel,
+        upper: EnumLabel,
+        no_change: EnumLabel,
+    }
+    #[derive(EncodeLabelValue, Hash, Clone, Eq, PartialEq, Debug)]
+    enum EnumLabel {
+        #[prometheus(lower)]
+        One,
+        #[prometheus(upper)]
+        Two,
+        Three,
+    }
+
+    let mut registry = Registry::default();
+    let family = Family::<Labels, Counter>::default();
+    registry.register("my_counter", "This is my counter", family.clone());
+
+    // Record a single HTTP GET request.
+    family
+        .get_or_create(&Labels {
+            lower: EnumLabel::One,
+            upper: EnumLabel::Two,
+            no_change: EnumLabel::Three,
+        })
+        .inc();
+
+    // Encode all metrics in the registry in the text format.
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+
+    let expected = "# HELP my_counter This is my counter.\n".to_owned()
+        + "# TYPE my_counter counter\n"
+        + "my_counter_total{lower=\"one\",upper=\"TWO\",no_change=\"Three\"} 1\n"
+        + "# EOF\n";
+    assert_eq!(expected, buffer);
+}
