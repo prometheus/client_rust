@@ -88,6 +88,26 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
 }
 
 /// Derive `prometheus_client::encoding::EncodeLabelValue`.
+///
+/// This macro only applies to `enum`s and will panic if you attempt to use it on structs.
+///
+/// At the enum level you can use `#[prometheus(value_case = "lower")]` or `"upper"` to set the
+/// default case of the enum variants.
+///
+/// ```rust
+/// # use prometheus_client::encoding::EncodeLabelValue;
+/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelValue, Debug)]
+/// #[prometheus(value_case = "upper")]
+/// enum Method {
+///     Get,
+///     Put,
+/// }
+/// ```
+///
+/// Will encode to label values "GET" and "PUT" in prometheus metrics.
+///
+/// For variants you can use `#[prometheus(lower)]` or `#[prometheus(upper)]` to set the case for
+/// only that variant.
 #[proc_macro_derive(EncodeLabelValue, attributes(prometheus))]
 pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
