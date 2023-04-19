@@ -9,7 +9,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{DeriveInput, Ident};
+use syn::{parse::Parse, DeriveInput, Ident, LitStr, Token};
 
 /// Derive `prometheus_client::encoding::EncodeLabelSet`.
 #[proc_macro_derive(EncodeLabelSet, attributes(prometheus))]
@@ -87,17 +87,26 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
-enum ValueCase {
-    Lower,
-    Upper,
-    NoChange,
-}
-
 /// Derive `prometheus_client::encoding::EncodeLabelValue`.
 #[proc_macro_derive(EncodeLabelValue, attributes(prometheus))]
 pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let name = &ast.ident;
+
+    let config: LabelConfig = ast
+        .attrs
+        .iter()
+        .find_map(|attr| {
+            if attr.path.is_ident("prometheus") {
+                match attr.parse_args::<LabelConfig>() {
+                    Ok(config) => Some(config),
+                    Err(e) => panic!("invalid prometheus attribute: {e}"),
+                }
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
 
     let body = match ast.clone().data {
         syn::Data::Struct(_) => {
@@ -120,20 +129,10 @@ pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
                         Some(other) => {
                             panic!("Provided attribute '{other}', but only 'lower' and 'upper' are supported")
                         }
-                        None => ValueCase::NoChange,
+                        None => config.value_case.clone(),
                     };
 
-                    let value = match case {
-                        ValueCase::Lower => {
-                            Ident::new(&ident.to_string().to_lowercase(), ident.span())
-                        },
-                        ValueCase::Upper => {
-                            Ident::new(&ident.to_string().to_uppercase(), ident.span())
-                        },
-                        ValueCase::NoChange => {
-                            ident.clone()
-                        }
-                    };
+                    let value = case.apply(&ident);
 
                     quote! {
                         #name::#ident => encoder.write_str(stringify!(#value))?,
@@ -163,6 +162,77 @@ pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
     };
 
     gen.into()
+}
+
+#[derive(Clone)]
+enum ValueCase {
+    Lower,
+    Upper,
+    NoChange,
+}
+
+impl ValueCase {
+    fn apply(&self, ident: &Ident) -> Ident {
+        match self {
+            ValueCase::Lower => Ident::new(&ident.to_string().to_lowercase(), ident.span()),
+            ValueCase::Upper => Ident::new(&ident.to_string().to_uppercase(), ident.span()),
+            ValueCase::NoChange => ident.clone(),
+        }
+    }
+}
+
+struct LabelConfig {
+    value_case: ValueCase,
+}
+
+impl Default for LabelConfig {
+    fn default() -> Self {
+        Self {
+            value_case: ValueCase::NoChange,
+        }
+    }
+}
+
+impl Parse for LabelConfig {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut config = LabelConfig::default();
+
+        while input.peek(Ident) {
+            let ident: Ident = input.parse()?;
+
+            match ident.to_string().as_str() {
+                "value_case" => {
+                    let _: Token![=] = input.parse()?;
+                    let case: LitStr = input.parse()?;
+
+                    match case.value().as_str() {
+                        "lower" => config.value_case = ValueCase::Lower,
+                        "upper" => config.value_case = ValueCase::Upper,
+                        invalid => {
+                            return Err(syn::Error::new(
+                                case.span(),
+                                format!(
+                                "value case may only be \"lower\" or \"upper\", not \"{invalid}\""
+                            ),
+                            ))
+                        }
+                    }
+                }
+                invalid => {
+                    return Err(syn::Error::new(
+                        ident.span(),
+                        format!("invalid prometheus attribute \"{invalid}\""),
+                    ))
+                }
+            }
+
+            if input.peek(Token![,]) {
+                let _: Token![,] = input.parse()?;
+            }
+        }
+
+        Ok(config)
+    }
 }
 
 // Copied from https://github.com/djc/askama (MIT and APACHE licensed) and
