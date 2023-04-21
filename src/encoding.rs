@@ -404,6 +404,18 @@ impl EncodeLabelValue for f64 {
     }
 }
 
+impl<T> EncodeLabelValue for Option<T>
+where
+    T: EncodeLabelValue,
+{
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        match self {
+            Some(v) => EncodeLabelValue::encode(v, encoder),
+            None => EncodeLabelValue::encode(&"", encoder),
+        }
+    }
+}
+
 macro_rules! impl_encode_label_value_for_integer {
     ($($t:ident),*) => {$(
         impl EncodeLabelValue for $t {
