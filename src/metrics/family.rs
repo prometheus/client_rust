@@ -327,11 +327,24 @@ where
     }
 }
 
-impl<S: EncodeLabelSet, M: EncodeMetric + TypedMetric, T: Iterator<Item = (S, M)>> EncodeMetric
-    for RefCell<T>
+/// As a [`Family`], but constant, meaning it cannot change once created.
+///
+/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::collector::Collector).
+#[derive(Debug, Default)]
+pub struct ConstFamily<I>(RefCell<I>);
+
+impl<I> ConstFamily<I> {
+    /// Creates a new [`ConstFamily`].
+    pub fn new(iter: I) -> Self {
+        Self(RefCell::new(iter))
+    }
+}
+
+impl<S: EncodeLabelSet, M: EncodeMetric + TypedMetric, I: Iterator<Item = (S, M)>> EncodeMetric
+    for ConstFamily<I>
 {
     fn encode(&self, mut encoder: MetricEncoder<'_, '_>) -> Result<(), std::fmt::Error> {
-        let mut iter = self.borrow_mut();
+        let mut iter = self.0.borrow_mut();
 
         for (label_set, m) in iter.by_ref() {
             let encoder = encoder.encode_family(&label_set)?;
