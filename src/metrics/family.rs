@@ -336,7 +336,7 @@ where
 /// [`EncodeMetric::encode`] calls won't panic, they won't return any metrics as
 /// the provided [`Iterator`] will return [`Iterator::next`] [`None`]. Thus you
 /// should not return the same [`ConstFamily`] in more than one
-/// [`Collector::collect`] calls.
+/// [`Collector::collect`](crate::collector::Collector::collect) calls.
 #[derive(Debug, Default)]
 pub struct ConstFamily<I>(RefCell<I>);
 
