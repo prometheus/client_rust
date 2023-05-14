@@ -330,6 +330,13 @@ where
 /// As a [`Family`], but constant, meaning it cannot change once created.
 ///
 /// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::collector::Collector).
+///
+/// Note that a [`ConstFamily`], given that it is based on an [`Iterator`], can
+/// only be [`EncodeMetric::encode`]d once. While consecutive
+/// [`EncodeMetric::encode`] calls won't panic, they won't return any metrics as
+/// the provided [`Iterator`] will return [`Iterator::next`] [`None`]. Thus you
+/// should not return the same [`ConstFamily`] in more than one
+/// [`Collector::collect`] calls.
 #[derive(Debug, Default)]
 pub struct ConstFamily<I>(RefCell<I>);
 
