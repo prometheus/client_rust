@@ -75,6 +75,18 @@ impl Registry {
         }
     }
 
+    /// Creates a new default [`Registry`] with the given prefix and labels.
+    pub fn with_prefix_and_labels(
+        prefix: impl Into<String>,
+        labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
+    ) -> Self {
+        Self {
+            prefix: Some(Prefix(prefix.into())),
+            labels: labels.into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
     /// Register a metric with the [`Registry`].
     ///
     /// Note: In the Open Metrics text exposition format some metric types have
@@ -517,6 +529,40 @@ impl<T> LocalMetric for T where T: crate::encoding::EncodeMetric + std::fmt::Deb
 mod tests {
     use super::*;
     use crate::metrics::counter::Counter;
+
+    #[test]
+    fn constructors() {
+        let prefix = "test_prefix";
+        let counter_name = "test_counter";
+
+        let mut registry = Registry::with_prefix(prefix);
+        let counter: Counter = Counter::default();
+        registry.register(counter_name, "some help", counter);
+
+        assert_eq!(
+            Some((prefix.to_string() + "_" + counter_name, vec![])),
+            registry
+                .iter_metrics()
+                .map(|(desc, _)| (desc.name.clone(), desc.labels.clone()))
+                .next()
+        );
+
+        let labels = vec![
+            (Cow::Borrowed("global_label_1"), Cow::Borrowed("value_1")),
+            (Cow::Borrowed("global_label_1"), Cow::Borrowed("value_2")),
+        ];
+        let mut registry = Registry::with_prefix_and_labels(prefix, labels.clone().into_iter());
+        let counter: Counter = Counter::default();
+        registry.register(counter_name, "some help", counter);
+
+        assert_eq!(
+            Some((prefix.to_string() + "_" + counter_name, labels)),
+            registry
+                .iter_metrics()
+                .map(|(desc, _)| (desc.name.clone(), desc.labels.clone()))
+                .next()
+        );
+    }
 
     #[test]
     fn register_and_iterate() {
