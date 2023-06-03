@@ -600,4 +600,57 @@ mod tests {
             metric_iter.next()
         );
     }
+
+    #[test]
+    fn sub_registry_collector() {
+        #[derive(Debug)]
+        struct Collector {
+            name: String,
+        }
+
+        impl Collector {
+            fn new(name: impl Into<String>) -> Self {
+                Self { name: name.into() }
+            }
+        }
+
+        impl crate::collector::Collector for Collector {
+            fn collect<'a>(
+                &'a self,
+            ) -> Box<
+                dyn Iterator<Item = (Cow<'a, Descriptor>, MaybeOwned<'a, Box<dyn LocalMetric>>)>
+                    + 'a,
+            > {
+                let descriptor =
+                    Cow::Owned(Descriptor::new(&self.name, "some help", None, None, vec![]));
+                let metric: MaybeOwned<Box<dyn LocalMetric>> =
+                    MaybeOwned::Owned(Box::new(crate::metrics::counter::ConstCounter::new(42)));
+
+                Box::new(std::iter::once((descriptor, metric)))
+            }
+        }
+
+        let mut registry = Registry::default();
+        registry.register_collector(Box::new(Collector::new("top_level")));
+
+        let sub_registry = registry.sub_registry_with_prefix("prefix_1");
+        sub_registry.register_collector(Box::new(Collector::new("sub_level")));
+
+        let sub_sub_registry = sub_registry.sub_registry_with_prefix("prefix_1_2");
+        sub_sub_registry.register_collector(Box::new(Collector::new("sub_sub_level")));
+
+        let mut metric_iter = registry
+            .iter_collectors()
+            .map(|(desc, _)| (desc.name.clone(), desc.labels.clone()));
+
+        assert_eq!(Some(("top_level".to_string(), vec![])), metric_iter.next());
+        assert_eq!(
+            Some(("prefix_1_sub_level".to_string(), vec![])),
+            metric_iter.next()
+        );
+        assert_eq!(
+            Some(("prefix_1_prefix_1_2_sub_sub_level".to_string(), vec![])),
+            metric_iter.next()
+        );
+    }
 }
