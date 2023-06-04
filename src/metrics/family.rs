@@ -6,7 +6,6 @@ use crate::encoding::{EncodeLabelSet, EncodeMetric, MetricEncoder};
 
 use super::{MetricType, TypedMetric};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 

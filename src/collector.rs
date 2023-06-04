@@ -40,5 +40,5 @@ pub trait Collector: std::fmt::Debug + Send + Sync + 'static {
     ///
     /// Note that the return type allows you to either return owned (convenient)
     /// or borrowed (performant) descriptions and metrics.
-    fn encode<'a>(&'a self, encoder: DescriptorEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: DescriptorEncoder) -> Result<(), std::fmt::Error>;
 }
