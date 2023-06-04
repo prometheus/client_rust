@@ -30,67 +30,21 @@ pub mod openmetrics_data_model {
     include!(concat!(env!("OUT_DIR"), "/openmetrics.rs"));
 }
 
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
-use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
-use crate::registry::Registry;
+use crate::registry::{Registry, Unit};
+use crate::{metrics::exemplar::Exemplar, registry::Prefix};
 
 use super::{EncodeCounterValue, EncodeExemplarValue, EncodeGaugeValue, EncodeLabelSet};
 
 /// Encode the metrics registered with the provided [`Registry`] into MetricSet
 /// using the OpenMetrics protobuf format.
 pub fn encode(registry: &Registry) -> Result<openmetrics_data_model::MetricSet, std::fmt::Error> {
-    Ok(openmetrics_data_model::MetricSet {
-        metric_families: registry
-            .iter_metrics()
-            .map(|(desc, metric)| encode_metric(desc, metric.as_ref()))
-            .chain(
-                registry
-                    .iter_collectors()
-                    .map(|(desc, metric)| encode_metric(desc.as_ref(), metric.as_ref())),
-            )
-            .collect::<Result<_, std::fmt::Error>>()?,
-    })
-}
-
-fn encode_metric(
-    desc: &crate::registry::Descriptor,
-    metric: &(impl super::EncodeMetric + ?Sized),
-) -> Result<openmetrics_data_model::MetricFamily, std::fmt::Error> {
-    let mut family = openmetrics_data_model::MetricFamily {
-        name: desc.name().to_string(),
-        r#type: {
-            let metric_type: openmetrics_data_model::MetricType =
-                super::EncodeMetric::metric_type(metric).into();
-            metric_type as i32
-        },
-        unit: if let Some(unit) = desc.unit() {
-            unit.as_str().to_string()
-        } else {
-            String::new()
-        },
-        help: desc.help().to_string(),
-        ..Default::default()
-    };
-
-    let mut labels = vec![];
-    desc.labels().encode(
-        LabelSetEncoder {
-            labels: &mut labels,
-        }
-        .into(),
-    )?;
-
-    let encoder = MetricEncoder {
-        family: &mut family.metrics,
-        metric_type: super::EncodeMetric::metric_type(metric),
-        labels,
-    };
-
-    super::EncodeMetric::encode(metric, encoder.into())?;
-
-    Ok(family)
+    let mut metric_set = openmetrics_data_model::MetricSet::default();
+    let mut descriptor_encoder = DescriptorEncoder::new(&mut metric_set.metric_families).into();
+    registry.encode(&mut descriptor_encoder)?;
+    Ok(metric_set)
 }
 
 impl From<MetricType> for openmetrics_data_model::MetricType {
@@ -102,6 +56,88 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
             MetricType::Info => openmetrics_data_model::MetricType::Info,
             MetricType::Unknown => openmetrics_data_model::MetricType::Unknown,
         }
+    }
+}
+
+/// Metric Descriptor encoder for protobuf encoding.
+///
+/// This is an inner type for [`super::DescriptorEncoder`].
+#[derive(Debug)]
+pub(crate) struct DescriptorEncoder<'a, 'b> {
+    metric_families: &'a mut Vec<openmetrics_data_model::MetricFamily>,
+    prefix: Option<&'b Prefix>,
+    labels: &'b [(Cow<'static, str>, Cow<'static, str>)],
+}
+
+impl<'a, 'b> DescriptorEncoder<'a, 'b> {
+    pub(crate) fn new<'c, 'd>(
+        metric_families: &'c mut Vec<openmetrics_data_model::MetricFamily>,
+    ) -> DescriptorEncoder<'c, 'd> {
+        DescriptorEncoder {
+            metric_families,
+            prefix: Default::default(),
+            labels: Default::default(),
+        }
+    }
+
+    pub(crate) fn with_prefix_and_labels<'c, 'd>(
+        &'c mut self,
+        prefix: Option<&'d Prefix>,
+        labels: &'d [(Cow<'static, str>, Cow<'static, str>)],
+    ) -> super::DescriptorEncoder<'c, 'd> {
+        DescriptorEncoder {
+            prefix,
+            labels,
+            metric_families: self.metric_families,
+        }
+        .into()
+    }
+
+    pub fn encode_descriptor<'c, 'd, 'e>(
+        &'c mut self,
+        name: &'d str,
+        help: &str,
+        unit: Option<&'d Unit>,
+        metric_type: MetricType,
+    ) -> Result<super::MetricEncoder<'c, 'd, 'c, 'e>, std::fmt::Error> {
+        let family = openmetrics_data_model::MetricFamily {
+            name: {
+                match self.prefix {
+                    Some(prefix) => prefix.as_str().to_string() + "_" + name,
+                    None => name.to_string(),
+                }
+            },
+            r#type: {
+                let metric_type: openmetrics_data_model::MetricType = metric_type.into();
+                metric_type as i32
+            },
+            unit: if let Some(unit) = unit {
+                unit.as_str().to_string()
+            } else {
+                String::new()
+            },
+            help: help.to_string(),
+            ..Default::default()
+        };
+        let mut labels = vec![];
+        self.labels.encode(
+            LabelSetEncoder {
+                labels: &mut labels,
+            }
+            .into(),
+        )?;
+        self.metric_families.push(family);
+        let encoder = MetricEncoder {
+            family: &mut self
+                .metric_families
+                .last_mut()
+                .expect("previous push")
+                .metrics,
+            metric_type,
+            labels,
+        };
+
+        Ok(encoder.into())
     }
 }
 
