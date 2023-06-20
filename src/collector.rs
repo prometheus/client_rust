@@ -37,8 +37,5 @@ use crate::encoding::DescriptorEncoder;
 /// ```
 pub trait Collector: std::fmt::Debug + Send + Sync + 'static {
     /// Once the [`Collector`] is registered, this method is called on each scrape.
-    ///
-    /// Note that the return type allows you to either return owned (convenient)
-    /// or borrowed (performant) descriptions and metrics.
     fn encode(&self, encoder: DescriptorEncoder) -> Result<(), std::fmt::Error>;
 }
