@@ -63,16 +63,16 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
 ///
 /// This is an inner type for [`super::DescriptorEncoder`].
 #[derive(Debug)]
-pub(crate) struct DescriptorEncoder<'a, 'b> {
+pub(crate) struct DescriptorEncoder<'a> {
     metric_families: &'a mut Vec<openmetrics_data_model::MetricFamily>,
-    prefix: Option<&'b Prefix>,
-    labels: &'b [(Cow<'static, str>, Cow<'static, str>)],
+    prefix: Option<&'a Prefix>,
+    labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 }
 
-impl<'a, 'b> DescriptorEncoder<'a, 'b> {
-    pub(crate) fn new<'c, 'd>(
-        metric_families: &'c mut Vec<openmetrics_data_model::MetricFamily>,
-    ) -> DescriptorEncoder<'c, 'd> {
+impl DescriptorEncoder<'_> {
+    pub(crate) fn new(
+        metric_families: &mut Vec<openmetrics_data_model::MetricFamily>,
+    ) -> DescriptorEncoder {
         DescriptorEncoder {
             metric_families,
             prefix: Default::default(),
@@ -80,26 +80,25 @@ impl<'a, 'b> DescriptorEncoder<'a, 'b> {
         }
     }
 
-    pub(crate) fn with_prefix_and_labels<'c, 'd>(
-        &'c mut self,
-        prefix: Option<&'d Prefix>,
-        labels: &'d [(Cow<'static, str>, Cow<'static, str>)],
-    ) -> super::DescriptorEncoder<'c, 'd> {
+    pub(crate) fn with_prefix_and_labels<'s>(
+        &'s mut self,
+        prefix: Option<&'s Prefix>,
+        labels: &'s [(Cow<'static, str>, Cow<'static, str>)],
+    ) -> DescriptorEncoder<'s> {
         DescriptorEncoder {
             prefix,
             labels,
             metric_families: self.metric_families,
         }
-        .into()
     }
 
-    pub fn encode_descriptor<'c, 'd, 'e>(
-        &'c mut self,
-        name: &'d str,
+    pub fn encode_descriptor<'s>(
+        &'s mut self,
+        name: &str,
         help: &str,
-        unit: Option<&'d Unit>,
+        unit: Option<&Unit>,
         metric_type: MetricType,
-    ) -> Result<super::MetricEncoder<'c, 'd, 'c, 'e>, std::fmt::Error> {
+    ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         let family = openmetrics_data_model::MetricFamily {
             name: {
                 match self.prefix {
@@ -127,7 +126,8 @@ impl<'a, 'b> DescriptorEncoder<'a, 'b> {
             .into(),
         )?;
         self.metric_families.push(family);
-        let encoder = MetricEncoder {
+
+        Ok(MetricEncoder {
             family: &mut self
                 .metric_families
                 .last_mut()
@@ -135,9 +135,7 @@ impl<'a, 'b> DescriptorEncoder<'a, 'b> {
                 .metrics,
             metric_type,
             labels,
-        };
-
-        Ok(encoder.into())
+        })
     }
 }
 
@@ -145,16 +143,16 @@ impl<'a, 'b> DescriptorEncoder<'a, 'b> {
 ///
 /// This is an inner type for [`super::MetricEncoder`].
 #[derive(Debug)]
-pub(crate) struct MetricEncoder<'a> {
+pub(crate) struct MetricEncoder<'f> {
     /// OpenMetrics metric type of the metric.
     metric_type: MetricType,
     /// Vector of OpenMetrics metrics to which encoded metrics are added.
-    family: &'a mut Vec<openmetrics_data_model::Metric>,
+    family: &'f mut Vec<openmetrics_data_model::Metric>,
     /// Labels to be added to each metric.
     labels: Vec<openmetrics_data_model::Label>,
 }
 
-impl<'a> MetricEncoder<'a> {
+impl MetricEncoder<'_> {
     pub fn encode_counter<
         S: EncodeLabelSet,
         CounterValue: EncodeCounterValue,
@@ -231,10 +229,10 @@ impl<'a> MetricEncoder<'a> {
         Ok(())
     }
 
-    pub fn encode_family<'b, S: EncodeLabelSet>(
-        &'b mut self,
+    pub fn encode_family<S: EncodeLabelSet>(
+        &mut self,
         label_set: &S,
-    ) -> Result<MetricEncoder<'b>, std::fmt::Error> {
+    ) -> Result<MetricEncoder, std::fmt::Error> {
         let mut labels = self.labels.clone();
         label_set.encode(
             LabelSetEncoder {
