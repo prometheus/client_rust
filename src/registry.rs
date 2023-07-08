@@ -75,6 +75,16 @@ impl Registry {
         }
     }
 
+    /// Creates a new default [`Registry`] with the given labels.
+    pub fn with_labels(
+        labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
+    ) -> Self {
+        Self {
+            labels: labels.into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
     /// Creates a new default [`Registry`] with the given prefix and labels.
     pub fn with_prefix_and_labels(
         prefix: impl Into<String>,
