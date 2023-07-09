@@ -542,9 +542,14 @@ mod tests {
 
     #[test]
     fn constructors() {
-        let prefix = "test_prefix";
         let counter_name = "test_counter";
-
+        let prefix = "test_prefix";
+        let labels = vec![
+            (Cow::Borrowed("global_label_1"), Cow::Borrowed("value_1")),
+            (Cow::Borrowed("global_label_1"), Cow::Borrowed("value_2")),
+        ];
+        
+        // test with_prefix constructor
         let mut registry = Registry::with_prefix(prefix);
         let counter: Counter = Counter::default();
         registry.register(counter_name, "some help", counter);
@@ -557,10 +562,19 @@ mod tests {
                 .next()
         );
 
-        let labels = vec![
-            (Cow::Borrowed("global_label_1"), Cow::Borrowed("value_1")),
-            (Cow::Borrowed("global_label_1"), Cow::Borrowed("value_2")),
-        ];
+        // test with_labels constructor 
+        let mut registry = Registry::with_labels(labels.clone().into_iter());
+        let counter: Counter = Counter::default();
+        registry.register(counter_name, "some help", counter);
+        assert_eq!(
+            Some((counter_name.to_string(), labels.clone())),
+            registry
+                .iter_metrics()
+                .map(|(desc, _)| (desc.name.clone(), desc.labels.clone()))
+                .next()
+        );
+
+        // test with_prefix_and_labels constructor
         let mut registry = Registry::with_prefix_and_labels(prefix, labels.clone().into_iter());
         let counter: Counter = Counter::default();
         registry.register(counter_name, "some help", counter);
