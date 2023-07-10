@@ -548,7 +548,6 @@ mod tests {
             (Cow::Borrowed("global_label_1"), Cow::Borrowed("value_1")),
             (Cow::Borrowed("global_label_1"), Cow::Borrowed("value_2")),
         ];
-        
         // test with_prefix constructor
         let mut registry = Registry::with_prefix(prefix);
         let counter: Counter = Counter::default();
