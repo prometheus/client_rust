@@ -562,7 +562,7 @@ mod tests {
                 .next()
         );
 
-        // test with_labels constructor 
+        // test with_labels constructor
         let mut registry = Registry::with_labels(labels.clone().into_iter());
         let counter: Counter = Counter::default();
         registry.register(counter_name, "some help", counter);
