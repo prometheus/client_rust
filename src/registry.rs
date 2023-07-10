@@ -239,11 +239,20 @@ impl Registry {
         &mut self,
         label: (Cow<'static, str>, Cow<'static, str>),
     ) -> &mut Self {
-        let mut labels = self.labels.clone();
-        labels.push(label);
+        self.sub_registry_with_labels(std::iter::once(label))
+    }
+
+    /// Like [`Registry::sub_registry_with_prefix`] but with multiple labels instead.
+    pub fn sub_registry_with_labels(
+        &mut self,
+        labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
+    ) -> &mut Self {
+        let mut new_labels = self.labels.clone();
+        new_labels.extend(labels);
+
         let sub_registry = Registry {
             prefix: self.prefix.clone(),
-            labels,
+            labels: new_labels,
             ..Default::default()
         };
 
@@ -549,10 +558,19 @@ mod tests {
         let sub_sub_registry = sub_registry.sub_registry_with_label(label_1_2.clone());
         sub_sub_registry.register(prefix_1_2_metric_name, "some help", counter.clone());
 
-        let prefix_1_2_1 = "prefix_1_2_1";
-        let prefix_1_2_1_metric_name = "my_prefix_1_2_1_metric";
-        let sub_sub_sub_registry = sub_sub_registry.sub_registry_with_prefix(prefix_1_2_1);
-        sub_sub_sub_registry.register(prefix_1_2_1_metric_name, "some help", counter.clone());
+        let labels_1_3 = vec![
+            (Cow::Borrowed("label_1_3_1"), Cow::Borrowed("value_1_3_1")),
+            (Cow::Borrowed("label_1_3_2"), Cow::Borrowed("value_1_3_2")),
+        ];
+        let prefix_1_3_metric_name = "my_prefix_1_3_metric";
+        let sub_sub_registry =
+            sub_registry.sub_registry_with_labels(labels_1_3.clone().into_iter());
+        sub_sub_registry.register(prefix_1_3_metric_name, "some help", counter.clone());
+
+        let prefix_1_3_1 = "prefix_1_3_1";
+        let prefix_1_3_1_metric_name = "my_prefix_1_3_1_metric";
+        let sub_sub_sub_registry = sub_sub_registry.sub_registry_with_prefix(prefix_1_3_1);
+        sub_sub_sub_registry.register(prefix_1_3_1_metric_name, "some help", counter.clone());
 
         let prefix_2 = "prefix_2";
         let _ = registry.sub_registry_with_prefix(prefix_2);
@@ -589,8 +607,15 @@ mod tests {
         );
         assert_eq!(
             Some((
-                prefix_1.to_string() + "_" + prefix_1_2_1 + "_" + prefix_1_2_1_metric_name,
-                vec![label_1_2]
+                prefix_1.to_string() + "_" + prefix_1_3_metric_name,
+                labels_1_3.clone()
+            )),
+            metric_iter.next()
+        );
+        assert_eq!(
+            Some((
+                prefix_1.to_string() + "_" + prefix_1_3_1 + "_" + prefix_1_3_1_metric_name,
+                labels_1_3.clone()
             )),
             metric_iter.next()
         );
