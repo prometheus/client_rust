@@ -137,7 +137,8 @@ impl DescriptorEncoder<'_> {
     }
 }
 
-/// Helper type for [`EncodeMetric`], see [`EncodeMetric::encode`].
+/// Helper type for [`EncodeMetric`](super::EncodeMetric), see
+/// [`EncodeMetric::encode`](super::EncodeMetric::encode).
 ///
 // `MetricEncoder` does not take a trait parameter for `writer` and `labels`
 // because `EncodeMetric` which uses `MetricEncoder` needs to be usable as a
