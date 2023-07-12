@@ -794,10 +794,19 @@ mod tests {
         let sub_sub_registry = sub_registry.sub_registry_with_label(label_1_2.clone());
         sub_sub_registry.register(prefix_1_2_metric_name, "some help", counter.clone());
 
-        let prefix_1_2_1 = "prefix_1_2_1";
-        let prefix_1_2_1_metric_name = "my_prefix_1_2_1_metric";
-        let sub_sub_sub_registry = sub_sub_registry.sub_registry_with_prefix(prefix_1_2_1);
-        sub_sub_sub_registry.register(prefix_1_2_1_metric_name, "some help", counter.clone());
+        let labels_1_3 = vec![
+            (Cow::Borrowed("label_1_3_1"), Cow::Borrowed("value_1_3_1")),
+            (Cow::Borrowed("label_1_3_2"), Cow::Borrowed("value_1_3_2")),
+        ];
+        let prefix_1_3_metric_name = "my_prefix_1_3_metric";
+        let sub_sub_registry =
+            sub_registry.sub_registry_with_labels(labels_1_3.clone().into_iter());
+        sub_sub_registry.register(prefix_1_3_metric_name, "some help", counter.clone());
+
+        let prefix_1_3_1 = "prefix_1_3_1";
+        let prefix_1_3_1_metric_name = "my_prefix_1_3_1_metric";
+        let sub_sub_sub_registry = sub_sub_registry.sub_registry_with_prefix(prefix_1_3_1);
+        sub_sub_sub_registry.register(prefix_1_3_1_metric_name, "some help", counter.clone());
 
         let prefix_2 = "prefix_2";
         let _ = registry.sub_registry_with_prefix(prefix_2);
@@ -822,9 +831,12 @@ mod tests {
             + "# HELP prefix_1_my_prefix_1_2_metric some help.\n"
             + "# TYPE prefix_1_my_prefix_1_2_metric counter\n"
             + "prefix_1_my_prefix_1_2_metric_total{registry=\"1_2\"} 0\n"
-            + "# HELP prefix_1_prefix_1_2_1_my_prefix_1_2_1_metric some help.\n"
-            + "# TYPE prefix_1_prefix_1_2_1_my_prefix_1_2_1_metric counter\n"
-            + "prefix_1_prefix_1_2_1_my_prefix_1_2_1_metric_total{registry=\"1_2\"} 0\n"
+            + "# HELP prefix_1_my_prefix_1_3_metric some help.\n"
+            + "# TYPE prefix_1_my_prefix_1_3_metric counter\n"
+            + "prefix_1_my_prefix_1_3_metric_total{label_1_3_1=\"value_1_3_1\",label_1_3_2=\"value_1_3_2\"} 0\n"
+            + "# HELP prefix_1_prefix_1_3_1_my_prefix_1_3_1_metric some help.\n"
+            + "# TYPE prefix_1_prefix_1_3_1_my_prefix_1_3_1_metric counter\n"
+            + "prefix_1_prefix_1_3_1_my_prefix_1_3_1_metric_total{label_1_3_1=\"value_1_3_1\",label_1_3_2=\"value_1_3_2\"} 0\n"
             + "# HELP prefix_3_my_prefix_3_metric some help.\n"
             + "# TYPE prefix_3_my_prefix_3_metric counter\n"
             + "prefix_3_my_prefix_3_metric_total 0\n"

@@ -75,6 +75,28 @@ impl Registry {
         }
     }
 
+    /// Creates a new default [`Registry`] with the given labels.
+    pub fn with_labels(
+        labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
+    ) -> Self {
+        Self {
+            labels: labels.into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
+    /// Creates a new default [`Registry`] with the given prefix and labels.
+    pub fn with_prefix_and_labels(
+        prefix: impl Into<String>,
+        labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
+    ) -> Self {
+        Self {
+            prefix: Some(Prefix(prefix.into())),
+            labels: labels.into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
     /// Register a metric with the [`Registry`].
     ///
     /// Note: In the Open Metrics text exposition format some metric types have
@@ -236,11 +258,20 @@ impl Registry {
         &mut self,
         label: (Cow<'static, str>, Cow<'static, str>),
     ) -> &mut Self {
-        let mut labels = self.labels.clone();
-        labels.push(label);
+        self.sub_registry_with_labels(std::iter::once(label))
+    }
+
+    /// Like [`Registry::sub_registry_with_prefix`] but with multiple labels instead.
+    pub fn sub_registry_with_labels(
+        &mut self,
+        labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
+    ) -> &mut Self {
+        let mut new_labels = self.labels.clone();
+        new_labels.extend(labels);
+
         let sub_registry = Registry {
             prefix: self.prefix.clone(),
-            labels,
+            labels: new_labels,
             ..Default::default()
         };
 
