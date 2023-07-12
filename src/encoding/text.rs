@@ -44,47 +44,46 @@ where
     Ok(())
 }
 
-pub(crate) struct DescriptorEncoder<'a, 'b> {
+pub(crate) struct DescriptorEncoder<'a> {
     writer: &'a mut dyn Write,
-    prefix: Option<&'b Prefix>,
-    labels: &'b [(Cow<'static, str>, Cow<'static, str>)],
+    prefix: Option<&'a Prefix>,
+    labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 }
 
-impl<'a, 'b> std::fmt::Debug for DescriptorEncoder<'a, 'b> {
+impl<'a> std::fmt::Debug for DescriptorEncoder<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DescriptorEncoder").finish()
     }
 }
 
-impl<'a, 'b> DescriptorEncoder<'a, 'b> {
-    pub(crate) fn new(writer: &'a mut dyn Write) -> Self {
-        Self {
+impl DescriptorEncoder<'_> {
+    pub(crate) fn new(writer: &mut dyn Write) -> DescriptorEncoder {
+        DescriptorEncoder {
             writer,
             prefix: Default::default(),
             labels: Default::default(),
         }
     }
 
-    pub(crate) fn with_prefix_and_labels<'c, 'd>(
-        &'c mut self,
-        prefix: Option<&'d Prefix>,
-        labels: &'d [(Cow<'static, str>, Cow<'static, str>)],
-    ) -> super::DescriptorEncoder<'c, 'd> {
+    pub(crate) fn with_prefix_and_labels<'s>(
+        &'s mut self,
+        prefix: Option<&'s Prefix>,
+        labels: &'s [(Cow<'static, str>, Cow<'static, str>)],
+    ) -> DescriptorEncoder<'s> {
         DescriptorEncoder {
             prefix,
             labels,
             writer: self.writer,
         }
-        .into()
     }
 
-    pub fn encode_descriptor<'c, 'd, 'e>(
-        &'c mut self,
-        name: &'d str,
+    pub fn encode_descriptor<'s>(
+        &'s mut self,
+        name: &'s str,
         help: &str,
-        unit: Option<&'d Unit>,
+        unit: Option<&'s Unit>,
         metric_type: MetricType,
-    ) -> Result<super::MetricEncoder<'c, 'd, 'c, 'e>, std::fmt::Error> {
+    ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         self.writer.write_str("# HELP ")?;
         if let Some(prefix) = self.prefix {
             self.writer.write_str(prefix.as_str())?;
@@ -127,17 +126,14 @@ impl<'a, 'b> DescriptorEncoder<'a, 'b> {
             self.writer.write_str("\n")?;
         }
 
-        let encoder = MetricEncoder {
+        Ok(MetricEncoder {
             writer: self.writer,
             prefix: self.prefix,
             name,
             unit,
             const_labels: self.labels,
             family_labels: None,
-        }
-        .into();
-
-        Ok(encoder)
+        })
     }
 }
 
@@ -149,16 +145,16 @@ impl<'a, 'b> DescriptorEncoder<'a, 'b> {
 // `Registry`. Trait objects can not use type parameters.
 //
 // TODO: Alternative solutions to the above are very much appreciated.
-pub(crate) struct MetricEncoder<'a, 'b, 'c, 'd> {
+pub(crate) struct MetricEncoder<'a> {
     writer: &'a mut dyn Write,
-    prefix: Option<&'c Prefix>,
-    name: &'b str,
-    unit: Option<&'b Unit>,
-    const_labels: &'c [(Cow<'static, str>, Cow<'static, str>)],
-    family_labels: Option<&'d dyn super::EncodeLabelSet>,
+    prefix: Option<&'a Prefix>,
+    name: &'a str,
+    unit: Option<&'a Unit>,
+    const_labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
+    family_labels: Option<&'a dyn super::EncodeLabelSet>,
 }
 
-impl<'a, 'b, 'c, 'd> std::fmt::Debug for MetricEncoder<'a, 'b, 'c, 'd> {
+impl<'a> std::fmt::Debug for MetricEncoder<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut labels = String::new();
         if let Some(l) = self.family_labels {
@@ -175,7 +171,7 @@ impl<'a, 'b, 'c, 'd> std::fmt::Debug for MetricEncoder<'a, 'b, 'c, 'd> {
     }
 }
 
-impl<'a, 'b, 'c, 'd> MetricEncoder<'a, 'b, 'c, 'd> {
+impl<'a> MetricEncoder<'a> {
     pub fn encode_counter<
         S: EncodeLabelSet,
         CounterValue: super::EncodeCounterValue,
@@ -244,10 +240,10 @@ impl<'a, 'b, 'c, 'd> MetricEncoder<'a, 'b, 'c, 'd> {
 
     /// Encode a set of labels. Used by wrapper metric types like
     /// [`Family`](crate::metrics::family::Family).
-    pub fn encode_family<'e, 'f, S: EncodeLabelSet>(
-        &'e mut self,
-        label_set: &'f S,
-    ) -> Result<MetricEncoder<'e, 'e, 'e, 'f>, std::fmt::Error> {
+    pub fn encode_family<'s, S: EncodeLabelSet>(
+        &'s mut self,
+        label_set: &'s S,
+    ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         debug_assert!(self.family_labels.is_none());
 
         Ok(MetricEncoder {
@@ -854,8 +850,8 @@ mod tests {
         }
 
         impl crate::collector::Collector for Collector {
-            fn encode<'a>(
-                &'a self,
+            fn encode(
+                &self,
                 mut encoder: crate::encoding::DescriptorEncoder,
             ) -> Result<(), std::fmt::Error> {
                 let counter = crate::metrics::counter::ConstCounter::new(42);

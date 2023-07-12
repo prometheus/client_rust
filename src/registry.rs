@@ -162,7 +162,7 @@ impl Registry {
     /// struct MyCollector {}
     ///
     /// impl Collector for MyCollector {
-    ///     fn encode<'a>(&'a self, mut encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
+    ///     fn encode(&self, mut encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
     ///         let counter = ConstCounter::new(42);
     ///         let metric_encoder = encoder.encode_descriptor(
     ///             "my_counter",

@@ -40,7 +40,7 @@ macro_rules! for_both {
 pub trait EncodeMetric {
     /// Encode the given instance in the OpenMetrics text encoding.
     // TODO: Lifetimes on MetricEncoder needed?
-    fn encode(&self, encoder: MetricEncoder<'_, '_, '_, '_>) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: MetricEncoder) -> Result<(), std::fmt::Error>;
 
     /// The OpenMetrics metric type of the instance.
     // One can not use [`TypedMetric`] directly, as associated constants are not
@@ -60,87 +60,87 @@ impl EncodeMetric for Box<dyn EncodeMetric> {
 
 /// Encoder for a Metric Descriptor.
 #[derive(Debug)]
-pub struct DescriptorEncoder<'a, 'b>(DescriptorEncoderInner<'a, 'b>);
+pub struct DescriptorEncoder<'a>(DescriptorEncoderInner<'a>);
 
 #[derive(Debug)]
-enum DescriptorEncoderInner<'a, 'b> {
-    Text(text::DescriptorEncoder<'a, 'b>),
+enum DescriptorEncoderInner<'a> {
+    Text(text::DescriptorEncoder<'a>),
 
     #[cfg(feature = "protobuf")]
-    Protobuf(protobuf::DescriptorEncoder<'a, 'b>),
+    Protobuf(protobuf::DescriptorEncoder<'a>),
 }
 
-impl<'a, 'b> From<text::DescriptorEncoder<'a, 'b>> for DescriptorEncoder<'a, 'b> {
-    fn from(e: text::DescriptorEncoder<'a, 'b>) -> Self {
+impl<'a> From<text::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
+    fn from(e: text::DescriptorEncoder<'a>) -> Self {
         Self(DescriptorEncoderInner::Text(e))
     }
 }
 
 #[cfg(feature = "protobuf")]
-impl<'a, 'b> From<protobuf::DescriptorEncoder<'a, 'b>> for DescriptorEncoder<'a, 'b> {
-    fn from(e: protobuf::DescriptorEncoder<'a, 'b>) -> Self {
+impl<'a> From<protobuf::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
+    fn from(e: protobuf::DescriptorEncoder<'a>) -> Self {
         Self(DescriptorEncoderInner::Protobuf(e))
     }
 }
 
-impl<'a, 'b> DescriptorEncoder<'a, 'b> {
-    pub(crate) fn with_prefix_and_labels<'c, 'd>(
-        &'c mut self,
-        prefix: Option<&'d Prefix>,
-        labels: &'d [(Cow<'static, str>, Cow<'static, str>)],
+impl DescriptorEncoder<'_> {
+    pub(crate) fn with_prefix_and_labels<'s>(
+        &'s mut self,
+        prefix: Option<&'s Prefix>,
+        labels: &'s [(Cow<'static, str>, Cow<'static, str>)],
         // TODO: result needed?
-    ) -> DescriptorEncoder<'c, 'd> {
+    ) -> DescriptorEncoder<'s> {
         for_both_mut!(
             self,
             DescriptorEncoderInner,
             e,
-            e.with_prefix_and_labels(prefix, labels)
+            e.with_prefix_and_labels(prefix, labels).into()
         )
     }
 
     /// Encode a descriptor.
-    pub fn encode_descriptor<'c, 'd, 'e>(
-        &'c mut self,
-        name: &'d str,
+    pub fn encode_descriptor<'s>(
+        &'s mut self,
+        name: &'s str,
         help: &str,
-        unit: Option<&'d Unit>,
+        unit: Option<&'s Unit>,
         metric_type: MetricType,
-    ) -> Result<MetricEncoder<'c, 'd, 'c, 'e>, std::fmt::Error> {
+    ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         for_both_mut!(
             self,
             DescriptorEncoderInner,
             e,
-            e.encode_descriptor(name, help, unit, metric_type)
+            Ok(e.encode_descriptor(name, help, unit, metric_type)?.into())
         )
     }
 }
 
 /// Encoder for a metric.
 #[derive(Debug)]
-pub struct MetricEncoder<'a, 'b, 'c, 'd>(MetricEncoderInner<'a, 'b, 'c, 'd>);
+pub struct MetricEncoder<'a>(MetricEncoderInner<'a>);
 
 #[derive(Debug)]
-enum MetricEncoderInner<'a, 'b, 'c, 'd> {
-    Text(text::MetricEncoder<'a, 'b, 'c, 'd>),
+enum MetricEncoderInner<'a> {
+    Text(text::MetricEncoder<'a>),
 
     #[cfg(feature = "protobuf")]
     Protobuf(protobuf::MetricEncoder<'a>),
 }
 
-impl<'a, 'b, 'c, 'd> From<text::MetricEncoder<'a, 'b, 'c, 'd>> for MetricEncoder<'a, 'b, 'c, 'd> {
-    fn from(e: text::MetricEncoder<'a, 'b, 'c, 'd>) -> Self {
+impl<'a> From<text::MetricEncoder<'a>> for MetricEncoder<'a> {
+    fn from(e: text::MetricEncoder<'a>) -> Self {
         Self(MetricEncoderInner::Text(e))
     }
 }
 
 #[cfg(feature = "protobuf")]
-impl<'a, 'b, 'c, 'd> From<protobuf::MetricEncoder<'a>> for MetricEncoder<'a, 'b, 'c, 'd> {
+impl<'a> From<protobuf::MetricEncoder<'a>> for MetricEncoder<'a> {
     fn from(e: protobuf::MetricEncoder<'a>) -> Self {
         Self(MetricEncoderInner::Protobuf(e))
     }
 }
 
-impl<'a, 'b, 'c, 'd> MetricEncoder<'a, 'b, 'c, 'd> {
+impl MetricEncoder<'_> {
     /// Encode a counter.
     pub fn encode_counter<
         S: EncodeLabelSet,
@@ -184,10 +184,10 @@ impl<'a, 'b, 'c, 'd> MetricEncoder<'a, 'b, 'c, 'd> {
     }
 
     /// Encode a metric family.
-    pub fn encode_family<'e, 'f, S: EncodeLabelSet>(
-        &'e mut self,
-        label_set: &'f S,
-    ) -> Result<MetricEncoder<'e, 'e, 'e, 'f>, std::fmt::Error> {
+    pub fn encode_family<'s, S: EncodeLabelSet>(
+        &'s mut self,
+        label_set: &'s S,
+    ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         for_both_mut!(
             self,
             MetricEncoderInner,
