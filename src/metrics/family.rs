@@ -6,7 +6,6 @@ use crate::encoding::{EncodeLabelSet, EncodeMetric, MetricEncoder};
 
 use super::{MetricType, TypedMetric};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -30,7 +29,7 @@ use std::sync::Arc;
 /// # use prometheus_client::encoding::text::encode;
 /// # use prometheus_client::metrics::counter::{Atomic, Counter};
 /// # use prometheus_client::metrics::family::Family;
-/// # use prometheus_client::registry::{Descriptor, Registry};
+/// # use prometheus_client::registry::Registry;
 /// #
 /// # let mut registry = Registry::default();
 /// let family = Family::<Vec<(String, String)>, Counter>::default();
@@ -65,7 +64,7 @@ use std::sync::Arc;
 /// # use prometheus_client::encoding::text::encode;
 /// # use prometheus_client::metrics::counter::{Atomic, Counter};
 /// # use prometheus_client::metrics::family::Family;
-/// # use prometheus_client::registry::{Descriptor, Registry};
+/// # use prometheus_client::registry::Registry;
 /// # use std::io::Write;
 /// #
 /// # let mut registry = Registry::default();
@@ -317,44 +316,6 @@ where
         let guard = self.read();
         for (label_set, m) in guard.iter() {
             let encoder = encoder.encode_family(label_set)?;
-            m.encode(encoder)?;
-        }
-        Ok(())
-    }
-
-    fn metric_type(&self) -> MetricType {
-        M::TYPE
-    }
-}
-
-/// As a [`Family`], but constant, meaning it cannot change once created.
-///
-/// Needed for advanced use-cases, e.g. in combination with [`Collector`](crate::collector::Collector).
-///
-/// Note that a [`ConstFamily`], given that it is based on an [`Iterator`], can
-/// only be [`EncodeMetric::encode`]d once. While consecutive
-/// [`EncodeMetric::encode`] calls won't panic, they won't return any metrics as
-/// the provided [`Iterator`] will return [`Iterator::next`] [`None`]. Thus you
-/// should not return the same [`ConstFamily`] in more than one
-/// [`Collector::collect`](crate::collector::Collector::collect) calls.
-#[derive(Debug, Default)]
-pub struct ConstFamily<I>(RefCell<I>);
-
-impl<I> ConstFamily<I> {
-    /// Creates a new [`ConstFamily`].
-    pub fn new(iter: I) -> Self {
-        Self(RefCell::new(iter))
-    }
-}
-
-impl<S: EncodeLabelSet, M: EncodeMetric + TypedMetric, I: Iterator<Item = (S, M)>> EncodeMetric
-    for ConstFamily<I>
-{
-    fn encode(&self, mut encoder: MetricEncoder<'_, '_>) -> Result<(), std::fmt::Error> {
-        let mut iter = self.0.borrow_mut();
-
-        for (label_set, m) in iter.by_ref() {
-            let encoder = encoder.encode_family(&label_set)?;
             m.encode(encoder)?;
         }
         Ok(())

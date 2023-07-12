@@ -82,28 +82,3 @@ pub mod collector;
 pub mod encoding;
 pub mod metrics;
 pub mod registry;
-
-/// Represents either borrowed or owned data.
-///
-/// In contrast to [`std::borrow::Cow`] does not require
-/// [`std::borrow::ToOwned`] or [`Clone`]respectively.
-///
-/// Needed for [`collector::Collector`].
-#[derive(Debug)]
-pub enum MaybeOwned<'a, T> {
-    /// Owned data
-    Owned(T),
-    /// Borrowed data
-    Borrowed(&'a T),
-}
-
-impl<'a, T> std::ops::Deref for MaybeOwned<'a, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Owned(t) => t,
-            Self::Borrowed(t) => t,
-        }
-    }
-}

@@ -24,9 +24,10 @@
 //! assert_eq!(expected, buffer);
 //! ```
 
-use crate::encoding::{EncodeExemplarValue, EncodeLabelSet, EncodeMetric};
+use crate::encoding::{EncodeExemplarValue, EncodeLabelSet};
 use crate::metrics::exemplar::Exemplar;
-use crate::registry::{Descriptor, Registry, Unit};
+use crate::metrics::MetricType;
+use crate::registry::{Prefix, Registry, Unit};
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -38,80 +39,123 @@ pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Er
 where
     W: Write,
 {
-    for (desc, metric) in registry.iter_metrics() {
-        encode_metric(writer, desc, metric.as_ref())?;
-    }
-    for (desc, metric) in registry.iter_collectors() {
-        encode_metric(writer, desc.as_ref(), metric.as_ref())?;
-    }
-
+    registry.encode(&mut DescriptorEncoder::new(writer).into())?;
     writer.write_str("# EOF\n")?;
-
     Ok(())
 }
 
-fn encode_metric<W>(
-    writer: &mut W,
-    desc: &Descriptor,
-    metric: &(impl EncodeMetric + ?Sized),
-) -> Result<(), std::fmt::Error>
-where
-    W: Write,
-{
-    writer.write_str("# HELP ")?;
-    writer.write_str(desc.name())?;
-    if let Some(unit) = desc.unit() {
-        writer.write_str("_")?;
-        writer.write_str(unit.as_str())?;
-    }
-    writer.write_str(" ")?;
-    writer.write_str(desc.help())?;
-    writer.write_str("\n")?;
-
-    writer.write_str("# TYPE ")?;
-    writer.write_str(desc.name())?;
-    if let Some(unit) = desc.unit() {
-        writer.write_str("_")?;
-        writer.write_str(unit.as_str())?;
-    }
-    writer.write_str(" ")?;
-    writer.write_str(EncodeMetric::metric_type(metric).as_str())?;
-    writer.write_str("\n")?;
-
-    if let Some(unit) = desc.unit() {
-        writer.write_str("# UNIT ")?;
-        writer.write_str(desc.name())?;
-        writer.write_str("_")?;
-        writer.write_str(unit.as_str())?;
-        writer.write_str(" ")?;
-        writer.write_str(unit.as_str())?;
-        writer.write_str("\n")?;
-    }
-
-    let encoder = MetricEncoder {
-        writer,
-        name: desc.name(),
-        unit: desc.unit(),
-        const_labels: desc.labels(),
-        family_labels: None,
-    }
-    .into();
-
-    EncodeMetric::encode(metric, encoder)?;
-
-    Ok(())
-}
-
-/// Helper type for [`EncodeMetric`], see [`EncodeMetric::encode`].
-pub(crate) struct MetricEncoder<'a, 'b> {
+pub(crate) struct DescriptorEncoder<'a> {
     writer: &'a mut dyn Write,
-    name: &'a str,
-    unit: &'a Option<Unit>,
-    const_labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
-    family_labels: Option<&'b dyn super::EncodeLabelSet>,
+    prefix: Option<&'a Prefix>,
+    labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 }
 
-impl<'a, 'b> std::fmt::Debug for MetricEncoder<'a, 'b> {
+impl<'a> std::fmt::Debug for DescriptorEncoder<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DescriptorEncoder").finish()
+    }
+}
+
+impl DescriptorEncoder<'_> {
+    pub(crate) fn new(writer: &mut dyn Write) -> DescriptorEncoder {
+        DescriptorEncoder {
+            writer,
+            prefix: Default::default(),
+            labels: Default::default(),
+        }
+    }
+
+    pub(crate) fn with_prefix_and_labels<'s>(
+        &'s mut self,
+        prefix: Option<&'s Prefix>,
+        labels: &'s [(Cow<'static, str>, Cow<'static, str>)],
+    ) -> DescriptorEncoder<'s> {
+        DescriptorEncoder {
+            prefix,
+            labels,
+            writer: self.writer,
+        }
+    }
+
+    pub fn encode_descriptor<'s>(
+        &'s mut self,
+        name: &'s str,
+        help: &str,
+        unit: Option<&'s Unit>,
+        metric_type: MetricType,
+    ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
+        self.writer.write_str("# HELP ")?;
+        if let Some(prefix) = self.prefix {
+            self.writer.write_str(prefix.as_str())?;
+            self.writer.write_str("_")?;
+        }
+        self.writer.write_str(name)?;
+        if let Some(unit) = unit {
+            self.writer.write_str("_")?;
+            self.writer.write_str(unit.as_str())?;
+        }
+        self.writer.write_str(" ")?;
+        self.writer.write_str(help)?;
+        self.writer.write_str("\n")?;
+
+        self.writer.write_str("# TYPE ")?;
+        if let Some(prefix) = self.prefix {
+            self.writer.write_str(prefix.as_str())?;
+            self.writer.write_str("_")?;
+        }
+        self.writer.write_str(name)?;
+        if let Some(unit) = unit {
+            self.writer.write_str("_")?;
+            self.writer.write_str(unit.as_str())?;
+        }
+        self.writer.write_str(" ")?;
+        self.writer.write_str(metric_type.as_str())?;
+        self.writer.write_str("\n")?;
+
+        if let Some(unit) = unit {
+            self.writer.write_str("# UNIT ")?;
+            if let Some(prefix) = self.prefix {
+                self.writer.write_str(prefix.as_str())?;
+                self.writer.write_str("_")?;
+            }
+            self.writer.write_str(name)?;
+            self.writer.write_str("_")?;
+            self.writer.write_str(unit.as_str())?;
+            self.writer.write_str(" ")?;
+            self.writer.write_str(unit.as_str())?;
+            self.writer.write_str("\n")?;
+        }
+
+        Ok(MetricEncoder {
+            writer: self.writer,
+            prefix: self.prefix,
+            name,
+            unit,
+            const_labels: self.labels,
+            family_labels: None,
+        })
+    }
+}
+
+/// Helper type for [`EncodeMetric`](super::EncodeMetric), see
+/// [`EncodeMetric::encode`](super::EncodeMetric::encode).
+///
+// `MetricEncoder` does not take a trait parameter for `writer` and `labels`
+// because `EncodeMetric` which uses `MetricEncoder` needs to be usable as a
+// trait object in order to be able to register different metric types with a
+// `Registry`. Trait objects can not use type parameters.
+//
+// TODO: Alternative solutions to the above are very much appreciated.
+pub(crate) struct MetricEncoder<'a> {
+    writer: &'a mut dyn Write,
+    prefix: Option<&'a Prefix>,
+    name: &'a str,
+    unit: Option<&'a Unit>,
+    const_labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
+    family_labels: Option<&'a dyn super::EncodeLabelSet>,
+}
+
+impl<'a> std::fmt::Debug for MetricEncoder<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut labels = String::new();
         if let Some(l) = self.family_labels {
@@ -120,6 +164,7 @@ impl<'a, 'b> std::fmt::Debug for MetricEncoder<'a, 'b> {
 
         f.debug_struct("Encoder")
             .field("name", &self.name)
+            .field("prefix", &self.prefix)
             .field("unit", &self.unit)
             .field("const_labels", &self.const_labels)
             .field("labels", &labels.as_str())
@@ -127,7 +172,7 @@ impl<'a, 'b> std::fmt::Debug for MetricEncoder<'a, 'b> {
     }
 }
 
-impl<'a, 'b> MetricEncoder<'a, 'b> {
+impl<'a> MetricEncoder<'a> {
     pub fn encode_counter<
         S: EncodeLabelSet,
         CounterValue: super::EncodeCounterValue,
@@ -137,7 +182,7 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
         v: &CounterValue,
         exemplar: Option<&Exemplar<S, ExemplarValue>>,
     ) -> Result<(), std::fmt::Error> {
-        self.write_name_and_unit()?;
+        self.write_prefix_name_unit()?;
 
         self.write_suffix("total")?;
 
@@ -163,7 +208,7 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
         &mut self,
         v: &GaugeValue,
     ) -> Result<(), std::fmt::Error> {
-        self.write_name_and_unit()?;
+        self.write_prefix_name_unit()?;
 
         self.encode_labels::<()>(None)?;
 
@@ -180,7 +225,7 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
     }
 
     pub fn encode_info<S: EncodeLabelSet>(&mut self, label_set: &S) -> Result<(), std::fmt::Error> {
-        self.write_name_and_unit()?;
+        self.write_prefix_name_unit()?;
 
         self.write_suffix("info")?;
 
@@ -196,14 +241,15 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
 
     /// Encode a set of labels. Used by wrapper metric types like
     /// [`Family`](crate::metrics::family::Family).
-    pub fn encode_family<'c, 'd, S: EncodeLabelSet>(
-        &'c mut self,
-        label_set: &'d S,
-    ) -> Result<MetricEncoder<'c, 'd>, std::fmt::Error> {
+    pub fn encode_family<'s, S: EncodeLabelSet>(
+        &'s mut self,
+        label_set: &'s S,
+    ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         debug_assert!(self.family_labels.is_none());
 
         Ok(MetricEncoder {
             writer: self.writer,
+            prefix: self.prefix,
             name: self.name,
             unit: self.unit,
             const_labels: self.const_labels,
@@ -218,14 +264,14 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
         buckets: &[(f64, u64)],
         exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
     ) -> Result<(), std::fmt::Error> {
-        self.write_name_and_unit()?;
+        self.write_prefix_name_unit()?;
         self.write_suffix("sum")?;
         self.encode_labels::<()>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(sum))?;
         self.newline()?;
 
-        self.write_name_and_unit()?;
+        self.write_prefix_name_unit()?;
         self.write_suffix("count")?;
         self.encode_labels::<()>(None)?;
         self.writer.write_str(" ")?;
@@ -236,7 +282,7 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
         for (i, (upper_bound, count)) in buckets.iter().enumerate() {
             cummulative += count;
 
-            self.write_name_and_unit()?;
+            self.write_prefix_name_unit()?;
             self.write_suffix("bucket")?;
 
             if *upper_bound == f64::MAX {
@@ -281,7 +327,11 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
     fn newline(&mut self) -> Result<(), std::fmt::Error> {
         self.writer.write_str("\n")
     }
-    fn write_name_and_unit(&mut self) -> Result<(), std::fmt::Error> {
+    fn write_prefix_name_unit(&mut self) -> Result<(), std::fmt::Error> {
+        if let Some(prefix) = self.prefix {
+            self.writer.write_str(prefix.as_str())?;
+            self.writer.write_str("_")?;
+        }
         self.writer.write_str(self.name)?;
         if let Some(unit) = self.unit {
             self.writer.write_str("_")?;
@@ -717,6 +767,139 @@ mod tests {
             + "my_histogram_bucket{le=\"256.0\"} 1\n"
             + "my_histogram_bucket{le=\"512.0\"} 1\n"
             + "my_histogram_bucket{le=\"+Inf\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn sub_registry_with_prefix_and_label() {
+        let top_level_metric_name = "my_top_level_metric";
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        registry.register(top_level_metric_name, "some help", counter.clone());
+
+        let prefix_1 = "prefix_1";
+        let prefix_1_metric_name = "my_prefix_1_metric";
+        let sub_registry = registry.sub_registry_with_prefix(prefix_1);
+        sub_registry.register(prefix_1_metric_name, "some help", counter.clone());
+
+        let prefix_1_1 = "prefix_1_1";
+        let prefix_1_1_metric_name = "my_prefix_1_1_metric";
+        let sub_sub_registry = sub_registry.sub_registry_with_prefix(prefix_1_1);
+        sub_sub_registry.register(prefix_1_1_metric_name, "some help", counter.clone());
+
+        let label_1_2 = (Cow::Borrowed("registry"), Cow::Borrowed("1_2"));
+        let prefix_1_2_metric_name = "my_prefix_1_2_metric";
+        let sub_sub_registry = sub_registry.sub_registry_with_label(label_1_2.clone());
+        sub_sub_registry.register(prefix_1_2_metric_name, "some help", counter.clone());
+
+        let labels_1_3 = vec![
+            (Cow::Borrowed("label_1_3_1"), Cow::Borrowed("value_1_3_1")),
+            (Cow::Borrowed("label_1_3_2"), Cow::Borrowed("value_1_3_2")),
+        ];
+        let prefix_1_3_metric_name = "my_prefix_1_3_metric";
+        let sub_sub_registry =
+            sub_registry.sub_registry_with_labels(labels_1_3.clone().into_iter());
+        sub_sub_registry.register(prefix_1_3_metric_name, "some help", counter.clone());
+
+        let prefix_1_3_1 = "prefix_1_3_1";
+        let prefix_1_3_1_metric_name = "my_prefix_1_3_1_metric";
+        let sub_sub_sub_registry = sub_sub_registry.sub_registry_with_prefix(prefix_1_3_1);
+        sub_sub_sub_registry.register(prefix_1_3_1_metric_name, "some help", counter.clone());
+
+        let prefix_2 = "prefix_2";
+        let _ = registry.sub_registry_with_prefix(prefix_2);
+
+        let prefix_3 = "prefix_3";
+        let prefix_3_metric_name = "my_prefix_3_metric";
+        let sub_registry = registry.sub_registry_with_prefix(prefix_3);
+        sub_registry.register(prefix_3_metric_name, "some help", counter);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_top_level_metric some help.\n".to_owned()
+            + "# TYPE my_top_level_metric counter\n"
+            + "my_top_level_metric_total 0\n"
+            + "# HELP prefix_1_my_prefix_1_metric some help.\n"
+            + "# TYPE prefix_1_my_prefix_1_metric counter\n"
+            + "prefix_1_my_prefix_1_metric_total 0\n"
+            + "# HELP prefix_1_prefix_1_1_my_prefix_1_1_metric some help.\n"
+            + "# TYPE prefix_1_prefix_1_1_my_prefix_1_1_metric counter\n"
+            + "prefix_1_prefix_1_1_my_prefix_1_1_metric_total 0\n"
+            + "# HELP prefix_1_my_prefix_1_2_metric some help.\n"
+            + "# TYPE prefix_1_my_prefix_1_2_metric counter\n"
+            + "prefix_1_my_prefix_1_2_metric_total{registry=\"1_2\"} 0\n"
+            + "# HELP prefix_1_my_prefix_1_3_metric some help.\n"
+            + "# TYPE prefix_1_my_prefix_1_3_metric counter\n"
+            + "prefix_1_my_prefix_1_3_metric_total{label_1_3_1=\"value_1_3_1\",label_1_3_2=\"value_1_3_2\"} 0\n"
+            + "# HELP prefix_1_prefix_1_3_1_my_prefix_1_3_1_metric some help.\n"
+            + "# TYPE prefix_1_prefix_1_3_1_my_prefix_1_3_1_metric counter\n"
+            + "prefix_1_prefix_1_3_1_my_prefix_1_3_1_metric_total{label_1_3_1=\"value_1_3_1\",label_1_3_2=\"value_1_3_2\"} 0\n"
+            + "# HELP prefix_3_my_prefix_3_metric some help.\n"
+            + "# TYPE prefix_3_my_prefix_3_metric counter\n"
+            + "prefix_3_my_prefix_3_metric_total 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn sub_registry_collector() {
+        use crate::encoding::EncodeMetric;
+
+        #[derive(Debug)]
+        struct Collector {
+            name: String,
+        }
+
+        impl Collector {
+            fn new(name: impl Into<String>) -> Self {
+                Self { name: name.into() }
+            }
+        }
+
+        impl crate::collector::Collector for Collector {
+            fn encode(
+                &self,
+                mut encoder: crate::encoding::DescriptorEncoder,
+            ) -> Result<(), std::fmt::Error> {
+                let counter = crate::metrics::counter::ConstCounter::new(42);
+                let metric_encoder = encoder.encode_descriptor(
+                    &self.name,
+                    "some help",
+                    None,
+                    counter.metric_type(),
+                )?;
+                counter.encode(metric_encoder)?;
+                Ok(())
+            }
+        }
+
+        let mut registry = Registry::default();
+        registry.register_collector(Box::new(Collector::new("top_level")));
+
+        let sub_registry = registry.sub_registry_with_prefix("prefix_1");
+        sub_registry.register_collector(Box::new(Collector::new("sub_level")));
+
+        let sub_sub_registry = sub_registry.sub_registry_with_prefix("prefix_1_2");
+        sub_sub_registry.register_collector(Box::new(Collector::new("sub_sub_level")));
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP top_level some help\n".to_owned()
+            + "# TYPE top_level counter\n"
+            + "top_level_total 42\n"
+            + "# HELP prefix_1_sub_level some help\n"
+            + "# TYPE prefix_1_sub_level counter\n"
+            + "prefix_1_sub_level_total 42\n"
+            + "# HELP prefix_1_prefix_1_2_sub_sub_level some help\n"
+            + "# TYPE prefix_1_prefix_1_2_sub_sub_level counter\n"
+            + "prefix_1_prefix_1_2_sub_sub_level_total 42\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
 

@@ -4,6 +4,7 @@ pub use prometheus_client_derive_encode::*;
 
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
+use crate::registry::{Prefix, Unit};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -12,61 +13,6 @@ use std::ops::Deref;
 #[cfg(feature = "protobuf")]
 pub mod protobuf;
 pub mod text;
-
-/// Trait implemented by each metric type, e.g.
-/// [`Counter`](crate::metrics::counter::Counter), to implement its encoding in
-/// the OpenMetric text format.
-pub trait EncodeMetric {
-    /// Encode the given instance in the OpenMetrics text encoding.
-    fn encode(&self, encoder: MetricEncoder<'_, '_>) -> Result<(), std::fmt::Error>;
-
-    /// The OpenMetrics metric type of the instance.
-    // One can not use [`TypedMetric`] directly, as associated constants are not
-    // object safe and thus can not be used with dynamic dispatching.
-    fn metric_type(&self) -> MetricType;
-}
-
-impl EncodeMetric for Box<dyn EncodeMetric> {
-    fn encode(&self, encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
-        self.deref().encode(encoder)
-    }
-
-    fn metric_type(&self) -> MetricType {
-        self.deref().metric_type()
-    }
-}
-
-/// Encoder for a metric.
-///
-// `MetricEncoder` does not take a trait parameter for `writer` and `labels`
-// because `EncodeMetric` which uses `MetricEncoder` needs to be usable as a
-// trait object in order to be able to register different metric types with a
-// `Registry`. Trait objects can not use type parameters.
-//
-// TODO: Alternative solutions to the above are very much appreciated.
-#[derive(Debug)]
-pub struct MetricEncoder<'a, 'b>(MetricEncoderInner<'a, 'b>);
-
-#[derive(Debug)]
-enum MetricEncoderInner<'a, 'b> {
-    Text(text::MetricEncoder<'a, 'b>),
-
-    #[cfg(feature = "protobuf")]
-    Protobuf(protobuf::MetricEncoder<'a>),
-}
-
-impl<'a, 'b> From<text::MetricEncoder<'a, 'b>> for MetricEncoder<'a, 'b> {
-    fn from(e: text::MetricEncoder<'a, 'b>) -> Self {
-        Self(MetricEncoderInner::Text(e))
-    }
-}
-
-#[cfg(feature = "protobuf")]
-impl<'a, 'b> From<protobuf::MetricEncoder<'a>> for MetricEncoder<'a, 'b> {
-    fn from(e: protobuf::MetricEncoder<'a>) -> Self {
-        Self(MetricEncoderInner::Protobuf(e))
-    }
-}
 
 macro_rules! for_both_mut {
     ($self:expr, $inner:ident, $pattern:pat, $fn:expr) => {
@@ -88,7 +34,113 @@ macro_rules! for_both {
     };
 }
 
-impl<'a, 'b> MetricEncoder<'a, 'b> {
+/// Trait implemented by each metric type, e.g.
+/// [`Counter`](crate::metrics::counter::Counter), to implement its encoding in
+/// the OpenMetric text format.
+pub trait EncodeMetric {
+    /// Encode the given instance in the OpenMetrics text encoding.
+    // TODO: Lifetimes on MetricEncoder needed?
+    fn encode(&self, encoder: MetricEncoder) -> Result<(), std::fmt::Error>;
+
+    /// The OpenMetrics metric type of the instance.
+    // One can not use [`TypedMetric`] directly, as associated constants are not
+    // object safe and thus can not be used with dynamic dispatching.
+    fn metric_type(&self) -> MetricType;
+}
+
+impl EncodeMetric for Box<dyn EncodeMetric> {
+    fn encode(&self, encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        self.deref().encode(encoder)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        self.deref().metric_type()
+    }
+}
+
+/// Encoder for a Metric Descriptor.
+#[derive(Debug)]
+pub struct DescriptorEncoder<'a>(DescriptorEncoderInner<'a>);
+
+#[derive(Debug)]
+enum DescriptorEncoderInner<'a> {
+    Text(text::DescriptorEncoder<'a>),
+
+    #[cfg(feature = "protobuf")]
+    Protobuf(protobuf::DescriptorEncoder<'a>),
+}
+
+impl<'a> From<text::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
+    fn from(e: text::DescriptorEncoder<'a>) -> Self {
+        Self(DescriptorEncoderInner::Text(e))
+    }
+}
+
+#[cfg(feature = "protobuf")]
+impl<'a> From<protobuf::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
+    fn from(e: protobuf::DescriptorEncoder<'a>) -> Self {
+        Self(DescriptorEncoderInner::Protobuf(e))
+    }
+}
+
+impl DescriptorEncoder<'_> {
+    pub(crate) fn with_prefix_and_labels<'s>(
+        &'s mut self,
+        prefix: Option<&'s Prefix>,
+        labels: &'s [(Cow<'static, str>, Cow<'static, str>)],
+        // TODO: result needed?
+    ) -> DescriptorEncoder<'s> {
+        for_both_mut!(
+            self,
+            DescriptorEncoderInner,
+            e,
+            e.with_prefix_and_labels(prefix, labels).into()
+        )
+    }
+
+    /// Encode a descriptor.
+    pub fn encode_descriptor<'s>(
+        &'s mut self,
+        name: &'s str,
+        help: &str,
+        unit: Option<&'s Unit>,
+        metric_type: MetricType,
+    ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
+        for_both_mut!(
+            self,
+            DescriptorEncoderInner,
+            e,
+            Ok(e.encode_descriptor(name, help, unit, metric_type)?.into())
+        )
+    }
+}
+
+/// Encoder for a metric.
+#[derive(Debug)]
+pub struct MetricEncoder<'a>(MetricEncoderInner<'a>);
+
+#[derive(Debug)]
+enum MetricEncoderInner<'a> {
+    Text(text::MetricEncoder<'a>),
+
+    #[cfg(feature = "protobuf")]
+    Protobuf(protobuf::MetricEncoder<'a>),
+}
+
+impl<'a> From<text::MetricEncoder<'a>> for MetricEncoder<'a> {
+    fn from(e: text::MetricEncoder<'a>) -> Self {
+        Self(MetricEncoderInner::Text(e))
+    }
+}
+
+#[cfg(feature = "protobuf")]
+impl<'a> From<protobuf::MetricEncoder<'a>> for MetricEncoder<'a> {
+    fn from(e: protobuf::MetricEncoder<'a>) -> Self {
+        Self(MetricEncoderInner::Protobuf(e))
+    }
+}
+
+impl MetricEncoder<'_> {
     /// Encode a counter.
     pub fn encode_counter<
         S: EncodeLabelSet,
@@ -132,10 +184,10 @@ impl<'a, 'b> MetricEncoder<'a, 'b> {
     }
 
     /// Encode a metric family.
-    pub fn encode_family<'c, 'd, S: EncodeLabelSet>(
-        &'c mut self,
-        label_set: &'d S,
-    ) -> Result<MetricEncoder<'c, 'd>, std::fmt::Error> {
+    pub fn encode_family<'s, S: EncodeLabelSet>(
+        &'s mut self,
+        label_set: &'s S,
+    ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         for_both_mut!(
             self,
             MetricEncoderInner,
