@@ -1,6 +1,6 @@
 [package]
 name = "prometheus-client-derive-encode"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2021"
 description = "Auxiliary crate to derive Encode trait from prometheus-client."
@@ -14,7 +14,7 @@ documentation = "https://docs.rs/prometheus-client-derive-text-encode"
 [dependencies]
 proc-macro2 = "1"
 quote = "1"
-syn = "1"
+syn = "2"
 
 [dev-dependencies]
 prometheus-client = { path = "../", features = ["protobuf"] }

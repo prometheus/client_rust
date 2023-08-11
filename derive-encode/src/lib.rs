@@ -25,7 +25,7 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
                     let attribute = f
                         .attrs
                         .iter()
-                        .find(|a| a.path.is_ident("prometheus"))
+                        .find(|a| a.path().is_ident("prometheus"))
                         .map(|a| a.parse_args::<syn::Ident>().unwrap().to_string());
                     let flatten = match attribute.as_deref() {
                         Some("flatten") => true,
