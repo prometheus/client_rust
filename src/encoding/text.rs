@@ -644,8 +644,12 @@ mod tests {
         registry.register("my_counter", "My counter", counter);
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -665,6 +669,11 @@ mod tests {
             + "my_counter_seconds_total 0\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -696,6 +705,11 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -705,8 +719,12 @@ mod tests {
         registry.register("my_gauge", "My gauge", gauge);
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -725,8 +743,12 @@ mod tests {
             .inc();
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -748,7 +770,6 @@ mod tests {
             .inc();
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
 
         let expected = "# HELP my_prefix_my_counter_family My counter family.\n"
@@ -757,6 +778,11 @@ mod tests {
             + "my_prefix_my_counter_family_total{my_key=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -777,6 +803,11 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -787,8 +818,12 @@ mod tests {
         histogram.observe(1.0);
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -807,8 +842,12 @@ mod tests {
             .observe(1.0);
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -840,6 +879,11 @@ mod tests {
             + "my_histogram_bucket{le=\"+Inf\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -916,6 +960,11 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -974,6 +1023,11 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
+        
         parse_with_python_client(encoded);
     }
 
