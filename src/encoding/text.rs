@@ -46,7 +46,7 @@ where
 }
 
 /// Encode the metrics registered with the provided [`Registry`] into the
-/// provided [`Write`]r using the OpenMetrics text format.
+/// provided [`Write`]r using the OpenMetrics text format (with timestamps included).
 pub fn encode_with_timestamps<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Error>
 where
     W: Write,
@@ -1027,7 +1027,7 @@ mod tests {
 
         let mut encoded = String::new();
         encode_with_timestamps(&mut encoded, &registry).unwrap();
-        
+
         parse_with_python_client(encoded);
     }
 
