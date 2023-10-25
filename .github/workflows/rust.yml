@@ -164,7 +164,6 @@ jobs:
       matrix:
         target:
           - armv7-unknown-linux-gnueabihf
-          - mipsel-unknown-linux-gnu
           - powerpc-unknown-linux-gnu
           - powerpc64-unknown-linux-gnu
           - wasm32-unknown-unknown
