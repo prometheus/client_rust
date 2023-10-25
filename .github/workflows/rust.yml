@@ -170,14 +170,10 @@ jobs:
           - wasm32-unknown-unknown
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
           target: ${{ matrix.target }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          # Note that this does not test the `protobuf` feature (for now). See reasoning in https://github.com/prometheus/client_rust/pull/98/.
-          args: --release --target=${{ matrix.target }}
+
+      # Note that this does not test the `protobuf` feature (for now). See reasoning in https://github.com/prometheus/client_rust/pull/98/.
+      - run: cargo check --package libp2p --all-features --target=${{ matrix.target }}
