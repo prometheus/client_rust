@@ -176,4 +176,4 @@ jobs:
           target: ${{ matrix.target }}
 
       # Note that this does not test the `protobuf` feature (for now). See reasoning in https://github.com/prometheus/client_rust/pull/98/.
-      - run: cargo check --package libp2p --all-features --target=${{ matrix.target }}
+      - run: cargo check --target=${{ matrix.target }}
