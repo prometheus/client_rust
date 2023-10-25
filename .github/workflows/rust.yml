@@ -164,20 +164,15 @@ jobs:
       matrix:
         target:
           - armv7-unknown-linux-gnueabihf
-          - mipsel-unknown-linux-gnu
           - powerpc-unknown-linux-gnu
           - powerpc64-unknown-linux-gnu
           - wasm32-unknown-unknown
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
           target: ${{ matrix.target }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          # Note that this does not test the `protobuf` feature (for now). See reasoning in https://github.com/prometheus/client_rust/pull/98/.
-          args: --release --target=${{ matrix.target }}
+
+      # Note that this does not test the `protobuf` feature (for now). See reasoning in https://github.com/prometheus/client_rust/pull/98/.
+      - run: cargo check --target=${{ matrix.target }}
