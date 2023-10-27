@@ -29,7 +29,7 @@ prost-types = { version = "0.11.0", optional = true }
 async-std = { version = "1", features = ["attributes"] }
 criterion = "0.5"
 http-types = "2"
-pyo3 = "0.19"
+pyo3 = "0.20"
 quickcheck = "1"
 rand = "0.8.4"
 tide = "0.16"
