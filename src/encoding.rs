@@ -500,6 +500,18 @@ impl EncodeGaugeValue for f64 {
     }
 }
 
+impl EncodeGaugeValue for i32 {
+    fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_i64(*self as i64)
+    }
+}
+
+impl EncodeGaugeValue for f32 {
+    fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_f64(*self as f64)
+    }
+}
+
 /// Encoder for a gauge value.
 #[derive(Debug)]
 pub struct GaugeValueEncoder<'a>(GaugeValueEncoderInner<'a>);
@@ -552,6 +564,18 @@ impl EncodeCounterValue for f64 {
     }
 }
 
+impl EncodeCounterValue for u32 {
+    fn encode(&self, encoder: &mut CounterValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_u64(*self as u64)
+    }
+}
+
+impl EncodeCounterValue for f32 {
+    fn encode(&self, encoder: &mut CounterValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_f64(*self as f64)
+    }
+}
+
 /// Encoder for a counter value.
 #[derive(Debug)]
 pub struct CounterValueEncoder<'a>(CounterValueEncoderInner<'a>);
@@ -586,6 +610,18 @@ impl EncodeExemplarValue for f64 {
 }
 
 impl EncodeExemplarValue for u64 {
+    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode(*self as f64)
+    }
+}
+
+impl EncodeExemplarValue for f32 {
+    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode(*self as f64)
+    }
+}
+
+impl EncodeExemplarValue for u32 {
     fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self as f64)
     }
