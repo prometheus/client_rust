@@ -513,11 +513,15 @@ impl<'a> MetricEncoder<'a> {
         }
 
         if let Some(labels) = &self.family_labels {
-            if !self.const_labels.is_empty() || additional_labels.is_some() {
-                self.writer.write_str(",")?;
-            }
+            let mut string_writer = String::new();
+            labels.encode(LabelSetEncoder::new(&mut string_writer).into())?;
 
-            labels.encode(LabelSetEncoder::new(self.writer).into())?;
+            if !string_writer.is_empty() {
+                if !self.const_labels.is_empty() || additional_labels.is_some() {
+                    self.writer.write_str(",")?;
+                }
+                self.writer.write_str(string_writer.as_str())?;
+            }
         }
 
         self.writer.write_str("}")?;
@@ -710,6 +714,7 @@ mod tests {
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
     use std::sync::atomic::{AtomicI32, AtomicU32};
+    use std::fmt::Error;
 
     #[test]
     fn encode_counter() {
@@ -890,6 +895,51 @@ mod tests {
                 ("method".to_string(), "GET".to_string()),
                 ("status".to_string(), "200".to_string()),
             ])
+            .observe(1.0);
+
+        let mut encoded = String::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_histogram_family_with_empty_family_labels() {
+        let mut registry = Registry::default();
+        let family =
+            Family::new_with_constructor(|| Histogram::new(exponential_buckets(1.0, 2.0, 10)));
+        registry.register("my_histogram", "My histogram", family.clone());
+
+        family
+            .get_or_create(&())
+            .observe(1.0);
+
+        let mut encoded = String::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_histogram_family_with_empty_struct_family_labels() {
+        let mut registry = Registry::default();
+        let family =
+            Family::new_with_constructor(|| Histogram::new(exponential_buckets(1.0, 2.0, 10)));
+        registry.register("my_histogram", "My histogram", family.clone());
+
+        #[derive(Eq, PartialEq, Hash, Debug, Clone)]
+        struct EmptyLabels {}
+
+        impl EncodeLabelSet for EmptyLabels {
+            fn encode(&self, _encoder: crate::encoding::LabelSetEncoder) -> Result<(), Error> {
+                Ok(())
+            }
+        }
+
+        family
+            .get_or_create(&EmptyLabels {})
             .observe(1.0);
 
         let mut encoded = String::new();
