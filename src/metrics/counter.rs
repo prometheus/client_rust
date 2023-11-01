@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 /// Open Metrics [`Counter`] to measure discrete events.
 ///
@@ -179,7 +180,7 @@ where
     A: Atomic<N>,
 {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_counter::<(), _, u64>(&self.get(), None)
+        encoder.encode_counter::<(), _, u64>(&self.get(), None, None)
     }
 
     fn metric_type(&self) -> MetricType {
@@ -193,12 +194,24 @@ where
 #[derive(Debug, Default)]
 pub struct ConstCounter<N = u64> {
     value: N,
+    timestamp: Option<SystemTime>,
 }
 
 impl<N> ConstCounter<N> {
     /// Creates a new [`ConstCounter`].
     pub fn new(value: N) -> Self {
-        Self { value }
+        Self {
+            value,
+            timestamp: None,
+        }
+    }
+
+    /// Creates a new [`ConstCounter`] with a timestamp.
+    pub fn new_with_timestamp(value: N, timestamp: SystemTime) -> Self {
+        Self {
+            value,
+            timestamp: Some(timestamp),
+        }
     }
 }
 
@@ -211,7 +224,7 @@ where
     N: crate::encoding::EncodeCounterValue,
 {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_counter::<(), _, u64>(&self.value, None)
+        encoder.encode_counter::<(), _, u64>(&self.value, None, self.timestamp)
     }
 
     fn metric_type(&self) -> MetricType {
@@ -223,6 +236,7 @@ where
 mod tests {
     use super::*;
     use quickcheck::QuickCheck;
+    use std::time::UNIX_EPOCH;
 
     #[test]
     fn inc_and_get() {
@@ -249,5 +263,11 @@ mod tests {
         }
 
         QuickCheck::new().tests(10).quickcheck(prop as fn(_))
+    }
+
+    #[test]
+    fn const_counter_with_timestamp() {
+        let counter = ConstCounter::new_with_timestamp(123, UNIX_EPOCH);
+        assert_eq!(UNIX_EPOCH, counter.timestamp.unwrap());
     }
 }

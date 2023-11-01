@@ -9,6 +9,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::ops::Deref;
+use std::time::SystemTime;
 
 #[cfg(feature = "protobuf")]
 pub mod protobuf;
@@ -150,8 +151,14 @@ impl MetricEncoder<'_> {
         &mut self,
         v: &CounterValue,
         exemplar: Option<&Exemplar<S, ExemplarValue>>,
+        timestamp: Option<SystemTime>,
     ) -> Result<(), std::fmt::Error> {
-        for_both_mut!(self, MetricEncoderInner, e, e.encode_counter(v, exemplar))
+        for_both_mut!(
+            self,
+            MetricEncoderInner,
+            e,
+            e.encode_counter(v, exemplar, timestamp)
+        )
     }
 
     /// Encode a gauge.
