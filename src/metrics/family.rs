@@ -5,7 +5,9 @@
 use crate::encoding::{EncodeLabelSet, EncodeMetric, MetricEncoder};
 
 use super::{MetricType, TypedMetric};
-use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::{
+    MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockUpgradableReadGuard, RwLockWriteGuard,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -247,6 +249,41 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         })
     }
 
+    /// Access a metric with the given label set, creating it if the one does not
+    /// yet exist.
+    ///
+    /// Unlike the [Self::get_or_create] method, this one takes a closure that runs
+    /// with the context of a counter. This approach avoids label set cloning and
+    /// better hides an implementation details.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    ///
+    /// // Will create the metric with label `method="GET"` on first call and
+    /// // return a reference.
+    /// family.with_labels(vec![("method".to_owned(), "GET".to_owned())], |counter| counter.inc());
+    ///
+    /// // Will return a reference to the existing metric on all subsequent
+    /// // calls.
+    /// family.with_labels(vec![("method".to_owned(), "GET".to_owned())], |counter| counter.inc());
+    /// ```
+    pub fn with_labels<R, F: Fn(&M) -> R>(&self, label_set: S, f: F) -> R {
+        let read_guard = self.metrics.upgradable_read();
+        if let Some(metric) = read_guard.get(&label_set) {
+            return f(metric);
+        }
+
+        let mut write_guard = RwLockUpgradableReadGuard::upgrade(read_guard);
+
+        let metric = write_guard
+            .entry(label_set)
+            .or_insert_with(|| self.constructor.new_metric());
+        f(metric)
+    }
+
     /// Remove a label set from the metric family.
     ///
     /// Returns a bool indicating if a label set was removed or not.
@@ -345,6 +382,17 @@ mod tests {
             family
                 .get_or_create(&vec![("method".to_string(), "GET".to_string())])
                 .get()
+        );
+
+        family.with_labels(vec![("method".to_string(), "GET".to_string())], |counter| {
+            counter.inc()
+        });
+
+        assert_eq!(
+            2,
+            family.with_labels(vec![("method".to_string(), "GET".to_string())], |counter| {
+                counter.get()
+            })
         );
     }
 
