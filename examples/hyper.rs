@@ -1,7 +1,10 @@
 use hyper::{
-    service::{make_service_fn, service_fn},
-    Body, Request, Response, Server,
+    service::service_fn,
+    Request, Response, body::{Incoming, Bytes},
+    server::conn::http1,
 };
+use hyper_util::rt::TokioIo;
+use http_body_util::{combinators, Full, BodyExt};
 use prometheus_client::{encoding::text::encode, metrics::counter::Counter, registry::Registry};
 use std::{
     future::Future,
@@ -10,7 +13,7 @@ use std::{
     pin::Pin,
     sync::Arc,
 };
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::{pin, net::TcpListener, signal::unix::{signal, SignalKind}};
 
 #[tokio::main]
 async fn main() {
@@ -31,39 +34,47 @@ async fn main() {
 
 /// Start a HTTP server to report metrics.
 pub async fn start_metrics_server(metrics_addr: SocketAddr, registry: Registry) {
-    let mut shutdown_stream = signal(SignalKind::terminate()).unwrap();
-
     eprintln!("Starting metrics server on {metrics_addr}");
 
     let registry = Arc::new(registry);
-    Server::bind(&metrics_addr)
-        .serve(make_service_fn(move |_conn| {
-            let registry = registry.clone();
-            async move {
-                let handler = make_handler(registry);
-                Ok::<_, io::Error>(service_fn(handler))
+
+    let tcp_listener = TcpListener::bind(metrics_addr).await.unwrap();
+    let server = http1::Builder::new();
+    while let Ok((stream, _)) = tcp_listener.accept().await {
+        let mut shutdown_stream = signal(SignalKind::terminate()).unwrap();
+        let io = TokioIo::new(stream);
+        let server_clone = server.clone();
+        let registry_clone = registry.clone();
+        tokio::task::spawn(async move {
+            let conn = server_clone.serve_connection(io, service_fn(make_handler(registry_clone)));
+            pin!(conn);
+            tokio::select! {
+                _ = conn.as_mut() => {}
+                _ = shutdown_stream.recv() => {
+                    conn.as_mut().graceful_shutdown();
+                }
             }
-        }))
-        .with_graceful_shutdown(async move {
-            shutdown_stream.recv().await;
-        })
-        .await
-        .unwrap();
+        });
+    }
 }
+
+/// Boxed HTTP body for responses
+type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 
 /// This function returns a HTTP handler (i.e. another function)
 pub fn make_handler(
     registry: Arc<Registry>,
-) -> impl Fn(Request<Body>) -> Pin<Box<dyn Future<Output = io::Result<Response<Body>>> + Send>> {
+) -> impl Fn(Request<Incoming>) -> Pin<Box<dyn Future<Output = io::Result<Response<BoxBody>>> + Send>> {
     // This closure accepts a request and responds with the OpenMetrics encoding of our metrics.
-    move |_req: Request<Body>| {
+    move |_req: Request<Incoming>| {
         let reg = registry.clone();
+
         Box::pin(async move {
             let mut buf = String::new();
             encode(&mut buf, &reg.clone())
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
                 .map(|_| {
-                    let body = Body::from(buf);
+                    let body = full(Bytes::from(buf));
                     Response::builder()
                         .header(
                             hyper::header::CONTENT_TYPE,
@@ -74,4 +85,9 @@ pub fn make_handler(
                 })
         })
     }
+}
+
+/// helper function to build a full boxed body
+pub fn full(body: Bytes) -> BoxBody {
+    Full::new(body).map_err(|never| match never {}).boxed()
 }
