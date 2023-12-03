@@ -3,6 +3,32 @@ use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 
 pub fn family(c: &mut Criterion) {
+    c.bench_function(
+        "counter family with [(&'static str, &'static str)] label set",
+        |b| {
+            let family = Family::<[(&'static str, &'static str); 2], Counter>::default();
+
+            b.iter(|| {
+                family
+                    .get_or_create(&[("method", "GET"), ("status", "200")])
+                    .inc();
+            })
+        },
+    );
+
+    c.bench_function(
+        "counter family with Vec<(&'static str, &'static str)> label set",
+        |b| {
+            let family = Family::<Vec<(&'static str, &'static str)>, Counter>::default();
+
+            b.iter(|| {
+                family
+                    .get_or_create(&vec![("method", "GET"), ("status", "200")])
+                    .inc();
+            })
+        },
+    );
+
     c.bench_function("counter family with Vec<(String, String)> label set", |b| {
         let family = Family::<Vec<(String, String)>, Counter>::default();
 
