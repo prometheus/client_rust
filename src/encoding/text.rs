@@ -58,9 +58,10 @@ use std::fmt::Write;
 ///     "Total orders received",
 ///     total_orders.clone(),
 /// );
-/// orders_registry.register(
+/// orders_registry.register_with_unit(
 ///     "processing_times",
-///     "Order times in seconds",
+///     "Order times",
+///     Unit::Seconds,
 ///     processing_times.clone(),
 /// );
 ///
