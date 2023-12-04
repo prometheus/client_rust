@@ -57,6 +57,7 @@ pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Er
 /// # use prometheus_client::metrics::counter::Counter;
 /// # use prometheus_client::metrics::histogram::{Histogram, exponential_buckets};
 /// # use prometheus_client::registry::Registry;
+/// # use prometheus_client::registry::Unit;
 /// # use prometheus_client::encoding::text::{encode_registry, encode_end};
 /// #
 /// # fn main() -> Result<(), std::fmt::Error> {
