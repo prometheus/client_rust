@@ -33,6 +33,16 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
 
+/// Encode the metrics registered with the provided [`Registry`] into the
+/// provided [`Write`]r using the OpenMetrics text format.
+pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Error>
+    where
+        W: Write,
+{
+    encode_registry(writer, registry)?;
+    encode_end(writer)
+}
+
 /// Encode the metrics registered with the provided
 /// [`Registry`] into the provided [`Write`]r using the OpenMetrics text
 /// format.
@@ -110,16 +120,6 @@ where
 {
     writer.write_str("# EOF\n")?;
     Ok(())
-}
-
-/// Encode the metrics registered with the provided [`Registry`] into the
-/// provided [`Write`]r using the OpenMetrics text format.
-pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Error>
-where
-    W: Write,
-{
-    encode_registry(writer, registry)?;
-    encode_end(writer)
 }
 
 pub(crate) struct DescriptorEncoder<'a> {
