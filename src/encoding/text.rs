@@ -36,8 +36,8 @@ use std::fmt::Write;
 /// Encode the metrics registered with the provided [`Registry`] into the
 /// provided [`Write`]r using the OpenMetrics text format.
 pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Error>
-    where
-        W: Write,
+where
+    W: Write,
 {
     encode_registry(writer, registry)?;
     encode_end(writer)
