@@ -24,7 +24,7 @@
 //! assert_eq!(expected, buffer);
 //! ```
 
-use crate::encoding::{EncodeExemplarValue, EncodeLabelSet};
+use crate::encoding::{EncodeExemplarValue, EncodeLabelSet, NoLabelSet};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -186,7 +186,7 @@ impl<'a> MetricEncoder<'a> {
 
         self.write_suffix("total")?;
 
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
 
         v.encode(
             &mut CounterValueEncoder {
@@ -210,7 +210,7 @@ impl<'a> MetricEncoder<'a> {
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit()?;
 
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
 
         v.encode(
             &mut GaugeValueEncoder {
@@ -266,14 +266,14 @@ impl<'a> MetricEncoder<'a> {
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit()?;
         self.write_suffix("sum")?;
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(sum))?;
         self.newline()?;
 
         self.write_prefix_name_unit()?;
         self.write_suffix("count")?;
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(count))?;
         self.newline()?;
@@ -748,24 +748,6 @@ mod tests {
     }
 
     #[test]
-    fn encode_histogram_family_with_empty_family_labels() {
-        let mut registry = Registry::default();
-        let family =
-            Family::new_with_constructor(|| Histogram::new(exponential_buckets(1.0, 2.0, 10)));
-        registry.register("my_histogram", "My histogram", family.clone());
-
-        family
-            .get_or_create(&())
-            .observe(1.0);
-
-        let mut encoded = String::new();
-
-        encode(&mut encoded, &registry).unwrap();
-
-        parse_with_python_client(encoded);
-    }
-
-    #[test]
     fn encode_histogram_family_with_empty_struct_family_labels() {
         let mut registry = Registry::default();
         let family =
@@ -781,9 +763,7 @@ mod tests {
             }
         }
 
-        family
-            .get_or_create(&EmptyLabels {})
-            .observe(1.0);
+        family.get_or_create(&EmptyLabels {}).observe(1.0);
 
         let mut encoded = String::new();
 
