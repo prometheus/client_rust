@@ -2,7 +2,7 @@
 //!
 //! See [`Histogram`] for details.
 
-use crate::encoding::{EncodeMetric, MetricEncoder};
+use crate::encoding::{EncodeMetric, MetricEncoder, NoLabelSet};
 
 use super::{MetricType, TypedMetric};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
@@ -133,7 +133,7 @@ pub fn linear_buckets(start: f64, width: f64, length: u16) -> impl Iterator<Item
 impl EncodeMetric for Histogram {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
         let (sum, count, buckets) = self.get();
-        encoder.encode_histogram::<()>(sum, count, &buckets, None)
+        encoder.encode_histogram::<NoLabelSet>(sum, count, &buckets, None)
     }
 
     fn metric_type(&self) -> MetricType {
