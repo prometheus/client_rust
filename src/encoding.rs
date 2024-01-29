@@ -9,6 +9,8 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::ops::Deref;
+use std::rc::Rc;
+use std::sync::Arc;
 
 #[cfg(feature = "protobuf")]
 pub mod protobuf;
@@ -389,6 +391,33 @@ impl<'a> EncodeLabelKey for Cow<'a, str> {
     }
 }
 
+impl<T> EncodeLabelKey for Box<T>
+where
+    for<'a> &'a T: EncodeLabelKey,
+{
+    fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelKey::encode(&self.as_ref(), encoder)
+    }
+}
+
+impl<T> EncodeLabelKey for Arc<T>
+where
+    for<'a> &'a T: EncodeLabelKey,
+{
+    fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelKey::encode(&self.as_ref(), encoder)
+    }
+}
+
+impl<T> EncodeLabelKey for Rc<T>
+where
+    for<'a> &'a T: EncodeLabelKey,
+{
+    fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelKey::encode(&self.as_ref(), encoder)
+    }
+}
+
 /// An encodable label value.
 pub trait EncodeLabelValue {
     /// Encode oneself into the given encoder.
@@ -445,6 +474,33 @@ impl EncodeLabelValue for String {
 }
 
 impl<'a> EncodeLabelValue for Cow<'a, str> {
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelValue::encode(&self.as_ref(), encoder)
+    }
+}
+
+impl<T> EncodeLabelValue for Box<T>
+where
+    for<'a> &'a T: EncodeLabelValue,
+{
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelValue::encode(&self.as_ref(), encoder)
+    }
+}
+
+impl<T> EncodeLabelValue for Arc<T>
+where
+    for<'a> &'a T: EncodeLabelValue,
+{
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelValue::encode(&self.as_ref(), encoder)
+    }
+}
+
+impl<T> EncodeLabelValue for Rc<T>
+where
+    for<'a> &'a T: EncodeLabelValue,
+{
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
         EncodeLabelValue::encode(&self.as_ref(), encoder)
     }
