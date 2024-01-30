@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `EncodeLabelValue` and `EncodeLabelKey` implementations for `Arc`,
   `Rc`, and `Box`.
+  See [PR 188].
 
 [PR 188]: https://github.com/prometheus/client_rust/pull/188
 
