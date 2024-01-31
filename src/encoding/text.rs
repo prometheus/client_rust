@@ -24,7 +24,7 @@
 //! assert_eq!(expected, buffer);
 //! ```
 
-use crate::encoding::{EncodeExemplarValue, EncodeLabelSet};
+use crate::encoding::{EncodeExemplarValue, EncodeLabelSet, NoLabelSet};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -186,7 +186,7 @@ impl<'a> MetricEncoder<'a> {
 
         self.write_suffix("total")?;
 
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
 
         v.encode(
             &mut CounterValueEncoder {
@@ -210,7 +210,7 @@ impl<'a> MetricEncoder<'a> {
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit()?;
 
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
 
         v.encode(
             &mut GaugeValueEncoder {
@@ -266,14 +266,14 @@ impl<'a> MetricEncoder<'a> {
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit()?;
         self.write_suffix("sum")?;
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(sum))?;
         self.newline()?;
 
         self.write_prefix_name_unit()?;
         self.write_suffix("count")?;
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(count))?;
         self.newline()?;
@@ -375,11 +375,15 @@ impl<'a> MetricEncoder<'a> {
         }
 
         if let Some(labels) = &self.family_labels {
-            if !self.const_labels.is_empty() || additional_labels.is_some() {
-                self.writer.write_str(",")?;
-            }
+            let mut string_writer = String::new();
+            labels.encode(LabelSetEncoder::new(&mut string_writer).into())?;
 
-            labels.encode(LabelSetEncoder::new(self.writer).into())?;
+            if !string_writer.is_empty() {
+                if !self.const_labels.is_empty() || additional_labels.is_some() {
+                    self.writer.write_str(",")?;
+                }
+                self.writer.write_str(string_writer.as_str())?;
+            }
         }
 
         self.writer.write_str("}")?;
@@ -565,6 +569,7 @@ mod tests {
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
+    use std::fmt::Error;
 
     #[test]
     fn encode_counter() {
@@ -734,6 +739,31 @@ mod tests {
                 ("status".to_string(), "200".to_string()),
             ])
             .observe(1.0);
+
+        let mut encoded = String::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_histogram_family_with_empty_struct_family_labels() {
+        let mut registry = Registry::default();
+        let family =
+            Family::new_with_constructor(|| Histogram::new(exponential_buckets(1.0, 2.0, 10)));
+        registry.register("my_histogram", "My histogram", family.clone());
+
+        #[derive(Eq, PartialEq, Hash, Debug, Clone)]
+        struct EmptyLabels {}
+
+        impl EncodeLabelSet for EmptyLabels {
+            fn encode(&self, _encoder: crate::encoding::LabelSetEncoder) -> Result<(), Error> {
+                Ok(())
+            }
+        }
+
+        family.get_or_create(&EmptyLabels {}).observe(1.0);
 
         let mut encoded = String::new();
 
