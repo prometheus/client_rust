@@ -188,6 +188,33 @@ impl Atomic<i32> for AtomicI32 {
 }
 
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+impl Atomic<u64> for AtomicU64 {
+    fn inc(&self) -> u64 {
+        self.inc_by(1)
+    }
+
+    fn inc_by(&self, v: u64) -> u64 {
+        self.fetch_add(v, Ordering::Relaxed)
+    }
+
+    fn dec(&self) -> u64 {
+        self.dec_by(1)
+    }
+
+    fn dec_by(&self, v: u64) -> u64 {
+        self.fetch_sub(v, Ordering::Relaxed)
+    }
+
+    fn set(&self, v: u64) -> u64 {
+        self.swap(v, Ordering::Relaxed)
+    }
+
+    fn get(&self) -> u64 {
+        self.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 impl Atomic<f64> for AtomicU64 {
     fn inc(&self) -> f64 {
         self.inc_by(1.0)
