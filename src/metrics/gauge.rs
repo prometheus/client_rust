@@ -6,7 +6,7 @@ use crate::encoding::{EncodeGaugeValue, EncodeMetric, MetricEncoder};
 
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 use std::sync::atomic::{AtomicI64, AtomicU64};
 use std::sync::Arc;
@@ -134,6 +134,58 @@ pub trait Atomic<N> {
     fn get(&self) -> N;
 }
 
+impl Atomic<i32> for AtomicI32 {
+    fn inc(&self) -> i32 {
+        self.inc_by(1)
+    }
+
+    fn inc_by(&self, v: i32) -> i32 {
+        self.fetch_add(v, Ordering::Relaxed)
+    }
+
+    fn dec(&self) -> i32 {
+        self.dec_by(1)
+    }
+
+    fn dec_by(&self, v: i32) -> i32 {
+        self.fetch_sub(v, Ordering::Relaxed)
+    }
+
+    fn set(&self, v: i32) -> i32 {
+        self.swap(v, Ordering::Relaxed)
+    }
+
+    fn get(&self) -> i32 {
+        self.load(Ordering::Relaxed)
+    }
+}
+
+impl Atomic<u32> for AtomicU32 {
+    fn inc(&self) -> u32 {
+        self.inc_by(1)
+    }
+
+    fn inc_by(&self, v: u32) -> u32 {
+        self.fetch_add(v, Ordering::Relaxed)
+    }
+
+    fn dec(&self) -> u32 {
+        self.dec_by(1)
+    }
+
+    fn dec_by(&self, v: u32) -> u32 {
+        self.fetch_sub(v, Ordering::Relaxed)
+    }
+
+    fn set(&self, v: u32) -> u32 {
+        self.swap(v, Ordering::Relaxed)
+    }
+
+    fn get(&self) -> u32 {
+        self.load(Ordering::Relaxed)
+    }
+}
+
 #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
 impl Atomic<i64> for AtomicI64 {
     fn inc(&self) -> i64 {
@@ -157,32 +209,6 @@ impl Atomic<i64> for AtomicI64 {
     }
 
     fn get(&self) -> i64 {
-        self.load(Ordering::Relaxed)
-    }
-}
-
-impl Atomic<i32> for AtomicI32 {
-    fn inc(&self) -> i32 {
-        self.inc_by(1)
-    }
-
-    fn inc_by(&self, v: i32) -> i32 {
-        self.fetch_add(v, Ordering::Relaxed)
-    }
-
-    fn dec(&self) -> i32 {
-        self.dec_by(1)
-    }
-
-    fn dec_by(&self, v: i32) -> i32 {
-        self.fetch_sub(v, Ordering::Relaxed)
-    }
-
-    fn set(&self, v: i32) -> i32 {
-        self.swap(v, Ordering::Relaxed)
-    }
-
-    fn get(&self) -> i32 {
         self.load(Ordering::Relaxed)
     }
 }
