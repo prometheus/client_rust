@@ -323,6 +323,10 @@ pub(crate) struct GaugeValueEncoder<'a> {
 }
 
 impl<'a> GaugeValueEncoder<'a> {
+    pub fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
+        self.encode_i64(v as i64)
+    }
+
     pub fn encode_i64(&mut self, v: i64) -> Result<(), std::fmt::Error> {
         *self.value = openmetrics_data_model::gauge_value::Value::IntValue(v);
         Ok(())

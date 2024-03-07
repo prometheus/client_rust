@@ -423,15 +423,21 @@ impl<'a> std::fmt::Debug for GaugeValueEncoder<'a> {
 }
 
 impl<'a> GaugeValueEncoder<'a> {
-    pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+    pub fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
-        self.writer.write_str(dtoa::Buffer::new().format(v))?;
+        self.writer.write_str(itoa::Buffer::new().format(v))?;
         Ok(())
     }
 
     pub fn encode_i64(&mut self, v: i64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(v))?;
+        Ok(())
+    }
+
+    pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(" ")?;
+        self.writer.write_str(dtoa::Buffer::new().format(v))?;
         Ok(())
     }
 }
@@ -565,6 +571,7 @@ mod tests {
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
+    use std::sync::atomic::AtomicU32;
 
     #[test]
     fn encode_counter() {
@@ -632,6 +639,8 @@ mod tests {
         let mut registry = Registry::default();
         let gauge: Gauge = Gauge::default();
         registry.register("my_gauge", "My gauge", gauge);
+        let gauge = Gauge::<u32, AtomicU32>::default();
+        registry.register("u32_gauge", "Gauge::<u32, AtomicU32>", gauge);
 
         let mut encoded = String::new();
 
