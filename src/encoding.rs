@@ -544,6 +544,12 @@ pub trait EncodeGaugeValue {
     fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error>;
 }
 
+impl EncodeGaugeValue for u32 {
+    fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_u32(*self)
+    }
+}
+
 impl EncodeGaugeValue for i64 {
     fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_i64(*self)
@@ -568,12 +574,16 @@ enum GaugeValueEncoderInner<'a> {
 }
 
 impl<'a> GaugeValueEncoder<'a> {
-    fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
-        for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_f64(v))
+    fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
+        for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_u32(v))
     }
 
     fn encode_i64(&mut self, v: i64) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_i64(v))
+    }
+
+    fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_f64(v))
     }
 }
 
