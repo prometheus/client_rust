@@ -19,6 +19,7 @@ members = ["derive-encode"]
 
 [dependencies]
 dtoa = "1.0"
+hashbrown = "0.14"
 itoa = "1.0"
 parking_lot = "0.12"
 prometheus-client-derive-encode = { version = "0.4.1", path = "derive-encode" }

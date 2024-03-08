@@ -2,11 +2,13 @@
 //!
 //! See [`Family`] for details.
 
+pub use hashbrown::Equivalent;
+
 use crate::encoding::{EncodeLabelSet, EncodeMetric, MetricEncoder};
 
 use super::{MetricType, TypedMetric};
+use hashbrown::HashMap;
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Representation of the OpenMetrics *MetricFamily* data type.
@@ -207,6 +209,81 @@ impl<S: Clone + std::hash::Hash + Eq, M, C> Family<S, M, C> {
     }
 }
 
+/// Label set creation trait.
+///
+/// This trait defines the function used to create a label set from a reference.
+/// It is provided with a blanket implementation based on the Clone requirement of Family<S, ...>
+/// generic type and blanket implementation of [`Equivalent`](hashbrown::Equivalent).
+///
+/// Useful when the label set is a complex string-based type.
+///
+/// ```
+/// # use prometheus_client::metrics::counter::Counter;
+/// # use prometheus_client::encoding::EncodeLabelSet;
+/// # use prometheus_client::metrics::family::{CreateFromEquivalent, Equivalent, Family};
+///
+/// #[derive(Clone, Eq, Hash, PartialEq, EncodeLabelSet)]
+/// struct Labels {
+///     method: String,
+///     url_path: String,
+///     status_code: String,
+/// }
+///
+/// let family = Family::<Labels, Counter>::default();
+///
+/// // Will create or get the metric with label `method="GET",url_path="/metrics",status_code="200"`
+/// family.get_or_create(&Labels {
+///     method: "GET".to_string(),
+///     url_path: "/metrics".to_string(),
+///     status_code: "200".to_string(),
+/// }).inc();
+///
+/// // Will return a reference to the metric without unnecessary cloning and allocation.
+/// family.get_or_create(&LabelsQ {
+///     method: "GET",
+///     url_path: "/metrics",
+///     status_code: "200",
+/// }).inc();
+///
+/// #[derive(Debug, Eq, Hash, PartialEq)]
+/// struct LabelsQ<'a> {
+///     method: &'a str,
+///     url_path: &'a str,
+///     status_code: &'a str,
+/// }
+///
+/// impl CreateFromEquivalent<Labels> for LabelsQ<'_> {
+///     fn create(&self) -> Labels {
+///         Labels {
+///             method: self.method.to_string(),
+///             url_path: self.url_path.to_string(),
+///             status_code: self.status_code.to_string(),
+///         }
+///     }
+/// }
+///
+/// impl Equivalent<Labels> for LabelsQ<'_> {
+///     fn equivalent(&self, key: &Labels) -> bool {
+///         self.method == key.method &&
+///             self.url_path == key.url_path &&
+///             self.status_code == key.status_code
+///     }
+/// }
+/// ```
+pub trait CreateFromEquivalent<S>: Equivalent<S> {
+    /// Create label set from reference of lookup key.
+    fn create(&self) -> S;
+}
+
+impl<S> CreateFromEquivalent<S> for S
+where
+    S: Equivalent<S> + Clone,
+{
+    fn create(&self) -> S {
+        self.clone()
+    }
+}
+
 impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C> {
     /// Access a metric with the given label set, creating it if one does not
     /// yet exist.
@@ -225,7 +302,10 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     /// // calls.
     /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
     /// ```
-    pub fn get_or_create(&self, label_set: &S) -> MappedRwLockReadGuard<M> {
+    pub fn get_or_create<Q>(&self, label_set: &Q) -> MappedRwLockReadGuard<M>
+    where
+        Q: std::hash::Hash + CreateFromEquivalent<S> + ?Sized,
+    {
         if let Ok(metric) =
             RwLockReadGuard::try_map(self.metrics.read(), |metrics| metrics.get(label_set))
         {
@@ -235,7 +315,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         let mut write_guard = self.metrics.write();
 
         write_guard
-            .entry(label_set.clone())
+            .entry(CreateFromEquivalent::create(label_set))
             .or_insert_with(|| self.constructor.new_metric());
 
         let read_guard = RwLockWriteGuard::downgrade(write_guard);
@@ -329,6 +409,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate as prometheus_client;
     use crate::metrics::counter::Counter;
     use crate::metrics::histogram::{exponential_buckets, Histogram};
 
@@ -449,6 +530,101 @@ mod tests {
             1,
             family
                 .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+                .get()
+        );
+    }
+
+    #[test]
+    fn get_or_create_lookup() {
+        #[derive(Clone, Eq, Hash, PartialEq, EncodeLabelSet)]
+        struct Labels {
+            method: String,
+            url_path: String,
+            status_code: String,
+        }
+
+        #[derive(Debug, Eq, Hash, PartialEq)]
+        struct LabelsQ<'a> {
+            method: &'a str,
+            url_path: &'a str,
+            status_code: &'a str,
+        }
+
+        impl CreateFromEquivalent<Labels> for LabelsQ<'_> {
+            fn create(&self) -> Labels {
+                Labels {
+                    method: self.method.to_string(),
+                    url_path: self.url_path.to_string(),
+                    status_code: self.status_code.to_string(),
+                }
+            }
+        }
+
+        impl Equivalent<Labels> for LabelsQ<'_> {
+            fn equivalent(&self, key: &Labels) -> bool {
+                self.method == key.method
+                    && self.url_path == key.url_path
+                    && self.status_code == key.status_code
+            }
+        }
+
+        let family = Family::<Labels, Counter>::default();
+
+        family
+            .get_or_create(&Labels {
+                method: "GET".to_string(),
+                url_path: "/metrics".to_string(),
+                status_code: "200".to_string(),
+            })
+            .inc();
+
+        family
+            .get_or_create(&Labels {
+                method: "POST".to_string(),
+                url_path: "/metrics".to_string(),
+                status_code: "200".to_string(),
+            })
+            .inc_by(2);
+
+        assert_eq!(
+            1,
+            family
+                .get_or_create(&Labels {
+                    method: "GET".to_string(),
+                    url_path: "/metrics".to_string(),
+                    status_code: "200".to_string(),
+                })
+                .get()
+        );
+        assert_eq!(
+            2,
+            family
+                .get_or_create(&Labels {
+                    method: "POST".to_string(),
+                    url_path: "/metrics".to_string(),
+                    status_code: "200".to_string(),
+                })
+                .get()
+        );
+
+        assert_eq!(
+            1,
+            family
+                .get_or_create(&LabelsQ {
+                    method: "GET",
+                    url_path: "/metrics",
+                    status_code: "200",
+                })
+                .get()
+        );
+        assert_eq!(
+            2,
+            family
+                .get_or_create(&LabelsQ {
+                    method: "POST",
+                    url_path: "/metrics",
+                    status_code: "200",
+                })
                 .get()
         );
     }
