@@ -35,12 +35,14 @@ use std::sync::Arc;
 // https://github.com/tikv/rust-prometheus/pull/314.
 #[derive(Debug)]
 pub struct Histogram {
+    buckets: Box<[f64]>,
     inner: Arc<RwLock<Inner>>,
 }
 
 impl Clone for Histogram {
     fn clone(&self) -> Self {
         Histogram {
+            buckets: self.buckets.clone(),
             inner: self.inner.clone(),
         }
     }
@@ -58,16 +60,22 @@ pub(crate) struct Inner {
 impl Histogram {
     /// Create a new [`Histogram`].
     pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
+        let buckets = buckets
+            .into_iter()
+            .chain(once(f64::MAX))
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+
         Self {
             inner: Arc::new(RwLock::new(Inner {
                 sum: Default::default(),
                 count: Default::default(),
                 buckets: buckets
-                    .into_iter()
-                    .chain(once(f64::MAX))
-                    .map(|upper_bound| (upper_bound, 0))
+                    .iter()
+                    .map(|upper_bound| (*upper_bound, 0))
                     .collect(),
             })),
+            buckets,
         }
     }
 
@@ -82,19 +90,19 @@ impl Histogram {
     /// Needed in
     /// [`HistogramWithExemplars`](crate::metrics::exemplar::HistogramWithExemplars).
     pub(crate) fn observe_and_bucket(&self, v: f64) -> Option<usize> {
+        // Figure out the correct bucket before aquiring a lock
+        let first_bucket = self
+            .buckets
+            .iter()
+            .position(|upper_bound| *upper_bound >= v);
+
         let mut inner = self.inner.write();
         inner.sum += v;
         inner.count += 1;
 
-        let first_bucket = inner
-            .buckets
-            .iter_mut()
-            .enumerate()
-            .find(|(_i, (upper_bound, _value))| upper_bound >= &v);
-
         match first_bucket {
-            Some((i, (_upper_bound, value))) => {
-                *value += 1;
+            Some(i) => {
+                inner.buckets[i].1 += 1;
                 Some(i)
             }
             None => None,
