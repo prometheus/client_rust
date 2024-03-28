@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 
 use actix_web::{web, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::middleware::Compress;
 use prometheus_client::encoding::text::encode;
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 use prometheus_client::metrics::counter::Counter;
@@ -61,6 +62,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(Compress::default())
             .app_data(metrics.clone())
             .app_data(state.clone())
             .service(web::resource("/metrics").route(web::get().to(metrics_handler)))
