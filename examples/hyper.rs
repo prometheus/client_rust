@@ -1,10 +1,11 @@
+use http_body_util::{combinators, BodyExt, Full};
 use hyper::{
-    service::service_fn,
-    Request, Response, body::{Incoming, Bytes},
+    body::{Bytes, Incoming},
     server::conn::http1,
+    service::service_fn,
+    Request, Response,
 };
 use hyper_util::rt::TokioIo;
-use http_body_util::{combinators, Full, BodyExt};
 use prometheus_client::{encoding::text::encode, metrics::counter::Counter, registry::Registry};
 use std::{
     future::Future,
@@ -13,7 +14,11 @@ use std::{
     pin::Pin,
     sync::Arc,
 };
-use tokio::{pin, net::TcpListener, signal::unix::{signal, SignalKind}};
+use tokio::{
+    net::TcpListener,
+    pin,
+    signal::unix::{signal, SignalKind},
+};
 
 #[tokio::main]
 async fn main() {
@@ -64,7 +69,8 @@ type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 /// This function returns a HTTP handler (i.e. another function)
 pub fn make_handler(
     registry: Arc<Registry>,
-) -> impl Fn(Request<Incoming>) -> Pin<Box<dyn Future<Output = io::Result<Response<BoxBody>>> + Send>> {
+) -> impl Fn(Request<Incoming>) -> Pin<Box<dyn Future<Output = io::Result<Response<BoxBody>>> + Send>>
+{
     // This closure accepts a request and responds with the OpenMetrics encoding of our metrics.
     move |_req: Request<Incoming>| {
         let reg = registry.clone();
