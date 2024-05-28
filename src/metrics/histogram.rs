@@ -101,6 +101,17 @@ impl Histogram {
         }
     }
 
+    /// Clears all observations.
+    pub fn clear(&self) {
+        let mut inner = self.inner.write();
+        inner.sum = Default::default();
+        inner.count = Default::default();
+
+        for (_, value) in &mut inner.buckets {
+            *value = 0;
+        }
+    }
+
     pub(crate) fn get(&self) -> (f64, u64, MappedRwLockReadGuard<Vec<(f64, u64)>>) {
         let inner = self.inner.read();
         let sum = inner.sum;
@@ -149,6 +160,7 @@ mod tests {
     fn histogram() {
         let histogram = Histogram::new(exponential_buckets(1.0, 2.0, 10));
         histogram.observe(1.0);
+        histogram.clear();
     }
 
     #[test]

@@ -84,6 +84,11 @@ impl<N, A: Atomic<N>> Counter<N, A> {
         self.value.inc_by(v)
     }
 
+    /// Resets the [`Counter`] to `0`, returning the previous value.
+    pub fn reset(&self) -> N {
+        self.value.reset()
+    }
+
     /// Get the current value of the [`Counter`].
     pub fn get(&self) -> N {
         self.value.get()
@@ -110,6 +115,9 @@ pub trait Atomic<N> {
     /// Increase the value.
     fn inc_by(&self, v: N) -> N;
 
+    /// Reset the value to `0`.
+    fn reset(&self) -> N;
+
     /// Get the the value.
     fn get(&self) -> N;
 }
@@ -124,6 +132,10 @@ impl Atomic<u64> for AtomicU64 {
         self.fetch_add(v, Ordering::Relaxed)
     }
 
+    fn reset(&self) -> u64 {
+        self.swap(Default::default(), Ordering::Relaxed)
+    }
+
     fn get(&self) -> u64 {
         self.load(Ordering::Relaxed)
     }
@@ -136,6 +148,10 @@ impl Atomic<u32> for AtomicU32 {
 
     fn inc_by(&self, v: u32) -> u32 {
         self.fetch_add(v, Ordering::Relaxed)
+    }
+
+    fn reset(&self) -> u32 {
+        self.swap(Default::default(), Ordering::Relaxed)
     }
 
     fn get(&self) -> u32 {
@@ -162,6 +178,10 @@ impl Atomic<f64> for AtomicU64 {
         }
 
         old_f64
+    }
+
+    fn reset(&self) -> f64 {
+        f64::from_bits(self.swap(Default::default(), Ordering::Relaxed))
     }
 
     fn get(&self) -> f64 {
@@ -229,6 +249,14 @@ mod tests {
         let counter: Counter = Counter::default();
         assert_eq!(0, counter.inc());
         assert_eq!(1, counter.get());
+    }
+
+    #[test]
+    fn inc_reset_and_get() {
+        let counter: Counter = Counter::default();
+        assert_eq!(0, counter.inc());
+        assert_eq!(1, counter.reset());
+        assert_eq!(0, counter.get());
     }
 
     #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
