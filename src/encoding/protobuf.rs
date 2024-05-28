@@ -739,6 +739,35 @@ mod tests {
                 );
                 assert_eq!(1, value.count);
                 assert_eq!(11, value.buckets.len());
+                assert_eq!(1u64, value.buckets.iter().map(|bucket| bucket.count).sum());
+            }
+            _ => panic!("wrong value type"),
+        }
+
+        histogram.clear();
+
+        let metric_set = encode(&registry).unwrap();
+
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_histogram", family.name);
+        assert_eq!("My histogram.", family.help);
+
+        assert_eq!(
+            openmetrics_data_model::MetricType::Histogram as i32,
+            extract_metric_type(&metric_set)
+        );
+
+        match extract_metric_point_value(&metric_set) {
+            openmetrics_data_model::metric_point::Value::HistogramValue(value) => {
+                assert_eq!(
+                    Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
+                        0.0
+                    )),
+                    value.sum
+                );
+                assert_eq!(0, value.count);
+                assert_eq!(11, value.buckets.len());
+                assert_eq!(0u64, value.buckets.iter().map(|bucket| bucket.count).sum());
             }
             _ => panic!("wrong value type"),
         }
