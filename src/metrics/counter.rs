@@ -6,7 +6,7 @@ use crate::encoding::{EncodeMetric, MetricEncoder};
 
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -40,7 +40,7 @@ use std::sync::Arc;
 /// counter.inc();
 /// let _value: f64 = counter.get();
 /// ```
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 #[derive(Debug)]
 pub struct Counter<N = u64, A = AtomicU64> {
     value: Arc<A>,
@@ -48,7 +48,7 @@ pub struct Counter<N = u64, A = AtomicU64> {
 }
 
 /// Open Metrics [`Counter`] to measure discrete events.
-#[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
+#[cfg(not(target_has_atomic = "64"))]
 #[derive(Debug)]
 pub struct Counter<N = u32, A = AtomicU32> {
     value: Arc<A>,
@@ -114,7 +114,7 @@ pub trait Atomic<N> {
     fn get(&self) -> N;
 }
 
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 impl Atomic<u64> for AtomicU64 {
     fn inc(&self) -> u64 {
         self.inc_by(1)
@@ -143,7 +143,7 @@ impl Atomic<u32> for AtomicU32 {
     }
 }
 
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 impl Atomic<f64> for AtomicU64 {
     fn inc(&self) -> f64 {
         self.inc_by(1.0)
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(1, counter.get());
     }
 
-    #[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+    #[cfg(target_has_atomic = "64")]
     #[test]
     fn f64_stored_in_atomic_u64() {
         fn prop(fs: Vec<f64>) {
