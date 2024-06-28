@@ -399,6 +399,12 @@ impl<'a> std::fmt::Debug for CounterValueEncoder<'a> {
 }
 
 impl<'a> CounterValueEncoder<'a> {
+    pub fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(" ")?;
+        self.writer.write_str(itoa::Buffer::new().format(v))?;
+        Ok(())
+    }
+
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(v))?;
@@ -578,6 +584,9 @@ mod tests {
         let counter: Counter = Counter::default();
         let mut registry = Registry::default();
         registry.register("my_counter", "My counter", counter);
+
+        let counter_u32 = Counter::<u32, AtomicU32>::default();
+        registry.register("u32_counter", "Counter::<u32, AtomicU32>", counter_u32);
 
         let mut encoded = String::new();
 
@@ -876,7 +885,7 @@ mod tests {
                 &self,
                 mut encoder: crate::encoding::DescriptorEncoder,
             ) -> Result<(), std::fmt::Error> {
-                let counter = crate::metrics::counter::ConstCounter::new(42);
+                let counter = crate::metrics::counter::ConstCounter::new(42u64);
                 let metric_encoder = encoder.encode_descriptor(
                     &self.name,
                     "some help",

@@ -10,8 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support all platforms with 32 bit atomics lacking 64 bit atomics.
   See [PR 203].
+- Added `Counter<u32, AtomicU32>` implementation.
+  See [PR 206].
 
 [PR 203]: https://github.com/prometheus/client_rust/pull/203
+[PR 206]: https://github.com/prometheus/client_rust/pull/206
 
 ## [0.22.2]
 

@@ -185,7 +185,7 @@ impl Registry {
     ///
     /// impl Collector for MyCollector {
     ///     fn encode(&self, mut encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
-    ///         let counter = ConstCounter::new(42);
+    ///         let counter = ConstCounter::new(42u64);
     ///         let metric_encoder = encoder.encode_descriptor(
     ///             "my_counter",
     ///             "some help",

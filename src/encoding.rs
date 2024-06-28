@@ -606,6 +606,12 @@ pub trait EncodeCounterValue {
     fn encode(&self, encoder: &mut CounterValueEncoder) -> Result<(), std::fmt::Error>;
 }
 
+impl EncodeCounterValue for u32 {
+    fn encode(&self, encoder: &mut CounterValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_u32(*self)
+    }
+}
+
 impl EncodeCounterValue for u64 {
     fn encode(&self, encoder: &mut CounterValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_u64(*self)
@@ -630,6 +636,10 @@ enum CounterValueEncoderInner<'a> {
 }
 
 impl<'a> CounterValueEncoder<'a> {
+    fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
+        for_both_mut!(self, CounterValueEncoderInner, e, e.encode_u32(v))
+    }
+
     fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, CounterValueEncoderInner, e, e.encode_f64(v))
     }

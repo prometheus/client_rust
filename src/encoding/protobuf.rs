@@ -365,6 +365,10 @@ pub(crate) struct CounterValueEncoder<'a> {
 }
 
 impl<'a> CounterValueEncoder<'a> {
+    pub fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
+        self.encode_u64(v as u64)
+    }
+
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         *self.value = openmetrics_data_model::counter_value::Total::DoubleValue(v);
         Ok(())
