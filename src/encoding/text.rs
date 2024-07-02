@@ -39,7 +39,86 @@ pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Er
 where
     W: Write,
 {
+    encode_registry(writer, registry)?;
+    encode_end(writer)
+}
+
+/// Encode the metrics registered with the provided
+/// [`Registry`] into the provided [`Write`]r using the OpenMetrics text
+/// format.
+///
+/// Can call repeatedly for the HTTP scrape response, then finish with a
+/// call to [`encode_end`](encode_end) to end the response.
+///
+/// /// Useful when assembling metrics from multiple registries.
+///
+/// Here is a simple example:
+/// ```
+/// # use prometheus_client::metrics::counter::Counter;
+/// # use prometheus_client::metrics::histogram::{Histogram, exponential_buckets};
+/// # use prometheus_client::registry::Registry;
+/// # use prometheus_client::registry::Unit;
+/// # use prometheus_client::encoding::text::{encode_registry, encode_end};
+/// #
+/// # fn main() -> Result<(), std::fmt::Error> {
+/// let mut orders_registry = Registry::default();
+/// let total_orders: Counter<u64> = Default::default();
+/// let processing_times = Histogram::new(exponential_buckets(1.0, 2.0, 10));
+/// orders_registry.register(
+///     "orders",
+///     "Total orders received",
+///     total_orders.clone(),
+/// );
+/// orders_registry.register_with_unit(
+///     "processing_times",
+///     "Order times",
+///     Unit::Seconds,
+///     processing_times.clone(),
+/// );
+///
+/// total_orders.inc();
+/// processing_times.observe(2.4);
+///
+/// let mut user_auth_registry = Registry::default();
+/// let successful_logins: Counter<u64> = Default::default();
+/// let failed_logins: Counter<u64> = Default::default();
+/// user_auth_registry.register(
+///     "successful_logins",
+///     "Total successful logins",
+///     successful_logins.clone(),
+/// );
+/// user_auth_registry.register(
+///     "failed_logins",
+///     "Total failed logins",
+///     failed_logins.clone(),
+/// );
+///
+/// successful_logins.inc();
+///
+/// let mut response = String::new();
+/// encode_registry(&mut response, &orders_registry)?;
+/// # assert_eq!(&response[response.len() - 20..], "bucket{le=\"+Inf\"} 1\n");
+/// encode_registry(&mut response, &user_auth_registry)?;
+/// # assert_eq!(&response[response.len() - 20..], "iled_logins_total 0\n");
+/// encode_end(&mut response)?;
+/// # assert_eq!(&response[response.len() - 20..], "ogins_total 0\n# EOF\n");
+/// # Ok(())
+/// # }
+pub fn encode_registry<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
     registry.encode(&mut DescriptorEncoder::new(writer).into())?;
+    Ok(())
+}
+
+/// Encode the end of the response.
+/// Must be called after one or more calls to [`encode_registry`](encode_registry)
+/// to ensure protocol compliance.
+pub fn encode_end<W>(writer: &mut W) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
     writer.write_str("# EOF\n")?;
     Ok(())
 }
