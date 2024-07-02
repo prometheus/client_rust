@@ -11,9 +11,9 @@ use super::histogram::Histogram;
 use super::{MetricType, TypedMetric};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use std::collections::HashMap;
-#[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
+#[cfg(not(target_has_atomic = "64"))]
 use std::sync::atomic::AtomicU32;
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
@@ -65,7 +65,7 @@ pub struct Exemplar<S, V> {
 ///         }),
 ///     );
 /// ```
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 #[derive(Debug)]
 pub struct CounterWithExemplar<S, N = u64, A = AtomicU64> {
     pub(crate) inner: Arc<RwLock<CounterWithExemplarInner<S, N, A>>>,
@@ -77,7 +77,7 @@ impl<S> TypedMetric for CounterWithExemplar<S> {
 
 /// Open Metrics [`Counter`] with an [`Exemplar`] to both measure discrete
 /// events and track references to data outside of the metric set.
-#[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
+#[cfg(not(target_has_atomic = "64"))]
 #[derive(Debug)]
 pub struct CounterWithExemplar<S, N = u32, A = AtomicU32> {
     pub(crate) inner: Arc<RwLock<CounterWithExemplarInner<S, N, A>>>,
