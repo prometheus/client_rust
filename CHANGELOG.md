@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `encode_registry` and `encode_eof` functions to `text` module.
+  See [PR 205].
+  
+  [PR 205]: https://github.com/prometheus/client_rust/pull/205
+
 - Support all platforms with 32 bit atomics lacking 64 bit atomics.
   See [PR 203].
 
