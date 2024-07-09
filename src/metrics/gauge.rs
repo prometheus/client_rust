@@ -7,7 +7,7 @@ use crate::encoding::{EncodeGaugeValue, EncodeMetric, MetricEncoder};
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 use std::sync::atomic::{AtomicI64, AtomicU64};
 use std::sync::Arc;
 
@@ -40,7 +40,7 @@ use std::sync::Arc;
 /// gauge.set(42.0);
 /// let _value: f64 = gauge.get();
 /// ```
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 #[derive(Debug)]
 pub struct Gauge<N = i64, A = AtomicI64> {
     value: Arc<A>,
@@ -48,7 +48,7 @@ pub struct Gauge<N = i64, A = AtomicI64> {
 }
 
 /// Open Metrics [`Gauge`] to record current measurements.
-#[cfg(any(target_arch = "mips", target_arch = "powerpc"))]
+#[cfg(not(target_has_atomic = "64"))]
 #[derive(Debug)]
 pub struct Gauge<N = i32, A = AtomicI32> {
     value: Arc<A>,
@@ -186,7 +186,7 @@ impl Atomic<u32> for AtomicU32 {
     }
 }
 
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 impl Atomic<i64> for AtomicI64 {
     fn inc(&self) -> i64 {
         self.inc_by(1)
@@ -213,7 +213,7 @@ impl Atomic<i64> for AtomicI64 {
     }
 }
 
-#[cfg(not(any(target_arch = "mips", target_arch = "powerpc")))]
+#[cfg(target_has_atomic = "64")]
 impl Atomic<f64> for AtomicU64 {
     fn inc(&self) -> f64 {
         self.inc_by(1.0)

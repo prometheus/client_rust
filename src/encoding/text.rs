@@ -1,7 +1,7 @@
 //! Open Metrics text format implementation.
 //!
 //! ```
-//! # use prometheus_client::encoding::text::encode;
+//! # use prometheus_client::encoding::text::{encode, encode_registry, encode_eof};
 //! # use prometheus_client::metrics::counter::Counter;
 //! # use prometheus_client::registry::Registry;
 //! #
@@ -15,13 +15,26 @@
 //! # );
 //! # counter.inc();
 //! let mut buffer = String::new();
-//! encode(&mut buffer, &registry).unwrap();
 //!
-//! let expected = "# HELP my_counter This is my counter.\n".to_owned() +
-//!                "# TYPE my_counter counter\n" +
-//!                "my_counter_total 1\n" +
-//!                "# EOF\n";
-//! assert_eq!(expected, buffer);
+//! // Encode the complete OpenMetrics exposition into the message buffer
+//! encode(&mut buffer, &registry).unwrap();
+//! let expected_msg = "# HELP my_counter This is my counter.\n".to_owned() +
+//!                    "# TYPE my_counter counter\n" +
+//!                    "my_counter_total 1\n" +
+//!                    "# EOF\n";
+//! assert_eq!(expected_msg, buffer);
+//! buffer.clear();
+//!
+//! // Encode just the registry into the message buffer
+//! encode_registry(&mut buffer, &registry).unwrap();
+//! let expected_reg = "# HELP my_counter This is my counter.\n".to_owned() +
+//!                    "# TYPE my_counter counter\n" +
+//!                    "my_counter_total 1\n";
+//! assert_eq!(expected_reg, buffer);
+//!
+//! // Encode EOF marker into message buffer to complete the OpenMetrics exposition
+//! encode_eof(&mut buffer).unwrap();
+//! assert_eq!(expected_msg, buffer);
 //! ```
 
 use crate::encoding::{EncodeExemplarValue, EncodeLabelSet};
@@ -33,15 +46,140 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
 
-/// Encode the metrics registered with the provided [`Registry`] into the
-/// provided [`Write`]r using the OpenMetrics text format.
+/// Encode both the metrics registered with the provided [`Registry`] and the
+/// EOF marker into the provided [`Write`]r using the OpenMetrics text format.
+///
+/// Note: This function encodes the **complete** OpenMetrics exposition.
+///
+/// Use [`encode_registry`] or [`encode_eof`] if partial encoding is needed.
+///
+/// See [OpenMetrics exposition format](https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#text-format)
+/// for additional details.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use prometheus_client::encoding::text::encode;
+/// # use prometheus_client::metrics::counter::Counter;
+/// # use prometheus_client::metrics::gauge::Gauge;
+/// # use prometheus_client::registry::Registry;
+/// #
+/// // Initialize registry with metric families
+/// let mut registry = Registry::default();
+/// let counter: Counter = Counter::default();
+/// registry.register(
+///     "my_counter",
+///     "This is my counter",
+///     counter.clone(),
+/// );
+/// let gauge: Gauge = Gauge::default();
+/// registry.register(
+///     "my_gauge",
+///     "This is my gauge",
+///     gauge.clone(),
+/// );
+///
+/// // Encode the complete OpenMetrics exposition into the buffer
+/// let mut buffer = String::new();
+/// encode(&mut buffer, &registry)?;
+/// # Ok::<(), std::fmt::Error>(())
+/// ```
 pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Error>
 where
     W: Write,
 {
-    registry.encode(&mut DescriptorEncoder::new(writer).into())?;
-    writer.write_str("# EOF\n")?;
-    Ok(())
+    encode_registry(writer, registry)?;
+    encode_eof(writer)
+}
+
+/// Encode the metrics registered with the provided [`Registry`] into the
+/// provided [`Write`]r using the OpenMetrics text format.
+///
+/// Note: The OpenMetrics exposition requires that a complete message must end
+/// with an EOF marker.
+///
+/// This function may be called repeatedly for the HTTP scrape response until
+/// [`encode_eof`] signals the end of the response.
+///
+/// This may also be used to compose a partial message with metrics assembled
+/// from multiple registries.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use prometheus_client::encoding::text::encode_registry;
+/// # use prometheus_client::metrics::counter::Counter;
+/// # use prometheus_client::metrics::gauge::Gauge;
+/// # use prometheus_client::registry::Registry;
+/// #
+/// // Initialize registry with a counter
+/// let mut reg_counter = Registry::default();
+/// let counter: Counter = Counter::default();
+/// reg_counter.register(
+///     "my_counter",
+///     "This is my counter",
+///     counter.clone(),
+/// );
+///
+/// // Encode the counter registry into the buffer
+/// let mut buffer = String::new();
+/// encode_registry(&mut buffer, &reg_counter)?;
+///
+/// // Initialize another registry but with a gauge
+/// let mut reg_gauge = Registry::default();
+/// let gauge: Gauge = Gauge::default();
+/// reg_gauge.register(
+///   "my_gauge",
+///   "This is my gauge",
+///   gauge.clone(),
+/// );
+///
+/// // Encode the gauge registry into the buffer
+/// encode_registry(&mut buffer, &reg_gauge)?;
+/// # Ok::<(), std::fmt::Error>(())
+/// ```
+pub fn encode_registry<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
+    registry.encode(&mut DescriptorEncoder::new(writer).into())
+}
+
+/// Encode the EOF marker into the provided [`Write`]r using the OpenMetrics
+/// text format.
+///
+/// Note: This function is used to mark/signal the end of the exposition.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use prometheus_client::encoding::text::{encode_registry, encode_eof};
+/// # use prometheus_client::metrics::counter::Counter;
+/// # use prometheus_client::metrics::gauge::Gauge;
+/// # use prometheus_client::registry::Registry;
+/// #
+/// // Initialize registry with a counter
+/// let mut registry = Registry::default();
+/// let counter: Counter = Counter::default();
+/// registry.register(
+///     "my_counter",
+///     "This is my counter",
+///     counter.clone(),
+/// );
+///
+/// // Encode registry into the buffer
+/// let mut buffer = String::new();
+/// encode_registry(&mut buffer, &registry)?;
+///
+/// // Encode EOF marker to complete the message
+/// encode_eof(&mut buffer)?;
+/// # Ok::<(), std::fmt::Error>(())
+/// ```
+pub fn encode_eof<W>(writer: &mut W) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
+    writer.write_str("# EOF\n")
 }
 
 pub(crate) struct DescriptorEncoder<'a> {
@@ -913,6 +1051,52 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_registry_eof() {
+        let mut orders_registry = Registry::default();
+
+        let total_orders: Counter<u64> = Default::default();
+        orders_registry.register("orders", "Total orders received", total_orders.clone());
+        total_orders.inc();
+
+        let processing_times = Histogram::new(exponential_buckets(1.0, 2.0, 10));
+        orders_registry.register_with_unit(
+            "processing_times",
+            "Order times",
+            Unit::Seconds,
+            processing_times.clone(),
+        );
+        processing_times.observe(2.4);
+
+        let mut user_auth_registry = Registry::default();
+
+        let successful_logins: Counter<u64> = Default::default();
+        user_auth_registry.register(
+            "successful_logins",
+            "Total successful logins",
+            successful_logins.clone(),
+        );
+        successful_logins.inc();
+
+        let failed_logins: Counter<u64> = Default::default();
+        user_auth_registry.register(
+            "failed_logins",
+            "Total failed logins",
+            failed_logins.clone(),
+        );
+
+        let mut response = String::new();
+
+        encode_registry(&mut response, &orders_registry).unwrap();
+        assert_eq!(&response[response.len() - 20..], "bucket{le=\"+Inf\"} 1\n");
+
+        encode_registry(&mut response, &user_auth_registry).unwrap();
+        assert_eq!(&response[response.len() - 20..], "iled_logins_total 0\n");
+
+        encode_eof(&mut response).unwrap();
+        assert_eq!(&response[response.len() - 20..], "ogins_total 0\n# EOF\n");
     }
 
     fn parse_with_python_client(input: String) {
