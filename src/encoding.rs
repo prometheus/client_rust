@@ -13,6 +13,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 #[cfg(feature = "protobuf")]
+#[cfg_attr(docsrs, doc(cfg(feature = "protobuf")))]
 pub mod protobuf;
 pub mod text;
 
