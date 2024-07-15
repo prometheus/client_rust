@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.3] - unreleased
+
+### Added
+
+- Added `encode_registry` and `encode_eof` functions to `text` module.
+  See [PR 205].
+  
+  [PR 205]: https://github.com/prometheus/client_rust/pull/205
+
+- Support all platforms with 32 bit atomics lacking 64 bit atomics.
+  See [PR 203].
+
+[PR 203]: https://github.com/prometheus/client_rust/pull/203
+
 ## [0.22.2]
 
 ### Added
