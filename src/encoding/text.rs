@@ -719,10 +719,8 @@ mod tests {
 
         let counter_f32 = Counter::<f32, AtomicU32>::default();
         registry.register("f32_counter", "Counter::<f32, AtomicU32>", counter_f32);
-      
         let counter_u32 = Counter::<u32, AtomicU32>::default();
         registry.register("u32_counter", "Counter::<u32, AtomicU32>", counter_u32);
-      
         let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
