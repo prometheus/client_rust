@@ -9,8 +9,11 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::ops::Deref;
+use std::rc::Rc;
+use std::sync::Arc;
 
 #[cfg(feature = "protobuf")]
+#[cfg_attr(docsrs, doc(cfg(feature = "protobuf")))]
 pub mod protobuf;
 pub mod text;
 
@@ -389,6 +392,33 @@ impl<'a> EncodeLabelKey for Cow<'a, str> {
     }
 }
 
+impl<T> EncodeLabelKey for Box<T>
+where
+    for<'a> &'a T: EncodeLabelKey,
+{
+    fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelKey::encode(&self.as_ref(), encoder)
+    }
+}
+
+impl<T> EncodeLabelKey for Arc<T>
+where
+    for<'a> &'a T: EncodeLabelKey,
+{
+    fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelKey::encode(&self.as_ref(), encoder)
+    }
+}
+
+impl<T> EncodeLabelKey for Rc<T>
+where
+    for<'a> &'a T: EncodeLabelKey,
+{
+    fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelKey::encode(&self.as_ref(), encoder)
+    }
+}
+
 /// An encodable label value.
 pub trait EncodeLabelValue {
     /// Encode oneself into the given encoder.
@@ -450,6 +480,33 @@ impl<'a> EncodeLabelValue for Cow<'a, str> {
     }
 }
 
+impl<T> EncodeLabelValue for Box<T>
+where
+    for<'a> &'a T: EncodeLabelValue,
+{
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelValue::encode(&self.as_ref(), encoder)
+    }
+}
+
+impl<T> EncodeLabelValue for Arc<T>
+where
+    for<'a> &'a T: EncodeLabelValue,
+{
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelValue::encode(&self.as_ref(), encoder)
+    }
+}
+
+impl<T> EncodeLabelValue for Rc<T>
+where
+    for<'a> &'a T: EncodeLabelValue,
+{
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelValue::encode(&self.as_ref(), encoder)
+    }
+}
+
 impl EncodeLabelValue for f64 {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.write_str(dtoa::Buffer::new().format(*self))
@@ -488,6 +545,12 @@ pub trait EncodeGaugeValue {
     fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error>;
 }
 
+impl EncodeGaugeValue for u32 {
+    fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode_u32(*self)
+    }
+}
+
 impl EncodeGaugeValue for i64 {
     fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_i64(*self)
@@ -524,12 +587,16 @@ enum GaugeValueEncoderInner<'a> {
 }
 
 impl<'a> GaugeValueEncoder<'a> {
-    fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
-        for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_f64(v))
+    fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
+        for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_u32(v))
     }
 
     fn encode_i64(&mut self, v: i64) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_i64(v))
+    }
+
+    fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_f64(v))
     }
 }
 

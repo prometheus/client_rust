@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] - unreleased
+
+- Update `prost` dependencies to `v0.12`.
+  See [PR 198].
+
+[PR 198]: https://github.com/prometheus/client_rust/pull/198
+
+## [0.22.3]
+
+### Added
+
+- Added `encode_registry` and `encode_eof` functions to `text` module.
+  See [PR 205].
+
+  [PR 205]: https://github.com/prometheus/client_rust/pull/205
+
+- Support all platforms with 32 bit atomics lacking 64 bit atomics.
+  See [PR 203].
+
+[PR 203]: https://github.com/prometheus/client_rust/pull/203
+
+## [0.22.2]
+
+### Added
+
+- Added `Gauge<u32, AtomicU32>` implementation.
+  See [PR 191].
+
+[PR 191]: https://github.com/prometheus/client_rust/pull/191
+
+## [0.22.1]
+
+### Added
+
+- Added `EncodeLabelValue` and `EncodeLabelKey` implementations for `Arc`,
+  `Rc`, and `Box`.
+  See [PR 188].
+
+[PR 188]: https://github.com/prometheus/client_rust/pull/188
+
 ## [0.22.0]
 
 ### Changed
