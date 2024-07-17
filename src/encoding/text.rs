@@ -709,7 +709,7 @@ mod tests {
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
-    use std::sync::atomic::AtomicU32;
+    use std::sync::atomic::{AtomicI32, AtomicU32};
 
     #[test]
     fn encode_counter() {
@@ -719,7 +719,10 @@ mod tests {
 
         let counter_f32 = Counter::<f32, AtomicU32>::default();
         registry.register("f32_counter", "Counter::<f32, AtomicU32>", counter_f32);
-
+      
+        let counter_u32 = Counter::<u32, AtomicU32>::default();
+        registry.register("u32_counter", "Counter::<u32, AtomicU32>", counter_u32);
+      
         let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
@@ -785,6 +788,9 @@ mod tests {
 
         let gauge_f32 = Gauge::<f32, AtomicU32>::default();
         registry.register("f32_gauge", "Gauge::<f32, AtomicU32>", gauge_f32);
+
+        let gauge_i32 = Gauge::<i32, AtomicI32>::default();
+        registry.register("i32_gauge", "Gauge::<i32, AtomicU32>", gauge_i32);
 
         let mut encoded = String::new();
 
