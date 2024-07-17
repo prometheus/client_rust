@@ -717,9 +717,10 @@ mod tests {
         let mut registry = Registry::default();
         registry.register("my_counter", "My counter", counter);
 
+        let counter_f32 = Counter::<f32, AtomicU32>::default();
+        registry.register("f32_counter", "Counter::<f32, AtomicU32>", counter_f32);
         let counter_u32 = Counter::<u32, AtomicU32>::default();
         registry.register("u32_counter", "Counter::<u32, AtomicU32>", counter_u32);
-
         let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
@@ -782,6 +783,9 @@ mod tests {
         registry.register("my_gauge", "My gauge", gauge);
         let gauge = Gauge::<u32, AtomicU32>::default();
         registry.register("u32_gauge", "Gauge::<u32, AtomicU32>", gauge);
+
+        let gauge_f32 = Gauge::<f32, AtomicU32>::default();
+        registry.register("f32_gauge", "Gauge::<f32, AtomicU32>", gauge_f32);
 
         let gauge_i32 = Gauge::<i32, AtomicI32>::default();
         registry.register("i32_gauge", "Gauge::<i32, AtomicU32>", gauge_i32);

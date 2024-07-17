@@ -169,6 +169,31 @@ impl Atomic<f64> for AtomicU64 {
     }
 }
 
+impl Atomic<f32> for AtomicU32 {
+    fn inc(&self) -> f32 {
+        self.inc_by(1.0)
+    }
+
+    fn inc_by(&self, v: f32) -> f32 {
+        let mut old_u32 = self.load(Ordering::Relaxed);
+        let mut old_f32;
+        loop {
+            old_f32 = f32::from_bits(old_u32);
+            let new = f32::to_bits(old_f32 + v);
+            match self.compare_exchange_weak(old_u32, new, Ordering::Relaxed, Ordering::Relaxed) {
+                Ok(_) => break,
+                Err(x) => old_u32 = x,
+            }
+        }
+
+        old_f32
+    }
+
+    fn get(&self) -> f32 {
+        f32::from_bits(self.load(Ordering::Relaxed))
+    }
+}
+
 impl<N, A> TypedMetric for Counter<N, A> {
     const TYPE: MetricType = MetricType::Counter;
 }
