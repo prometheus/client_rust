@@ -247,6 +247,23 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         })
     }
 
+    /// Access a metric with the given label set, returning None if one
+    /// does not yet exist.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    ///
+    /// if let Some(metric) = family.get(&vec![("method".to_owned(), "GET".to_owned())]) {
+    ///     metric.inc();
+    /// };
+    /// ```
+    pub fn get(&self, label_set: &S) -> Option<MappedRwLockReadGuard<M>> {
+        RwLockReadGuard::try_map(self.metrics.read(), |metrics| metrics.get(label_set)).ok()
+    }
+
     /// Remove a label set from the metric family.
     ///
     /// Returns a bool indicating if a label set was removed or not.
