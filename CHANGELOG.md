@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [PR 198]: https://github.com/prometheus/client_rust/pull/198
 
+- Add `EncodeGaugeValue` `i32` and `f32`, `EncodeCounterValue` `u32` and `f32` and `EncodeExemplarValue` `f32` and `u32` implementations.
+  See [PR 173].
+
+[PR 173]: https://github.com/prometheus/client_rust/pull/173
+
 ## [0.22.3]
 
 ### Added
