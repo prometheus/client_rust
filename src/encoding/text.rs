@@ -783,6 +783,9 @@ mod tests {
         let gauge = Gauge::<u32, AtomicU32>::default();
         registry.register("u32_gauge", "Gauge::<u32, AtomicU32>", gauge);
 
+        let gauge_f32 = Gauge::<f32, AtomicU32>::default();
+        registry.register("f32_gauge", "Gauge::<f32, AtomicU32>", gauge_f32);
+
         let mut encoded = String::new();
 
         encode(&mut encoded, &registry).unwrap();
