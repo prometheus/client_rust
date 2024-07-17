@@ -3,6 +3,7 @@
 #![deny(unused)]
 #![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! Client library implementation of the [Open Metrics
 //! specification](https://github.com/OpenObservability/OpenMetrics). Allows
