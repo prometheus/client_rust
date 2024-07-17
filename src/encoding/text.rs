@@ -1104,7 +1104,7 @@ mod tests {
 
         println!("{:?}", input);
         Python::with_gil(|py| {
-            let parser = PyModule::from_code(
+            let parser = PyModule::from_code_bound(
                 py,
                 r#"
 from prometheus_client.openmetrics.parser import text_string_to_metric_families
