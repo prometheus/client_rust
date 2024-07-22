@@ -389,3 +389,33 @@ pub trait Metric: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug 
 
 impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
 {}
+
+pub trait Register {
+    fn register(self, registry: &mut Registry);
+}
+
+pub trait RegisterField {
+    fn register_field<N: Into<String>, H: Into<String>>(
+        self,
+        name: N,
+        help: H,
+        unit: Option<Unit>,
+        registry: &mut Registry,
+    );
+}
+
+impl<T: Metric> RegisterField for T {
+    fn register_field<N: Into<String>, H: Into<String>>(
+        self,
+        name: N,
+        help: H,
+        unit: Option<Unit>,
+        registry: &mut Registry,
+    ) {
+        if let Some(unit) = unit {
+            registry.register_with_unit(name, help, unit, metric)
+        } else {
+            registry.register(name, help, metric)
+        }
+    }
+}
