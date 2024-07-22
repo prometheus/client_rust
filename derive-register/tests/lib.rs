@@ -11,6 +11,8 @@ struct Metrics {
     nested: NestedMetrics,
     #[register(skip)]
     skipped: Counter,
+    #[register(unit = "bytes")]
+    custom_unit: Counter,
 }
 
 #[derive(Register, Default)]
@@ -35,6 +37,10 @@ fn basic_flow() {
     let expected = "# HELP my_counter This is my counter.\n".to_owned()
         + "# TYPE my_counter counter\n"
         + "my_counter_total 1\n"
+        + "# HELP custom_unit_bytes .\n"
+        + "# TYPE custom_unit_bytes counter\n"
+        + "# UNIT custom_unit_bytes bytes\n"
+        + "custom_unit_bytes_total 0\n"
         + "# HELP nested_my_gauge This is my gauge.\n"
         + "# TYPE nested_my_gauge gauge\n"
         + "nested_my_gauge 23\n"
