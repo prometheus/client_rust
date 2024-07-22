@@ -2,6 +2,8 @@
 //!
 //! See [`Registry`] for details.
 
+pub use prometheus_client_derive_register::*;
+
 use std::borrow::Cow;
 
 use crate::collector::Collector;

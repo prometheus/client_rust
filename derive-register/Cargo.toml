@@ -1,0 +1,13 @@
+[package]
+name = "prometheus-client-derive-register"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = "2"
+
+[lib]
+proc-macro = true
+
