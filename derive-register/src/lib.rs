@@ -1,23 +1,33 @@
+use darling::{ast, FromDeriveInput, FromField};
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput, Expr, Fields, Lit, Meta};
+use syn::{DeriveInput, Expr, Generics, Ident, Lit, Meta, Type};
+
+#[derive(Debug, FromDeriveInput)]
+#[darling(attributes(register), supports(struct_named))]
+struct Register {
+    ident: Ident,
+    generics: Generics,
+    data: ast::Data<(), RegisterField>,
+}
+
+#[derive(Debug, FromField)]
+#[darling(attributes(register), forward_attrs(doc))]
+struct RegisterField {
+    ident: Option<Ident>,
+    ty: Type,
+    attrs: Vec<syn::Attribute>,
+}
 
 #[proc_macro_derive(Register)]
 pub fn derive_register(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
+    let info = Register::from_derive_input(&ast).unwrap();
 
-    let name = ast.ident;
-    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
+    let name = info.ident;
+    let (impl_generics, ty_generics, where_clause) = info.generics.split_for_impl();
 
-    let Data::Struct(strukt) = ast.data else {
-        panic!("Register can only be derived on a struct.");
-    };
-
-    let Fields::Named(fields) = strukt.fields else {
-        panic!("Register can only be derived on a struct with named fields.");
-    };
-
-    let field_register = fields.named.into_iter().map(|field| {
+    let field_register = info.data.take_struct().unwrap().into_iter().map(|field| {
         let mut help = String::new();
         for attr in field.attrs {
             let path = attr.path();
