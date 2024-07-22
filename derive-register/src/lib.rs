@@ -46,7 +46,7 @@ pub fn derive_register(input: TokenStream) -> TokenStream {
     quote! {
         impl #impl_generics ::prometheus_client::registry::Register for #name #ty_generics #where_clause {
             fn register(&self, registry: &mut ::prometheus_client::registry::Registry) {
-                <Self as ::prometheus_client::registry::RegisterField>::register_field(&self, "", "", None, registry);
+                #(#field_register);*
             }
         }
 
@@ -58,7 +58,9 @@ pub fn derive_register(input: TokenStream) -> TokenStream {
                 unit: Option<::prometheus_client::registry::Unit>,
                 registry: &mut ::prometheus_client::registry::Registry)
             {
-                #(#field_register);*
+                let name = name.into();
+                let mut registry = registry.sub_registry_with_prefix(name);
+                <Self as ::prometheus_client::registry::Register>::register(&self, &mut registry);
             }
         }
     }.into()
