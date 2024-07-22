@@ -51,7 +51,7 @@ pub fn derive_register(input: TokenStream) -> TokenStream {
         }
 
         impl #impl_generics ::prometheus_client::registry::RegisterField for #name #ty_generics #where_clause {
-            fn register_field<N: Into<String>, H: Into<String>>(
+            fn register_field<N: ::std::convert::Into<::std::string::String>, H: ::std::convert::Into<::std::string::String>>(
                 &self,
                 name: N,
                 help: H,
