@@ -8,6 +8,9 @@ proc-macro2 = "1"
 quote = "1"
 syn = "2"
 
+[dev-dependencies]
+prometheus-client = { path = "../" }
+
 [lib]
 proc-macro = true
 
