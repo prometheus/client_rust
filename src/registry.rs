@@ -415,9 +415,9 @@ impl<T: Metric> RegisterField for T {
         registry: &mut Registry,
     ) {
         if let Some(unit) = unit {
-            registry.register_with_unit(name, help, unit, metric)
+            registry.register_with_unit(name, help, unit, self)
         } else {
-            registry.register(name, help, metric)
+            registry.register(name, help, self)
         }
     }
 }
