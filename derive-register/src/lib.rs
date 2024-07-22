@@ -19,6 +19,7 @@ struct RegisterField {
     attrs: Vec<syn::Attribute>,
     skip: Flag,
     unit: Option<String>,
+    name: Option<String>,
 }
 
 #[proc_macro_derive(Register, attributes(register))]
@@ -48,7 +49,11 @@ pub fn derive_register(input: TokenStream) -> TokenStream {
 
             let ident = field.ident.unwrap();
             let ty = field.ty;
-            let name = ident.to_string();
+            let name = if let Some(name) = field.name {
+                name
+            } else {
+                ident.to_string()
+            };
 
             let unit = if let Some(unit) = field.unit {
                 quote!(Some(::prometheus_client::registry::Unit::Other(#unit.to_string())))

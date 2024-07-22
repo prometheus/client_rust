@@ -13,6 +13,8 @@ struct Metrics {
     skipped: Counter,
     #[register(unit = "bytes")]
     custom_unit: Counter,
+    #[register(name = "my_custom_name")]
+    custom_name: Counter,
 }
 
 #[derive(Register, Default)]
@@ -41,6 +43,9 @@ fn basic_flow() {
         + "# TYPE custom_unit_bytes counter\n"
         + "# UNIT custom_unit_bytes bytes\n"
         + "custom_unit_bytes_total 0\n"
+        + "# HELP my_custom_name .\n"
+        + "# TYPE my_custom_name counter\n"
+        + "my_custom_name_total 0\n"
         + "# HELP nested_my_gauge This is my gauge.\n"
         + "# TYPE nested_my_gauge gauge\n"
         + "nested_my_gauge 23\n"
