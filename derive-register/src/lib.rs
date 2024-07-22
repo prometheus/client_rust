@@ -20,6 +20,7 @@ struct RegisterField {
     skip: Flag,
     unit: Option<String>,
     name: Option<String>,
+    help: Option<String>,
 }
 
 #[proc_macro_derive(Register, attributes(register))]
@@ -45,6 +46,10 @@ pub fn derive_register(input: TokenStream) -> TokenStream {
                         help = doc.trim().to_string();
                     }
                 }
+            }
+
+            if let Some(custom_help) = field.help {
+                help = custom_help;
             }
 
             let ident = field.ident.unwrap();

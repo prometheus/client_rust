@@ -15,6 +15,9 @@ struct Metrics {
     custom_unit: Counter,
     #[register(name = "my_custom_name")]
     custom_name: Counter,
+    /// This will get ignored
+    #[register(help = "my custom help")]
+    custom_help: Counter,
 }
 
 #[derive(Register, Default)]
@@ -46,6 +49,9 @@ fn basic_flow() {
         + "# HELP my_custom_name .\n"
         + "# TYPE my_custom_name counter\n"
         + "my_custom_name_total 0\n"
+        + "# HELP custom_help my custom help.\n"
+        + "# TYPE custom_help counter\n"
+        + "custom_help_total 0\n"
         + "# HELP nested_my_gauge This is my gauge.\n"
         + "# TYPE nested_my_gauge gauge\n"
         + "nested_my_gauge 23\n"
