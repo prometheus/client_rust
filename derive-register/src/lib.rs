@@ -1,4 +1,4 @@
-use darling::{ast, FromDeriveInput, FromField};
+use darling::{ast, util::Flag, FromDeriveInput, FromField};
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, Expr, Generics, Ident, Lit, Meta, Type};
@@ -17,9 +17,10 @@ struct RegisterField {
     ident: Option<Ident>,
     ty: Type,
     attrs: Vec<syn::Attribute>,
+    skip: Flag,
 }
 
-#[proc_macro_derive(Register)]
+#[proc_macro_derive(Register, attributes(register))]
 pub fn derive_register(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let info = Register::from_derive_input(&ast).unwrap();
@@ -27,31 +28,37 @@ pub fn derive_register(input: TokenStream) -> TokenStream {
     let name = info.ident;
     let (impl_generics, ty_generics, where_clause) = info.generics.split_for_impl();
 
-    let field_register = info.data.take_struct().unwrap().into_iter().map(|field| {
-        let mut help = String::new();
-        for attr in field.attrs {
-            let path = attr.path();
-            if path.is_ident("doc") && help.is_empty() {
-                if let Some(doc) = extract_doc_comment(&attr.meta) {
-                    help = doc.trim().to_string();
+    let field_register = info
+        .data
+        .take_struct()
+        .unwrap()
+        .into_iter()
+        .filter(|x| !x.skip.is_present())
+        .map(|field| {
+            let mut help = String::new();
+            for attr in field.attrs {
+                let path = attr.path();
+                if path.is_ident("doc") && help.is_empty() {
+                    if let Some(doc) = extract_doc_comment(&attr.meta) {
+                        help = doc.trim().to_string();
+                    }
                 }
             }
-        }
 
-        let ident = field.ident.unwrap();
-        let ty = field.ty;
-        let name = ident.to_string();
+            let ident = field.ident.unwrap();
+            let ty = field.ty;
+            let name = ident.to_string();
 
-        quote! {
-            <#ty as ::prometheus_client::registry::RegisterField>::register_field(
-                &self.#ident,
-                #name,
-                #help,
-                None,
-                registry,
-            )
-        }
-    });
+            quote! {
+                <#ty as ::prometheus_client::registry::RegisterField>::register_field(
+                    &self.#ident,
+                    #name,
+                    #help,
+                    None,
+                    registry,
+                )
+            }
+        });
 
     quote! {
         impl #impl_generics ::prometheus_client::registry::Register for #name #ty_generics #where_clause {
