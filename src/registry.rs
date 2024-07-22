@@ -396,6 +396,21 @@ pub trait Register {
     fn register(&self, registry: &mut Registry);
 }
 
+pub trait RegisterDefault {
+    fn register_default(registry: &mut Registry) -> Self;
+}
+
+impl<T> RegisterDefault for T
+where
+    T: Register + Default,
+{
+    fn register_default(registry: &mut Registry) -> Self {
+        let this = Self::default();
+        this.register(registry);
+        this
+    }
+}
+
 pub trait RegisterField {
     fn register_field<N: Into<String>, H: Into<String>>(
         &self,
