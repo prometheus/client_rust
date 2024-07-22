@@ -4,7 +4,7 @@ use prometheus_client::{
     registry::{Register, Registry},
 };
 
-#[derive(Register, Default, Clone)]
+#[derive(Register, Default)]
 struct Metrics {
     /// This is my counter
     my_counter: Counter,
@@ -15,7 +15,7 @@ fn basic_flow() {
     let mut registry = Registry::default();
 
     let metrics = Metrics::default();
-    metrics.clone().register(&mut registry);
+    metrics.register(&mut registry);
 
     metrics.my_counter.inc();
 

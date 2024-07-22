@@ -34,7 +34,7 @@ pub fn derive_register(input: TokenStream) -> TokenStream {
 
         quote! {
             <#ty as ::prometheus_client::registry::RegisterField>::register_field(
-                self.#ident,
+                &self.#ident,
                 #name,
                 #help,
                 None,
@@ -45,14 +45,14 @@ pub fn derive_register(input: TokenStream) -> TokenStream {
 
     quote! {
         impl #impl_generics ::prometheus_client::registry::Register for #name #ty_generics #where_clause {
-            fn register(self, registry: &mut ::prometheus_client::registry::Registry) {
-                <Self as ::prometheus_client::registry::RegisterField>::register_field(self, "", "", None, registry);
+            fn register(&self, registry: &mut ::prometheus_client::registry::Registry) {
+                <Self as ::prometheus_client::registry::RegisterField>::register_field(&self, "", "", None, registry);
             }
         }
 
         impl #impl_generics ::prometheus_client::registry::RegisterField for #name #ty_generics #where_clause {
             fn register_field<N: Into<String>, H: Into<String>>(
-                self,
+                &self,
                 name: N,
                 help: H,
                 unit: Option<::prometheus_client::registry::Unit>,

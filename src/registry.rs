@@ -393,12 +393,12 @@ impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std:
 {}
 
 pub trait Register {
-    fn register(self, registry: &mut Registry);
+    fn register(&self, registry: &mut Registry);
 }
 
 pub trait RegisterField {
     fn register_field<N: Into<String>, H: Into<String>>(
-        self,
+        &self,
         name: N,
         help: H,
         unit: Option<Unit>,
@@ -406,18 +406,21 @@ pub trait RegisterField {
     );
 }
 
-impl<T: Metric> RegisterField for T {
+impl<T> RegisterField for T
+where
+    T: Metric + Clone,
+{
     fn register_field<N: Into<String>, H: Into<String>>(
-        self,
+        &self,
         name: N,
         help: H,
         unit: Option<Unit>,
         registry: &mut Registry,
     ) {
         if let Some(unit) = unit {
-            registry.register_with_unit(name, help, unit, self)
+            registry.register_with_unit(name, help, unit, self.clone())
         } else {
-            registry.register(name, help, self)
+            registry.register(name, help, self.clone())
         }
     }
 }
