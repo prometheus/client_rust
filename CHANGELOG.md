@@ -21,8 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support `i32`/`f32` for `Gauge` and `u32`/`f32` for `Counter`/`CounterWithExemplar`.
   See [PR 173] and [PR 216].
 
+- Supoort `Arc<String>` for `EncodeLabelValue`.
+  See [PR 217].
+
 [PR 173]: https://github.com/prometheus/client_rust/pull/173
 [PR 216]: https://github.com/prometheus/client_rust/pull/216
+[PR 217]: https://github.com/prometheus/client_rust/pull/217
 
 ## [0.22.3]
 
