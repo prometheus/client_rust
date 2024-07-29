@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use prometheus_client::encoding::text::encode;
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 use prometheus_client::metrics::counter::Counter;
@@ -133,6 +135,36 @@ fn remap_keyword_identifiers() {
     let expected = "# HELP my_counter This is my counter.\n".to_owned()
         + "# TYPE my_counter counter\n"
         + "my_counter_total{type=\"42\"} 1\n"
+        + "# EOF\n";
+    assert_eq!(expected, buffer);
+}
+
+#[test]
+fn arc_string() {
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    struct Labels {
+        client_id: Arc<String>,
+    }
+
+    let mut registry = Registry::default();
+    let family = Family::<Labels, Counter>::default();
+    registry.register("my_counter", "This is my counter", family.clone());
+
+    // Record a single HTTP GET request.
+    let client_id = Arc::new("client_id".to_string());
+    family
+        .get_or_create(&Labels {
+            client_id: client_id.clone(),
+        })
+        .inc();
+
+    // Encode all metrics in the registry in the text format.
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+
+    let expected = "# HELP my_counter This is my counter.\n".to_owned()
+        + "# TYPE my_counter counter\n"
+        + "my_counter_total{client_id=\"client_id\"} 1\n"
         + "# EOF\n";
     assert_eq!(expected, buffer);
 }

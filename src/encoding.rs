@@ -468,7 +468,14 @@ impl EncodeLabelValue for &str {
         Ok(())
     }
 }
+
 impl EncodeLabelValue for String {
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelValue::encode(&self.as_str(), encoder)
+    }
+}
+
+impl EncodeLabelValue for &String {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
         EncodeLabelValue::encode(&self.as_str(), encoder)
     }
