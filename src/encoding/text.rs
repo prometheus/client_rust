@@ -512,16 +512,37 @@ impl<'a> MetricEncoder<'a> {
             additional_labels.encode(LabelSetEncoder::new(self.writer).into())?;
         }
 
-        if let Some(labels) = &self.family_labels {
-            let mut string_writer = String::new();
-            labels.encode(LabelSetEncoder::new(&mut string_writer).into())?;
+        /// Writer impl which prepends a comma on the first call to write output to the wrapped writer
+        struct CommaPrependingWriter<'a> {
+            writer: &'a mut dyn Write,
+            should_prepend: bool,
+        }
 
-            if !string_writer.is_empty() {
-                if !self.const_labels.is_empty() || additional_labels.is_some() {
-                    self.writer.write_str(",")?;
+        impl Write for CommaPrependingWriter<'_> {
+            fn write_str(&mut self, s: &str) -> std::fmt::Result {
+                if self.should_prepend {
+                    self.writer.write_char(',')?;
+                    self.should_prepend = false;
                 }
-                self.writer.write_str(string_writer.as_str())?;
+                self.writer.write_str(s)
             }
+        }
+
+        if let Some(labels) = self.family_labels {
+            // if const labels or additional labels have been written, a comma must be prepended before writing the family labels.
+            // However, it could be the case that the family labels are `Some` and yet empty, so the comma should _only_
+            // be prepended if one of the `Write` methods are actually called when attempting to write the family labels.
+            // Therefore, wrap the writer on `Self` with a CommaPrependingWriter if other labels have been written and
+            // there may be a need to prepend an extra comma before writing additional labels.
+            if !self.const_labels.is_empty() || additional_labels.is_some() {
+                let mut writer = CommaPrependingWriter {
+                    writer: self.writer,
+                    should_prepend: true,
+                };
+                labels.encode(LabelSetEncoder::new(&mut writer).into())?;
+            } else {
+                labels.encode(LabelSetEncoder::new(self.writer).into())?;
+            };
         }
 
         self.writer.write_str("}")?;

@@ -248,7 +248,8 @@ pub trait EncodeLabel {
 pub struct LabelEncoder<'a>(LabelEncoderInner<'a>);
 
 /// Uninhabited type to represent the lack of a label set for a metric
-pub(crate) enum NoLabelSet {}
+#[derive(Debug)]
+pub enum NoLabelSet {}
 
 #[derive(Debug)]
 enum LabelEncoderInner<'a> {
