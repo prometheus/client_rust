@@ -30,7 +30,7 @@ async-std = { version = "1", features = ["attributes"] }
 axum = "0.7"
 criterion = "0.5"
 http-types = "2"
-pyo3 = "0.21"
+pyo3 = "0.22"
 quickcheck = "1"
 rand = "0.8.4"
 tide = "0.16"
