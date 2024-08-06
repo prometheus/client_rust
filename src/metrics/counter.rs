@@ -2,7 +2,7 @@
 //!
 //! See [`Counter`] for details.
 
-use crate::encoding::{EncodeMetric, MetricEncoder};
+use crate::encoding::{EncodeMetric, MetricEncoder, NoLabelSet};
 
 use super::{MetricType, TypedMetric};
 use std::marker::PhantomData;
@@ -204,7 +204,7 @@ where
     A: Atomic<N>,
 {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_counter::<(), _, u64>(&self.get(), None)
+        encoder.encode_counter::<NoLabelSet, _, u64>(&self.get(), None)
     }
 
     fn metric_type(&self) -> MetricType {
@@ -236,7 +236,7 @@ where
     N: crate::encoding::EncodeCounterValue,
 {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_counter::<(), _, u64>(&self.value, None)
+        encoder.encode_counter::<NoLabelSet, _, u64>(&self.value, None)
     }
 
     fn metric_type(&self) -> MetricType {
