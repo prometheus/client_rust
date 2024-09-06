@@ -734,8 +734,8 @@ mod tests {
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
-    use std::sync::atomic::{AtomicI32, AtomicU32};
     use std::fmt::Error;
+    use std::sync::atomic::{AtomicI32, AtomicU32};
 
     #[test]
     fn encode_counter() {
