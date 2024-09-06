@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR 216]: https://github.com/prometheus/client_rust/pull/216
 [PR 217]: https://github.com/prometheus/client_rust/pull/217
 
+### Fixed
+
+- Don't prepend `,` when encoding empty family label set.
+  See [PR 175].
+
+[PR 175]: https://github.com/prometheus/client_rust/pull/175
+
 ## [0.22.3]
 
 ### Added

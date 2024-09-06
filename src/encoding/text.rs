@@ -37,7 +37,7 @@
 //! assert_eq!(expected_msg, buffer);
 //! ```
 
-use crate::encoding::{EncodeExemplarValue, EncodeLabelSet};
+use crate::encoding::{EncodeExemplarValue, EncodeLabelSet, NoLabelSet};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -324,7 +324,7 @@ impl<'a> MetricEncoder<'a> {
 
         self.write_suffix("total")?;
 
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
 
         v.encode(
             &mut CounterValueEncoder {
@@ -348,7 +348,7 @@ impl<'a> MetricEncoder<'a> {
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit()?;
 
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
 
         v.encode(
             &mut GaugeValueEncoder {
@@ -404,14 +404,14 @@ impl<'a> MetricEncoder<'a> {
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit()?;
         self.write_suffix("sum")?;
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(sum))?;
         self.newline()?;
 
         self.write_prefix_name_unit()?;
         self.write_suffix("count")?;
-        self.encode_labels::<()>(None)?;
+        self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(count))?;
         self.newline()?;
@@ -512,12 +512,37 @@ impl<'a> MetricEncoder<'a> {
             additional_labels.encode(LabelSetEncoder::new(self.writer).into())?;
         }
 
-        if let Some(labels) = &self.family_labels {
-            if !self.const_labels.is_empty() || additional_labels.is_some() {
-                self.writer.write_str(",")?;
-            }
+        /// Writer impl which prepends a comma on the first call to write output to the wrapped writer
+        struct CommaPrependingWriter<'a> {
+            writer: &'a mut dyn Write,
+            should_prepend: bool,
+        }
 
-            labels.encode(LabelSetEncoder::new(self.writer).into())?;
+        impl Write for CommaPrependingWriter<'_> {
+            fn write_str(&mut self, s: &str) -> std::fmt::Result {
+                if self.should_prepend {
+                    self.writer.write_char(',')?;
+                    self.should_prepend = false;
+                }
+                self.writer.write_str(s)
+            }
+        }
+
+        if let Some(labels) = self.family_labels {
+            // if const labels or additional labels have been written, a comma must be prepended before writing the family labels.
+            // However, it could be the case that the family labels are `Some` and yet empty, so the comma should _only_
+            // be prepended if one of the `Write` methods are actually called when attempting to write the family labels.
+            // Therefore, wrap the writer on `Self` with a CommaPrependingWriter if other labels have been written and
+            // there may be a need to prepend an extra comma before writing additional labels.
+            if !self.const_labels.is_empty() || additional_labels.is_some() {
+                let mut writer = CommaPrependingWriter {
+                    writer: self.writer,
+                    should_prepend: true,
+                };
+                labels.encode(LabelSetEncoder::new(&mut writer).into())?;
+            } else {
+                labels.encode(LabelSetEncoder::new(self.writer).into())?;
+            };
         }
 
         self.writer.write_str("}")?;
@@ -709,6 +734,7 @@ mod tests {
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
+    use std::fmt::Error;
     use std::sync::atomic::{AtomicI32, AtomicU32};
 
     #[test]
@@ -891,6 +917,31 @@ mod tests {
                 ("status".to_string(), "200".to_string()),
             ])
             .observe(1.0);
+
+        let mut encoded = String::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_histogram_family_with_empty_struct_family_labels() {
+        let mut registry = Registry::default();
+        let family =
+            Family::new_with_constructor(|| Histogram::new(exponential_buckets(1.0, 2.0, 10)));
+        registry.register("my_histogram", "My histogram", family.clone());
+
+        #[derive(Eq, PartialEq, Hash, Debug, Clone)]
+        struct EmptyLabels {}
+
+        impl EncodeLabelSet for EmptyLabels {
+            fn encode(&self, _encoder: crate::encoding::LabelSetEncoder) -> Result<(), Error> {
+                Ok(())
+            }
+        }
+
+        family.get_or_create(&EmptyLabels {}).observe(1.0);
 
         let mut encoded = String::new();
 

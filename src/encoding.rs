@@ -247,6 +247,10 @@ pub trait EncodeLabel {
 #[derive(Debug)]
 pub struct LabelEncoder<'a>(LabelEncoderInner<'a>);
 
+/// Uninhabited type to represent the lack of a label set for a metric
+#[derive(Debug)]
+pub enum NoLabelSet {}
+
 #[derive(Debug)]
 enum LabelEncoderInner<'a> {
     Text(text::LabelEncoder<'a>),
@@ -352,7 +356,7 @@ impl<T: EncodeLabel> EncodeLabelSet for Vec<T> {
     }
 }
 
-impl EncodeLabelSet for () {
+impl EncodeLabelSet for NoLabelSet {
     fn encode(&self, _encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
         Ok(())
     }
