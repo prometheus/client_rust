@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.23.0] - unreleased
 
+- Implement `Atomic<u64>` for `AtomicU64` for gauges.
+  See [PR 226].
+
+[PR 226]: https://github.com/prometheus/client_rust/pull/198
+
 ### Changed
 
 - `ConstCounter::new` now requires specifying the type of literal arguments, like this: `ConstCounter::new(42u64);`.

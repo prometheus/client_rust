@@ -453,6 +453,7 @@ mod tests {
     use std::borrow::Cow;
     use std::collections::HashSet;
     use std::sync::atomic::AtomicI64;
+    use std::sync::atomic::AtomicU64;
 
     #[test]
     fn encode_counter_int() {
@@ -598,6 +599,43 @@ mod tests {
             }
             _ => panic!("wrong value type"),
         }
+    }
+
+    #[test]
+    fn encode_gauge_u64_normal() {
+        let mut registry = Registry::default();
+        let gauge = Gauge::<u64, AtomicU64>::default();
+        registry.register("my_gauge", "My gauge", gauge.clone());
+        gauge.set(12345);
+
+        let metric_set = encode(&registry).unwrap();
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_gauge", family.name);
+        assert_eq!("My gauge.", family.help);
+
+        assert_eq!(
+            openmetrics_data_model::MetricType::Gauge as i32,
+            extract_metric_type(&metric_set)
+        );
+
+        match extract_metric_point_value(&metric_set) {
+            openmetrics_data_model::metric_point::Value::GaugeValue(value) => {
+                let expected = openmetrics_data_model::gauge_value::Value::IntValue(12345);
+                assert_eq!(Some(expected), value.value);
+            }
+            _ => panic!("wrong value type"),
+        }
+    }
+
+    #[test]
+    fn encode_gauge_u64_max() {
+        let mut registry = Registry::default();
+        let gauge = Gauge::<u64, AtomicU64>::default();
+        registry.register("my_gauge", "My gauge", gauge.clone());
+        gauge.set(u64::MAX);
+
+        // This expected to fail as protobuf uses i64 and u64::MAX does not fit into it.
+        assert!(encode(&registry).is_err());
     }
 
     #[test]
