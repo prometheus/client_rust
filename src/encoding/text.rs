@@ -43,8 +43,22 @@ use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
 
 use std::borrow::Cow;
+use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::Write;
+
+use std::sync::Mutex;
+use lazy_static::lazy_static;
+
+#[derive(Debug, PartialEq)]
+pub enum ValidationScheme {
+    LegacyValidation,
+    UTF8Validation,
+}
+
+lazy_static! {
+    pub static ref NAME_VALIDATION_SCHEME: Mutex<ValidationScheme> = Mutex::new(ValidationScheme::LegacyValidation);
+}
 
 /// Encode both the metrics registered with the provided [`Registry`] and the
 /// EOF marker into the provided [`Write`]r using the OpenMetrics text format.
@@ -223,6 +237,9 @@ impl DescriptorEncoder<'_> {
         metric_type: MetricType,
     ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         self.writer.write_str("# HELP ")?;
+        if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+            self.writer.write_str("\"")?;
+        }
         if let Some(prefix) = self.prefix {
             self.writer.write_str(prefix.as_str())?;
             self.writer.write_str("_")?;
@@ -231,12 +248,18 @@ impl DescriptorEncoder<'_> {
         if let Some(unit) = unit {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
+        }
+        if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+            self.writer.write_str("\"")?;
         }
         self.writer.write_str(" ")?;
         self.writer.write_str(help)?;
         self.writer.write_str("\n")?;
 
         self.writer.write_str("# TYPE ")?;
+        if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+            self.writer.write_str("\"")?;
+        }
         if let Some(prefix) = self.prefix {
             self.writer.write_str(prefix.as_str())?;
             self.writer.write_str("_")?;
@@ -245,6 +268,9 @@ impl DescriptorEncoder<'_> {
         if let Some(unit) = unit {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
+        }
+        if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+            self.writer.write_str("\"")?;
         }
         self.writer.write_str(" ")?;
         self.writer.write_str(metric_type.as_str())?;
@@ -252,6 +278,9 @@ impl DescriptorEncoder<'_> {
 
         if let Some(unit) = unit {
             self.writer.write_str("# UNIT ")?;
+            if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+                self.writer.write_str("\"")?;
+            }
             if let Some(prefix) = self.prefix {
                 self.writer.write_str(prefix.as_str())?;
                 self.writer.write_str("_")?;
@@ -259,6 +288,9 @@ impl DescriptorEncoder<'_> {
             self.writer.write_str(name)?;
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
+            if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+                self.writer.write_str("\"")?;
+            }
             self.writer.write_str(" ")?;
             self.writer.write_str(unit.as_str())?;
             self.writer.write_str("\n")?;
@@ -273,6 +305,22 @@ impl DescriptorEncoder<'_> {
             family_labels: None,
         })
     }
+}
+
+fn is_valid_legacy_char(c: char, i: usize) -> bool {
+    c.is_ascii_alphabetic() || c == '_' || c == ':' || (c.is_ascii_digit() && i > 0)
+}
+
+fn is_valid_legacy_metric_name(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    for (i, c) in name.chars().enumerate() {
+        if !is_valid_legacy_char(c, i) {
+            return false;
+        }
+    }
+    true
 }
 
 /// Helper type for [`EncodeMetric`](super::EncodeMetric), see
@@ -771,6 +819,26 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_counter_with_unit_utf8() {
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::UTF8Validation;
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        registry.register_with_unit("my.counter", "My counter", Unit::Seconds, counter);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP \"my.counter_seconds\" My counter.\n".to_owned()
+            + "# TYPE \"my.counter_seconds\" counter\n"
+            + "# UNIT \"my.counter_seconds\" seconds\n"
+            + "my.counter_seconds_total 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::LegacyValidation;
     }
 
     #[test]

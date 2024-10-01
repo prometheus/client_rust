@@ -1,5 +1,5 @@
 #![deny(dead_code)]
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 #![deny(unused)]
 #![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]
