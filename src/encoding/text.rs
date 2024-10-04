@@ -589,7 +589,7 @@ impl<'a> MetricEncoder<'a> {
         }
 
         if is_quoted_metric_name(self.name, self.prefix) {
-            self.writer.write_str(", ")?;
+            self.writer.write_str(",")?;
         } else {
             self.writer.write_str("{")?;
         }
@@ -874,7 +874,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_counter_with_unit_utf8() {
+    fn encode_counter_with_unit_and_quoted_metric_name() {
         *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::UTF8Validation;
         let mut registry = Registry::default();
         let counter: Counter = Counter::default();
@@ -920,6 +920,36 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_counter_with_exemplar_and_quoted_metric_name() {
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::UTF8Validation;
+        let mut registry = Registry::default();
+
+        let counter_with_exemplar: CounterWithExemplar<Vec<(String, u64)>> =
+            CounterWithExemplar::default();
+        registry.register_with_unit(
+            "my.counter.with.exemplar",
+            "My counter with exemplar",
+            Unit::Seconds,
+            counter_with_exemplar.clone(),
+        );
+
+        counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), 42)]));
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP \"my.counter.with.exemplar_seconds\" My counter with exemplar.\n"
+            .to_owned()
+            + "# TYPE \"my.counter.with.exemplar_seconds\" counter\n"
+            + "# UNIT \"my.counter.with.exemplar_seconds\" seconds\n"
+            + "{\"my.counter.with.exemplar_seconds_total\"} 1 # {user_id=\"42\"} 1.0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::LegacyValidation;
     }
 
     #[test]
@@ -994,7 +1024,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_counter_family_with_prefix_with_label_utf8() {
+    fn encode_counter_family_with_prefix_with_label_with_quoted_metric_and_label_names() {
         *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::UTF8Validation;
         let mut registry = Registry::default();
         let sub_registry = registry.sub_registry_with_prefix("my.prefix");
@@ -1017,7 +1047,7 @@ mod tests {
         let expected = "# HELP \"my.prefix_my_counter_family\" My counter family.\n"
             .to_owned()
             + "# TYPE \"my.prefix_my_counter_family\" counter\n"
-            + "{\"my.prefix_my_counter_family_total\", \"my.key\"=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
+            + "{\"my.prefix_my_counter_family_total\",\"my.key\"=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
@@ -1040,6 +1070,25 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_info_with_quoted_metric_and_label_names() {
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::UTF8Validation;
+        let mut registry = Registry::default();
+        let info = Info::new(vec![("os.foo".to_string(), "GNU/linux".to_string())]);
+        registry.register("my.info.metric", "My info metric", info);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP \"my.info.metric\" My info metric.\n".to_owned()
+            + "# TYPE \"my.info.metric\" info\n"
+            + "{\"my.info.metric_info\",\"os.foo\"=\"GNU/linux\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::LegacyValidation;
     }
 
     #[test]
@@ -1133,6 +1182,38 @@ mod tests {
     }
 
     #[test]
+    fn encode_histogram_with_exemplars_and_quoted_metric_name() {
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::UTF8Validation;
+        let mut registry = Registry::default();
+        let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
+        registry.register("my.histogram", "My histogram", histogram.clone());
+        histogram.observe(1.0, Some([("user_id".to_string(), 42u64)]));
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP \"my.histogram\" My histogram.\n".to_owned()
+            + "# TYPE \"my.histogram\" histogram\n"
+            + "{\"my.histogram_sum\"} 1.0\n"
+            + "{\"my.histogram_count\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"1.0\"} 1 # {user_id=\"42\"} 1.0\n"
+            + "{\"my.histogram_bucket\",le=\"2.0\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"4.0\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"8.0\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"16.0\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"32.0\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"64.0\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"128.0\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"256.0\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"512.0\"} 1\n"
+            + "{\"my.histogram_bucket\",le=\"+Inf\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::LegacyValidation;
+    }
+
+    #[test]
     fn sub_registry_with_prefix_and_label() {
         let top_level_metric_name = "my_top_level_metric";
         let mut registry = Registry::default();
@@ -1207,6 +1288,81 @@ mod tests {
     }
 
     #[test]
+    fn sub_registry_with_prefix_and_label_and_quoted_metric_and_label_names() {
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::UTF8Validation;
+        let top_level_metric_name = "my.top.level.metric";
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        registry.register(top_level_metric_name, "some help", counter.clone());
+
+        let prefix_1 = "prefix.1";
+        let prefix_1_metric_name = "my_prefix_1_metric";
+        let sub_registry = registry.sub_registry_with_prefix(prefix_1);
+        sub_registry.register(prefix_1_metric_name, "some help", counter.clone());
+
+        let prefix_1_1 = "prefix_1_1";
+        let prefix_1_1_metric_name = "my_prefix_1_1_metric";
+        let sub_sub_registry = sub_registry.sub_registry_with_prefix(prefix_1_1);
+        sub_sub_registry.register(prefix_1_1_metric_name, "some help", counter.clone());
+
+        let label_1_2 = (Cow::Borrowed("registry.foo"), Cow::Borrowed("1_2"));
+        let prefix_1_2_metric_name = "my_prefix_1_2_metric";
+        let sub_sub_registry = sub_registry.sub_registry_with_label(label_1_2.clone());
+        sub_sub_registry.register(prefix_1_2_metric_name, "some help", counter.clone());
+
+        let labels_1_3 = vec![
+            (Cow::Borrowed("label_1_3_1"), Cow::Borrowed("value_1_3_1")),
+            (Cow::Borrowed("label_1_3_2"), Cow::Borrowed("value_1_3_2")),
+        ];
+        let prefix_1_3_metric_name = "my_prefix_1_3_metric";
+        let sub_sub_registry =
+            sub_registry.sub_registry_with_labels(labels_1_3.clone().into_iter());
+        sub_sub_registry.register(prefix_1_3_metric_name, "some help", counter.clone());
+
+        let prefix_1_3_1 = "prefix_1_3_1";
+        let prefix_1_3_1_metric_name = "my_prefix_1_3_1_metric";
+        let sub_sub_sub_registry = sub_sub_registry.sub_registry_with_prefix(prefix_1_3_1);
+        sub_sub_sub_registry.register(prefix_1_3_1_metric_name, "some help", counter.clone());
+
+        let prefix_2 = "prefix_2";
+        let _ = registry.sub_registry_with_prefix(prefix_2);
+
+        let prefix_3 = "prefix_3";
+        let prefix_3_metric_name = "my_prefix_3_metric";
+        let sub_registry = registry.sub_registry_with_prefix(prefix_3);
+        sub_registry.register(prefix_3_metric_name, "some help", counter);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP \"my.top.level.metric\" some help.\n".to_owned()
+            + "# TYPE \"my.top.level.metric\" counter\n"
+            + "{\"my.top.level.metric_total\"} 0\n"
+            + "# HELP \"prefix.1_my_prefix_1_metric\" some help.\n"
+            + "# TYPE \"prefix.1_my_prefix_1_metric\" counter\n"
+            + "{\"prefix.1_my_prefix_1_metric_total\"} 0\n"
+            + "# HELP \"prefix.1_prefix_1_1_my_prefix_1_1_metric\" some help.\n"
+            + "# TYPE \"prefix.1_prefix_1_1_my_prefix_1_1_metric\" counter\n"
+            + "{\"prefix.1_prefix_1_1_my_prefix_1_1_metric_total\"} 0\n"
+            + "# HELP \"prefix.1_my_prefix_1_2_metric\" some help.\n"
+            + "# TYPE \"prefix.1_my_prefix_1_2_metric\" counter\n"
+            + "{\"prefix.1_my_prefix_1_2_metric_total\",\"registry.foo\"=\"1_2\"} 0\n"
+            + "# HELP \"prefix.1_my_prefix_1_3_metric\" some help.\n"
+            + "# TYPE \"prefix.1_my_prefix_1_3_metric\" counter\n"
+            + "{\"prefix.1_my_prefix_1_3_metric_total\",label_1_3_1=\"value_1_3_1\",label_1_3_2=\"value_1_3_2\"} 0\n"
+            + "# HELP \"prefix.1_prefix_1_3_1_my_prefix_1_3_1_metric\" some help.\n"
+            + "# TYPE \"prefix.1_prefix_1_3_1_my_prefix_1_3_1_metric\" counter\n"
+            + "{\"prefix.1_prefix_1_3_1_my_prefix_1_3_1_metric_total\",label_1_3_1=\"value_1_3_1\",label_1_3_2=\"value_1_3_2\"} 0\n"
+            + "# HELP prefix_3_my_prefix_3_metric some help.\n"
+            + "# TYPE prefix_3_my_prefix_3_metric counter\n"
+            + "prefix_3_my_prefix_3_metric_total 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::LegacyValidation;
+    }
+
+    #[test]
     fn sub_registry_collector() {
         use crate::encoding::EncodeMetric;
 
@@ -1263,6 +1419,66 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn sub_registry_collector_with_quoted_metric_names() {
+        use crate::encoding::EncodeMetric;
+
+        #[derive(Debug)]
+        struct Collector {
+            name: String,
+        }
+
+        impl Collector {
+            fn new(name: impl Into<String>) -> Self {
+                Self { name: name.into() }
+            }
+        }
+
+        impl crate::collector::Collector for Collector {
+            fn encode(
+                &self,
+                mut encoder: crate::encoding::DescriptorEncoder,
+            ) -> Result<(), std::fmt::Error> {
+                let counter = crate::metrics::counter::ConstCounter::new(42u64);
+                let metric_encoder = encoder.encode_descriptor(
+                    &self.name,
+                    "some help",
+                    None,
+                    counter.metric_type(),
+                )?;
+                counter.encode(metric_encoder)?;
+                Ok(())
+            }
+        }
+
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::UTF8Validation;
+        let mut registry = Registry::default();
+        registry.register_collector(Box::new(Collector::new("top.level")));
+
+        let sub_registry = registry.sub_registry_with_prefix("prefix.1");
+        sub_registry.register_collector(Box::new(Collector::new("sub_level")));
+
+        let sub_sub_registry = sub_registry.sub_registry_with_prefix("prefix_1_2");
+        sub_sub_registry.register_collector(Box::new(Collector::new("sub_sub_level")));
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP \"top.level\" some help\n".to_owned()
+            + "# TYPE \"top.level\" counter\n"
+            + "{\"top.level_total\"} 42\n"
+            + "# HELP \"prefix.1_sub_level\" some help\n"
+            + "# TYPE \"prefix.1_sub_level\" counter\n"
+            + "{\"prefix.1_sub_level_total\"} 42\n"
+            + "# HELP \"prefix.1_prefix_1_2_sub_sub_level\" some help\n"
+            + "# TYPE \"prefix.1_prefix_1_2_sub_sub_level\" counter\n"
+            + "{\"prefix.1_prefix_1_2_sub_sub_level_total\"} 42\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::LegacyValidation;
     }
 
     #[test]
