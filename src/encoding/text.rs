@@ -237,7 +237,7 @@ impl DescriptorEncoder<'_> {
         metric_type: MetricType,
     ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         self.writer.write_str("# HELP ")?;
-        if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+        if is_quoted_metric_name(name, self.prefix) {
             self.writer.write_str("\"")?;
         }
         if let Some(prefix) = self.prefix {
@@ -249,7 +249,7 @@ impl DescriptorEncoder<'_> {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
         }
-        if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+        if is_quoted_metric_name(name, self.prefix) {
             self.writer.write_str("\"")?;
         }
         self.writer.write_str(" ")?;
@@ -257,7 +257,7 @@ impl DescriptorEncoder<'_> {
         self.writer.write_str("\n")?;
 
         self.writer.write_str("# TYPE ")?;
-        if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+        if is_quoted_metric_name(name, self.prefix) {
             self.writer.write_str("\"")?;
         }
         if let Some(prefix) = self.prefix {
@@ -269,7 +269,7 @@ impl DescriptorEncoder<'_> {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
         }
-        if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+        if is_quoted_metric_name(name, self.prefix) {
             self.writer.write_str("\"")?;
         }
         self.writer.write_str(" ")?;
@@ -278,7 +278,7 @@ impl DescriptorEncoder<'_> {
 
         if let Some(unit) = unit {
             self.writer.write_str("# UNIT ")?;
-            if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+            if is_quoted_metric_name(name, self.prefix) {
                 self.writer.write_str("\"")?;
             }
             if let Some(prefix) = self.prefix {
@@ -288,7 +288,7 @@ impl DescriptorEncoder<'_> {
             self.writer.write_str(name)?;
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
-            if *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_metric_name(name) {
+            if is_quoted_metric_name(name, self.prefix) {
                 self.writer.write_str("\"")?;
             }
             self.writer.write_str(" ")?;
@@ -321,6 +321,33 @@ fn is_valid_legacy_metric_name(name: &str) -> bool {
         }
     }
     true
+}
+
+fn is_valid_legacy_prefix(prefix: Option<&Prefix>) -> bool {
+    match prefix {
+        Some(prefix) => is_valid_legacy_metric_name(prefix.as_str()),
+        None => true,
+    }
+}
+
+fn is_quoted_metric_name(name: &str, prefix: Option<&Prefix>) -> bool {
+    *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && (!is_valid_legacy_metric_name(name) || !is_valid_legacy_prefix(prefix))
+}
+
+fn is_valid_legacy_label_name(label_name: &str) -> bool {
+    if label_name.is_empty() {
+        return false;
+    }
+    for (i, b) in label_name.chars().enumerate() {
+        if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
+            return false;
+        }
+    }
+    true
+}
+
+fn is_quoted_label_name(name: &str) -> bool {
+    *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && !is_valid_legacy_label_name(name)
 }
 
 /// Helper type for [`EncodeMetric`](super::EncodeMetric), see
@@ -368,9 +395,9 @@ impl<'a> MetricEncoder<'a> {
         v: &CounterValue,
         exemplar: Option<&Exemplar<S, ExemplarValue>>,
     ) -> Result<(), std::fmt::Error> {
-        self.write_prefix_name_unit()?;
+        self.write_prefix_name_unit_suffix(Option::from("total"))?;
 
-        self.write_suffix("total")?;
+        //self.write_suffix("total")?;
 
         self.encode_labels::<NoLabelSet>(None)?;
 
@@ -394,7 +421,7 @@ impl<'a> MetricEncoder<'a> {
         &mut self,
         v: &GaugeValue,
     ) -> Result<(), std::fmt::Error> {
-        self.write_prefix_name_unit()?;
+        self.write_prefix_name_unit_suffix(None)?;
 
         self.encode_labels::<NoLabelSet>(None)?;
 
@@ -411,9 +438,9 @@ impl<'a> MetricEncoder<'a> {
     }
 
     pub fn encode_info<S: EncodeLabelSet>(&mut self, label_set: &S) -> Result<(), std::fmt::Error> {
-        self.write_prefix_name_unit()?;
+        self.write_prefix_name_unit_suffix(Option::from("info"))?;
 
-        self.write_suffix("info")?;
+        //self.write_suffix("info")?;
 
         self.encode_labels(Some(label_set))?;
 
@@ -450,15 +477,15 @@ impl<'a> MetricEncoder<'a> {
         buckets: &[(f64, u64)],
         exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
     ) -> Result<(), std::fmt::Error> {
-        self.write_prefix_name_unit()?;
-        self.write_suffix("sum")?;
+        self.write_prefix_name_unit_suffix(Option::from("sum"))?;
+        //self.write_suffix("sum")?;
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(sum))?;
         self.newline()?;
 
-        self.write_prefix_name_unit()?;
-        self.write_suffix("count")?;
+        self.write_prefix_name_unit_suffix(Option::from("count"))?;
+        //self.write_suffix("count")?;
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(count))?;
@@ -468,8 +495,8 @@ impl<'a> MetricEncoder<'a> {
         for (i, (upper_bound, count)) in buckets.iter().enumerate() {
             cummulative += count;
 
-            self.write_prefix_name_unit()?;
-            self.write_suffix("bucket")?;
+            self.write_prefix_name_unit_suffix(Option::from("bucket"))?;
+            //self.write_suffix("bucket")?;
 
             if *upper_bound == f64::MAX {
                 self.encode_labels(Some(&[("le", "+Inf")]))?;
@@ -513,7 +540,11 @@ impl<'a> MetricEncoder<'a> {
     fn newline(&mut self) -> Result<(), std::fmt::Error> {
         self.writer.write_str("\n")
     }
-    fn write_prefix_name_unit(&mut self) -> Result<(), std::fmt::Error> {
+    fn write_prefix_name_unit_suffix(&mut self, suffix: Option<&'static str>) -> Result<(), std::fmt::Error> {
+        if is_quoted_metric_name(self.name, self.prefix) {
+            self.writer.write_str("{")?;
+            self.writer.write_str("\"")?;
+        }
         if let Some(prefix) = self.prefix {
             self.writer.write_str(prefix.as_str())?;
             self.writer.write_str("_")?;
@@ -523,16 +554,23 @@ impl<'a> MetricEncoder<'a> {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
         }
+        if let Some(suffix) = suffix {
+            self.writer.write_str("_")?;
+            self.writer.write_str(suffix)?;
+        }
+        if is_quoted_metric_name(self.name, self.prefix) {
+            self.writer.write_str("\"")?;
+        }
 
         Ok(())
     }
 
-    fn write_suffix(&mut self, suffix: &'static str) -> Result<(), std::fmt::Error> {
+/*    fn write_suffix(&mut self, suffix: &'static str) -> Result<(), std::fmt::Error> {
         self.writer.write_str("_")?;
         self.writer.write_str(suffix)?;
 
         Ok(())
-    }
+    }*/
 
     // TODO: Consider caching the encoded labels for Histograms as they stay the
     // same but are currently encoded multiple times.
@@ -544,10 +582,17 @@ impl<'a> MetricEncoder<'a> {
             && additional_labels.is_none()
             && self.family_labels.is_none()
         {
+            if is_quoted_metric_name(self.name, self.prefix) {
+                self.writer.write_str("}")?;
+            }
             return Ok(());
         }
 
-        self.writer.write_str("{")?;
+        if is_quoted_metric_name(self.name, self.prefix) {
+            self.writer.write_str(", ")?;
+        } else {
+            self.writer.write_str("{")?;
+        }
 
         self.const_labels
             .encode(LabelSetEncoder::new(self.writer).into())?;
@@ -745,7 +790,14 @@ impl<'a> LabelKeyEncoder<'a> {
 
 impl<'a> std::fmt::Write for LabelKeyEncoder<'a> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        self.writer.write_str(s)
+        if is_quoted_label_name(s) {
+            self.writer.write_str("\"")?;
+        }
+        self.writer.write_str(s)?;
+        if is_quoted_label_name(s) {
+            self.writer.write_str("\"")?;
+        }
+        Ok(())
     }
 }
 
@@ -834,7 +886,7 @@ mod tests {
         let expected = "# HELP \"my.counter_seconds\" My counter.\n".to_owned()
             + "# TYPE \"my.counter_seconds\" counter\n"
             + "# UNIT \"my.counter_seconds\" seconds\n"
-            + "my.counter_seconds_total 0\n"
+            + "{\"my.counter_seconds_total\"} 0\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
@@ -939,6 +991,37 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_counter_family_with_prefix_with_label_utf8() {
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::UTF8Validation;
+        let mut registry = Registry::default();
+        let sub_registry = registry.sub_registry_with_prefix("my.prefix");
+        let sub_sub_registry = sub_registry
+            .sub_registry_with_label((Cow::Borrowed("my.key"), Cow::Borrowed("my_value")));
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+        sub_sub_registry.register("my_counter_family", "My counter family", family.clone());
+
+        family
+            .get_or_create(&vec![
+                ("method".to_string(), "GET".to_string()),
+                ("status".to_string(), "200".to_string()),
+            ])
+            .inc();
+
+        let mut encoded = String::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP \"my.prefix_my_counter_family\" My counter family.\n"
+            .to_owned()
+            + "# TYPE \"my.prefix_my_counter_family\" counter\n"
+            + "{\"my.prefix_my_counter_family_total\", \"my.key\"=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        *NAME_VALIDATION_SCHEME.lock().unwrap() = ValidationScheme::LegacyValidation;
     }
 
     #[test]
