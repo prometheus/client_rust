@@ -6,6 +6,7 @@ use std::borrow::Cow;
 
 use crate::collector::Collector;
 use crate::encoding::{DescriptorEncoder, EncodeMetric};
+use crate::encoding::text::ValidationScheme;
 
 /// A metric registry.
 ///
@@ -64,6 +65,7 @@ pub struct Registry {
     metrics: Vec<(Descriptor, Box<dyn Metric>)>,
     collectors: Vec<Box<dyn Collector>>,
     sub_registries: Vec<Registry>,
+    pub name_validation_scheme: ValidationScheme,
 }
 
 impl Registry {
@@ -96,6 +98,16 @@ impl Registry {
             ..Default::default()
         }
     }
+    
+    pub fn with_name_validation_scheme(
+        name_validation_scheme: ValidationScheme
+    ) -> Self {
+        Self {
+            name_validation_scheme,
+            ..Default::default()
+        }
+    }
+        
 
     /// Register a metric with the [`Registry`].
     ///
