@@ -310,6 +310,11 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         self.metrics.read().len()
     }
 
+    /// Returns `true` if the family contains no metrics.
+    pub fn is_empty(&self) -> bool {
+        self.metrics.read().is_empty()
+    }
+
     pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
         self.metrics.read()
     }
