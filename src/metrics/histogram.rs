@@ -122,6 +122,27 @@ pub fn exponential_buckets(start: f64, factor: f64, length: u16) -> impl Iterato
         .take(length.into())
 }
 
+/// Exponential bucket distribution within a range
+/// /// Creates `length` buckets, where the lowest bucket is `min` and the highest bucket is `max`.
+/// /// The final +Inf bucket is not counted and not included in the returned iterator.
+/// /// The function panics if `length` is 0 or negative, or if `min` is 0 or negative.
+fn exponential_buckets_range(min: f64, max: f64, length: u16) -> impl Iterator<Item = f64> {
+    if length < 1 {
+        panic!("ExponentialBucketsRange length needs a positive length");
+    }
+    if min <= 0.0 {
+        panic!("ExponentialBucketsRange min needs to be greater than 0");
+    }
+
+    // We know max/min and highest bucket. Solve for growth_factor.
+    let growth_factor = (max / min).powf(1.0 / (length as f64 - 1.0));
+
+    iter::repeat(())
+        .enumerate()
+        .map(move |(i, _)| min * growth_factor.powf(i as f64))
+        .take(length.into())
+}
+
 /// Linear bucket distribution.
 pub fn linear_buckets(start: f64, width: f64, length: u16) -> impl Iterator<Item = f64> {
     iter::repeat(())
@@ -164,6 +185,14 @@ mod tests {
         assert_eq!(
             vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
             linear_buckets(0.0, 1.0, 10).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn exponential_range() {
+        assert_eq!(
+            vec![1.0, 2.0, 4.0, 8.0, 16.0, 32.0],
+            exponential_buckets_range(1.0, 32.0, 6).collect::<Vec<_>>()
         );
     }
 }
