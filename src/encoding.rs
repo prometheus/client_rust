@@ -11,6 +11,7 @@ use std::fmt::Write;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
+use crate::encoding::text::{is_valid_legacy_char, is_valid_legacy_metric_name};
 
 #[cfg(feature = "protobuf")]
 #[cfg_attr(docsrs, doc(cfg(feature = "protobuf")))]
@@ -746,4 +747,79 @@ impl<'a> From<protobuf::ExemplarValueEncoder<'a>> for ExemplarValueEncoder<'a> {
     fn from(e: protobuf::ExemplarValueEncoder<'a>) -> Self {
         ExemplarValueEncoder(ExemplarValueEncoderInner::Protobuf(e))
     }
+}
+
+#[derive(Debug, Default)]
+pub enum EscapingScheme {
+    NoEscaping,
+    #[default]
+    UnderscoreEscaping,
+    DotsEscaping,
+    ValueEncodingEscaping,
+}
+
+pub fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
+    if name.is_empty() {
+        return name.to_string();
+    }
+    let mut escaped = String::new();
+    match scheme {
+        EscapingScheme::NoEscaping => return name.to_string(),
+        EscapingScheme::UnderscoreEscaping => {
+            if is_valid_legacy_metric_name(name) {
+                return name.to_string();
+            }
+            for (i, b) in name.chars().enumerate() {
+                if is_valid_legacy_char(b, i) {
+                    escaped.push(b);
+                } else {
+                    escaped.push('_');
+                }
+            }
+        }
+        EscapingScheme::DotsEscaping => {
+            for (i, b) in name.chars().enumerate() {
+                if b == '_' {
+                    escaped.push_str("__");
+                } else if b == '.' {
+                    escaped.push_str("_dot_");
+                } else if is_valid_legacy_char(b, i) {
+                    escaped.push(b);
+                } else {
+                    escaped.push('_');
+                }
+            }
+        }
+        EscapingScheme::ValueEncodingEscaping => {
+            if is_valid_legacy_metric_name(name) {
+                return name.to_string();
+            }
+            escaped.push_str("U__");
+            for (i, b) in name.chars().enumerate() {
+                if is_valid_legacy_char(b, i) {
+                    escaped.push(b);
+                } else if !b.is_ascii() {
+                    escaped.push_str("_FFFD_");
+                } else if b as u32 <= 0xFF {
+                    write!(escaped, "_{:02X}_", b as u32).unwrap();
+                } else if b as u32 <= 0xFFFF {
+                    write!(escaped, "_{:04X}_", b as u32).unwrap();
+                }
+            }
+        }
+    }
+    escaped
+}
+
+pub fn negotiate(header: &str) -> EscapingScheme {
+    if header.contains("allow-utf-8") {
+        return EscapingScheme::NoEscaping;
+    }
+    if header.contains("dots") {
+        return EscapingScheme::DotsEscaping;
+    }
+    if header.contains("values") {
+        return EscapingScheme::ValueEncodingEscaping;
+    }
+    EscapingScheme::UnderscoreEscaping
 }

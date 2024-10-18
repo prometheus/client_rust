@@ -37,7 +37,7 @@
 //! assert_eq!(expected_msg, buffer);
 //! ```
 
-use crate::encoding::{EncodeExemplarValue, EncodeLabelSet, NoLabelSet};
+use crate::encoding::{escape_name, EncodeExemplarValue, EncodeLabelSet, EscapingScheme, NoLabelSet};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -150,7 +150,7 @@ pub fn encode_registry<W>(writer: &mut W, registry: &Registry) -> Result<(), std
 where
     W: Write,
 {
-    registry.encode(&mut DescriptorEncoder::new(writer, &registry.name_validation_scheme).into())
+    registry.encode(&mut DescriptorEncoder::new(writer, &registry.name_validation_scheme, &registry.escaping_scheme).into())
 }
 
 /// Encode the EOF marker into the provided [`Write`]r using the OpenMetrics
@@ -195,6 +195,7 @@ pub(crate) struct DescriptorEncoder<'a> {
     prefix: Option<&'a Prefix>,
     labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
     name_validation_scheme: &'a ValidationScheme,
+    escaping_scheme: &'a EscapingScheme,
 }
 
 impl<'a> std::fmt::Debug for DescriptorEncoder<'a> {
@@ -204,12 +205,17 @@ impl<'a> std::fmt::Debug for DescriptorEncoder<'a> {
 }
 
 impl DescriptorEncoder<'_> {
-    pub(crate) fn new<'a>(writer: &'a mut dyn Write, name_validation_scheme: &'a ValidationScheme) -> DescriptorEncoder<'a> {
+    pub(crate) fn new<'a>(
+        writer: &'a mut dyn Write, 
+        name_validation_scheme: &'a ValidationScheme,
+        escaping_scheme: &'a EscapingScheme,
+    ) -> DescriptorEncoder<'a> {
         DescriptorEncoder {
             writer,
             prefix: Default::default(),
             labels: Default::default(),
             name_validation_scheme,
+            escaping_scheme,
         }
     }
 
@@ -223,6 +229,7 @@ impl DescriptorEncoder<'_> {
             labels,
             writer: self.writer,
             name_validation_scheme: &self.name_validation_scheme,
+            escaping_scheme: &self.escaping_scheme,
         }
     }
 
@@ -238,10 +245,10 @@ impl DescriptorEncoder<'_> {
             self.writer.write_str("\"")?;
         }
         if let Some(prefix) = self.prefix {
-            self.writer.write_str(prefix.as_str())?;
+            self.writer.write_str(escape_name(prefix.as_str(), self.escaping_scheme).as_str())?;
             self.writer.write_str("_")?;
         }
-        self.writer.write_str(name)?;
+        self.writer.write_str(escape_name(name, self.escaping_scheme).as_str())?;
         if let Some(unit) = unit {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
@@ -258,10 +265,10 @@ impl DescriptorEncoder<'_> {
             self.writer.write_str("\"")?;
         }
         if let Some(prefix) = self.prefix {
-            self.writer.write_str(prefix.as_str())?;
+            self.writer.write_str(escape_name(prefix.as_str(), self.escaping_scheme).as_str())?;
             self.writer.write_str("_")?;
         }
-        self.writer.write_str(name)?;
+        self.writer.write_str(escape_name(name, self.escaping_scheme).as_str())?;
         if let Some(unit) = unit {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
@@ -279,10 +286,10 @@ impl DescriptorEncoder<'_> {
                 self.writer.write_str("\"")?;
             }
             if let Some(prefix) = self.prefix {
-                self.writer.write_str(prefix.as_str())?;
+                self.writer.write_str(escape_name(prefix.as_str(), self.escaping_scheme).as_str())?;
                 self.writer.write_str("_")?;
             }
-            self.writer.write_str(name)?;
+            self.writer.write_str(escape_name(name, self.escaping_scheme).as_str())?;
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
             if is_quoted_metric_name(name, self.prefix, self.name_validation_scheme) {
@@ -301,15 +308,16 @@ impl DescriptorEncoder<'_> {
             const_labels: self.labels,
             family_labels: None,
             name_validation_scheme: self.name_validation_scheme,
+            escaping_scheme: self.escaping_scheme,
         })
     }
 }
 
-fn is_valid_legacy_char(c: char, i: usize) -> bool {
+pub fn is_valid_legacy_char(c: char, i: usize) -> bool {
     c.is_ascii_alphabetic() || c == '_' || c == ':' || (c.is_ascii_digit() && i > 0)
 }
 
-fn is_valid_legacy_metric_name(name: &str) -> bool {
+pub fn is_valid_legacy_metric_name(name: &str) -> bool {
     if name.is_empty() {
         return false;
     }
@@ -372,13 +380,14 @@ pub(crate) struct MetricEncoder<'a> {
     const_labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
     family_labels: Option<&'a dyn super::EncodeLabelSet>,
     name_validation_scheme: &'a ValidationScheme,
+    escaping_scheme: &'a EscapingScheme,
 }
 
 impl<'a> std::fmt::Debug for MetricEncoder<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut labels = String::new();
         if let Some(l) = self.family_labels {
-            l.encode(LabelSetEncoder::new(&mut labels, self.name_validation_scheme).into())?;
+            l.encode(LabelSetEncoder::new(&mut labels, self.name_validation_scheme, self.escaping_scheme).into())?;
         }
 
         f.debug_struct("Encoder")
@@ -474,6 +483,7 @@ impl<'a> MetricEncoder<'a> {
             const_labels: self.const_labels,
             family_labels: Some(label_set),
             name_validation_scheme: self.name_validation_scheme,
+            escaping_scheme: self.escaping_scheme,
         })
     }
 
@@ -533,7 +543,7 @@ impl<'a> MetricEncoder<'a> {
         self.writer.write_str(" # {")?;
         exemplar
             .label_set
-            .encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme).into())?;
+            .encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme, self.escaping_scheme).into())?;
         self.writer.write_str("} ")?;
         exemplar.value.encode(
             ExemplarValueEncoder {
@@ -553,10 +563,10 @@ impl<'a> MetricEncoder<'a> {
             self.writer.write_str("\"")?;
         }
         if let Some(prefix) = self.prefix {
-            self.writer.write_str(prefix.as_str())?;
+            self.writer.write_str(escape_name(prefix.as_str(), &self.escaping_scheme).as_str())?;
             self.writer.write_str("_")?;
         }
-        self.writer.write_str(self.name)?;
+        self.writer.write_str(escape_name(self.name, &self.escaping_scheme).as_str())?;
         if let Some(unit) = self.unit {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
@@ -602,14 +612,14 @@ impl<'a> MetricEncoder<'a> {
         }
 
         self.const_labels
-            .encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme).into())?;
+            .encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme, self.escaping_scheme).into())?;
 
         if let Some(additional_labels) = additional_labels {
             if !self.const_labels.is_empty() {
                 self.writer.write_str(",")?;
             }
 
-            additional_labels.encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme).into())?;
+            additional_labels.encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme, self.escaping_scheme).into())?;
         }
 
         /// Writer impl which prepends a comma on the first call to write output to the wrapped writer
@@ -639,9 +649,9 @@ impl<'a> MetricEncoder<'a> {
                     writer: self.writer,
                     should_prepend: true,
                 };
-                labels.encode(LabelSetEncoder::new(&mut writer, self.name_validation_scheme).into())?;
+                labels.encode(LabelSetEncoder::new(&mut writer, self.name_validation_scheme, self.escaping_scheme).into())?;
             } else {
-                labels.encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme).into())?;
+                labels.encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme, self.escaping_scheme).into())?;
             };
         }
 
@@ -725,6 +735,7 @@ pub(crate) struct LabelSetEncoder<'a> {
     writer: &'a mut dyn Write,
     first: bool,
     name_validation_scheme: &'a ValidationScheme,
+    escaping_scheme: &'a EscapingScheme,
 }
 
 impl<'a> std::fmt::Debug for LabelSetEncoder<'a> {
@@ -736,11 +747,16 @@ impl<'a> std::fmt::Debug for LabelSetEncoder<'a> {
 }
 
 impl<'a> LabelSetEncoder<'a> {
-    fn new(writer: &'a mut dyn Write, name_validation_scheme: &'a ValidationScheme) -> Self {
+    fn new(
+        writer: &'a mut dyn Write, 
+        name_validation_scheme: &'a ValidationScheme, 
+        escaping_scheme: &'a EscapingScheme,
+    ) -> Self {
         Self {
             writer,
             first: true,
             name_validation_scheme,
+            escaping_scheme,
         }
     }
 
@@ -751,6 +767,7 @@ impl<'a> LabelSetEncoder<'a> {
             writer: self.writer,
             first,
             name_validation_scheme: self.name_validation_scheme,
+            escaping_scheme: self.escaping_scheme,
         }
     }
 }
@@ -759,6 +776,7 @@ pub(crate) struct LabelEncoder<'a> {
     writer: &'a mut dyn Write,
     first: bool,
     name_validation_scheme: &'a ValidationScheme,
+    escaping_scheme: &'a EscapingScheme,
 }
 
 impl<'a> std::fmt::Debug for LabelEncoder<'a> {
@@ -777,6 +795,7 @@ impl<'a> LabelEncoder<'a> {
         Ok(LabelKeyEncoder {
             writer: self.writer,
             name_validation_scheme: self.name_validation_scheme,
+            escaping_scheme: self.escaping_scheme,
         })
     }
 }
@@ -784,6 +803,7 @@ impl<'a> LabelEncoder<'a> {
 pub(crate) struct LabelKeyEncoder<'a> {
     writer: &'a mut dyn Write,
     name_validation_scheme: &'a ValidationScheme,
+    escaping_scheme: &'a EscapingScheme,
 }
 
 impl<'a> std::fmt::Debug for LabelKeyEncoder<'a> {
@@ -806,7 +826,7 @@ impl<'a> std::fmt::Write for LabelKeyEncoder<'a> {
         if is_quoted_label_name(s, self.name_validation_scheme) {
             self.writer.write_str("\"")?;
         }
-        self.writer.write_str(s)?;
+        self.writer.write_str(escape_name(s, self.escaping_scheme).as_str())?;
         if is_quoted_label_name(s, self.name_validation_scheme) {
             self.writer.write_str("\"")?;
         }
