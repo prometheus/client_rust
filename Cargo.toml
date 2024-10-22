@@ -21,7 +21,8 @@ default = []
 protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
 
 [workspace]
-members = ["derive-encode", "process-collector"]
+members = ["derive-encode"]
+exclude = ["process-collector"]
 
 [dependencies]
 dtoa = "1.0"
