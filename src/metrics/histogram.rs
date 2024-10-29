@@ -127,7 +127,7 @@ pub fn exponential_buckets(start: f64, factor: f64, length: u16) -> impl Iterato
 ///
 /// Creates `length` buckets, where the lowest bucket is `min` and the highest bucket is `max`.
 ///
-/// The function defaults to `length` = 2 if `length` is 0 or negative,
+/// The function defaults to `length` = 1 if `length` is 0 or negative,
 /// and defaults to `min` = 1.0 if `min` is 0 or negative.
 pub fn exponential_buckets_range(min: f64, max: f64, length: u16) -> impl Iterator<Item = f64> {
     let mut len_observed = length;
