@@ -5,6 +5,7 @@
 use crate::encoding::{EncodeMetric, MetricEncoder, NoLabelSet};
 
 use super::{MetricType, TypedMetric};
+use log::warn;
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use std::iter::{self, once};
 use std::sync::Arc;
@@ -123,24 +124,30 @@ pub fn exponential_buckets(start: f64, factor: f64, length: u16) -> impl Iterato
 }
 
 /// Exponential bucket distribution within a range
-/// /// Creates `length` buckets, where the lowest bucket is `min` and the highest bucket is `max`.
-/// /// The final +Inf bucket is not counted and not included in the returned iterator.
-/// /// The function panics if `length` is 0 or negative, or if `min` is 0 or negative.
-fn exponential_buckets_range(min: f64, max: f64, length: u16) -> impl Iterator<Item = f64> {
+///
+/// Creates `length` buckets, where the lowest bucket is `min` and the highest bucket is `max`.
+///
+/// The function defaults to `length` = 2 if `length` is 0 or negative,
+/// and defaults to `min` = 1.0 if `min` is 0 or negative.
+pub fn exponential_buckets_range(min: f64, max: f64, length: u16) -> impl Iterator<Item = f64> {
+    let mut len_observed = length;
+    let mut min_bucket = min;
     if length < 1 {
-        panic!("ExponentialBucketsRange length needs a positive length");
+        warn!("exponential_buckets_range length needs a positive length, defaulting to 1");
+        len_observed = 1;
     }
     if min <= 0.0 {
-        panic!("ExponentialBucketsRange min needs to be greater than 0");
+        warn!("exponential_buckets_range min needs to be greater than 0, defaulting to 1.0");
+        min_bucket = 1.0;
     }
 
     // We know max/min and highest bucket. Solve for growth_factor.
-    let growth_factor = (max / min).powf(1.0 / (length as f64 - 1.0));
+    let growth_factor = (max / min_bucket).powf(1.0 / (len_observed as f64 - 1.0));
 
     iter::repeat(())
         .enumerate()
-        .map(move |(i, _)| min * growth_factor.powf(i as f64))
-        .take(length.into())
+        .map(move |(i, _)| min_bucket * growth_factor.powf(i as f64))
+        .take(len_observed.into())
 }
 
 /// Linear bucket distribution.

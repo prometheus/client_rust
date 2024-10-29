@@ -234,7 +234,7 @@ impl Registry {
     /// let subsystem_b_counter_1: Counter = Counter::default();
     /// let subsystem_b_counter_2: Counter = Counter::default();
     ///
-    /// let subsystem_b_registry = registry.sub_registry_with_prefix("subsystem_b");
+    /// let subsystem_a_registry = registry.sub_registry_with_prefix("subsystem_b");
     /// registry.register("counter_1", "", subsystem_b_counter_1.clone());
     /// registry.register("counter_2", "", subsystem_b_counter_2.clone());
     /// ```
