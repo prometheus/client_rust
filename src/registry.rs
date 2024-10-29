@@ -343,6 +343,55 @@ impl Registry {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct RegistryBuilder {
+    prefix: Option<Prefix>,
+    labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
+    name_validation_scheme: ValidationScheme,
+    escaping_scheme: EscapingScheme,
+}
+
+impl RegistryBuilder {
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+
+    pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = Some(Prefix(prefix.into()));
+        self
+    }
+
+    pub fn with_labels(
+        mut self,
+        labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
+    ) -> Self {
+        self.labels = labels.into_iter().collect();
+        self
+    }
+
+    pub fn with_name_validation_scheme(mut self, name_validation_scheme: ValidationScheme) -> Self {
+        self.name_validation_scheme = name_validation_scheme;
+        self
+    }
+
+    pub fn with_escaping_scheme(mut self, escaping_scheme: EscapingScheme) -> Self {
+        self.escaping_scheme = escaping_scheme;
+        self
+    }
+
+    pub fn build(self) -> Registry {
+        Registry {
+            prefix: self.prefix,
+            labels: self.labels,
+            name_validation_scheme: self.name_validation_scheme,
+            escaping_scheme: self.escaping_scheme,
+            ..Default::default()
+        }
+    }
+}
+
 /// Metric prefix
 #[derive(Clone, Debug)]
 pub(crate) struct Prefix(String);
