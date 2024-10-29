@@ -5,8 +5,7 @@
 use std::borrow::Cow;
 
 use crate::collector::Collector;
-use crate::encoding::{DescriptorEncoder, EncodeMetric, EscapingScheme};
-use crate::encoding::text::ValidationScheme;
+use crate::encoding::{DescriptorEncoder, EncodeMetric, EscapingScheme, ValidationScheme};
 
 /// A metric registry.
 ///

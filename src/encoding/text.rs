@@ -37,22 +37,14 @@
 //! assert_eq!(expected_msg, buffer);
 //! ```
 
-use crate::encoding::{escape_name, EncodeExemplarValue, EncodeLabelSet, EscapingScheme, NoLabelSet};
+use crate::encoding::{escape_name, is_quoted_label_name, is_quoted_metric_name, EncodeExemplarValue, EncodeLabelSet, EscapingScheme, NoLabelSet, ValidationScheme};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
 
 use std::borrow::Cow;
-use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::Write;
-
-#[derive(Debug, PartialEq, Default, Clone)]
-pub enum ValidationScheme {
-    #[default]
-    LegacyValidation,
-    UTF8Validation,
-}
 
 /// Encode both the metrics registered with the provided [`Registry`] and the
 /// EOF marker into the provided [`Write`]r using the OpenMetrics text format.
@@ -311,56 +303,6 @@ impl DescriptorEncoder<'_> {
             escaping_scheme: self.escaping_scheme,
         })
     }
-}
-
-pub fn is_valid_legacy_char(c: char, i: usize) -> bool {
-    c.is_ascii_alphabetic() || c == '_' || c == ':' || (c.is_ascii_digit() && i > 0)
-}
-
-pub fn is_valid_legacy_metric_name(name: &str) -> bool {
-    if name.is_empty() {
-        return false;
-    }
-    for (i, c) in name.chars().enumerate() {
-        if !is_valid_legacy_char(c, i) {
-            return false;
-        }
-    }
-    true
-}
-
-fn is_valid_legacy_prefix(prefix: Option<&Prefix>) -> bool {
-    match prefix {
-        Some(prefix) => is_valid_legacy_metric_name(prefix.as_str()),
-        None => true,
-    }
-}
-
-/*
-fn is_quoted_metric_name(name: &str, prefix: Option<&Prefix>) -> bool {
-    *NAME_VALIDATION_SCHEME.lock().unwrap() == ValidationScheme::UTF8Validation && (!is_valid_legacy_metric_name(name) || !is_valid_legacy_prefix(prefix))
-}
-
- */
-
-fn is_quoted_metric_name(name: &str, prefix: Option<&Prefix>, validation_scheme: &ValidationScheme) -> bool {
-    *validation_scheme == ValidationScheme::UTF8Validation && (!is_valid_legacy_metric_name(name) || !is_valid_legacy_prefix(prefix))
-}
-
-fn is_valid_legacy_label_name(label_name: &str) -> bool {
-    if label_name.is_empty() {
-        return false;
-    }
-    for (i, b) in label_name.chars().enumerate() {
-        if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
-            return false;
-        }
-    }
-    true
-}
-
-fn is_quoted_label_name(name: &str, validation_scheme: &ValidationScheme) -> bool {
-    *validation_scheme == ValidationScheme::UTF8Validation && !is_valid_legacy_label_name(name)
 }
 
 /// Helper type for [`EncodeMetric`](super::EncodeMetric), see
