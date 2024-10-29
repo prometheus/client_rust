@@ -755,11 +755,11 @@ pub enum ValidationScheme {
     UTF8Validation,
 }
 
-pub fn is_valid_legacy_char(c: char, i: usize) -> bool {
+fn is_valid_legacy_char(c: char, i: usize) -> bool {
     c.is_ascii_alphabetic() || c == '_' || c == ':' || (c.is_ascii_digit() && i > 0)
 }
 
-pub fn is_valid_legacy_metric_name(name: &str) -> bool {
+fn is_valid_legacy_metric_name(name: &str) -> bool {
     if name.is_empty() {
         return false;
     }
@@ -798,16 +798,16 @@ fn is_quoted_label_name(name: &str, validation_scheme: &ValidationScheme) -> boo
     *validation_scheme == ValidationScheme::UTF8Validation && !is_valid_legacy_label_name(name)
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub enum EscapingScheme {
-    NoEscaping,
     #[default]
     UnderscoreEscaping,
     DotsEscaping,
     ValueEncodingEscaping,
+    NoEscaping,
 }
 
-pub fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
+fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
     if name.is_empty() {
         return name.to_string();
     }

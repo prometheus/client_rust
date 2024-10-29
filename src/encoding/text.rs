@@ -142,7 +142,7 @@ pub fn encode_registry<W>(writer: &mut W, registry: &Registry) -> Result<(), std
 where
     W: Write,
 {
-    registry.encode(&mut DescriptorEncoder::new(writer, &registry.name_validation_scheme, &registry.escaping_scheme).into())
+    registry.encode(&mut DescriptorEncoder::new(writer, &registry.name_validation_scheme(), &registry.escaping_scheme()).into())
 }
 
 /// Encode the EOF marker into the provided [`Write`]r using the OpenMetrics

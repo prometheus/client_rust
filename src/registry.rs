@@ -64,8 +64,8 @@ pub struct Registry {
     metrics: Vec<(Descriptor, Box<dyn Metric>)>,
     collectors: Vec<Box<dyn Collector>>,
     sub_registries: Vec<Registry>,
-    pub name_validation_scheme: ValidationScheme,
-    pub escaping_scheme: EscapingScheme,
+    name_validation_scheme: ValidationScheme,
+    escaping_scheme: EscapingScheme,
 }
 
 impl Registry {
@@ -118,7 +118,14 @@ impl Registry {
             ..Default::default()
         }
     }
-        
+
+    pub(crate) fn name_validation_scheme(&self) -> ValidationScheme {
+        self.name_validation_scheme.clone()
+    }
+
+    pub(crate) fn escaping_scheme(&self) -> EscapingScheme {
+        self.escaping_scheme.clone()
+    }
 
     /// Register a metric with the [`Registry`].
     ///
