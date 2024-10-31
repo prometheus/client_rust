@@ -748,10 +748,16 @@ impl<'a> From<protobuf::ExemplarValueEncoder<'a>> for ExemplarValueEncoder<'a> {
     }
 }
 
+/// Enum for determining how metric and label names will
+/// be validated.
 #[derive(Debug, PartialEq, Default, Clone)]
 pub enum ValidationScheme {
+    /// Setting that requires that metric and label names
+    /// conform to the original OpenMetrics character requirements.
     #[default]
     LegacyValidation,
+    /// Only requires that metric and label names be valid UTF-8
+    /// strings.
     UTF8Validation,
 }
 
@@ -798,12 +804,21 @@ fn is_quoted_label_name(name: &str, validation_scheme: &ValidationScheme) -> boo
     *validation_scheme == ValidationScheme::UTF8Validation && !is_valid_legacy_label_name(name)
 }
 
+/// Enum for determining how metric and label names will
+/// be escaped.
 #[derive(Debug, Default, Clone)]
 pub enum EscapingScheme {
+    /// Replaces all legacy-invalid characters with underscores.
     #[default]
     UnderscoreEscaping,
+    /// Similar to UnderscoreEscaping, except that dots are
+    /// converted to `_dot_` and pre-existing underscores are converted to `__`.
     DotsEscaping,
+    /// Prepends the name with `U__` and replaces all invalid
+    /// characters with the Unicode value, surrounded by underscores. Single
+    /// underscores are replaced with double underscores.
     ValueEncodingEscaping,
+    /// Indicates that a name will not be escaped.
     NoEscaping,
 }
 
@@ -860,6 +875,7 @@ fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
     escaped
 }
 
+/// Returns the escaping scheme to use based on the given header.
 pub fn negotiate(header: &str) -> EscapingScheme {
     if header.contains("allow-utf-8") {
         return EscapingScheme::NoEscaping;
