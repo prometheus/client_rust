@@ -99,26 +99,6 @@ impl Registry {
         }
     }
 
-    pub fn with_name_validation_scheme(
-        name_validation_scheme: ValidationScheme
-    ) -> Self {
-        Self {
-            name_validation_scheme,
-            ..Default::default()
-        }
-    }
-
-    pub fn with_name_validation_scheme_and_escaping_scheme(
-        name_validation_scheme: ValidationScheme,
-        escaping_scheme: EscapingScheme
-    ) -> Self {
-        Self {
-            name_validation_scheme,
-            escaping_scheme,
-            ..Default::default()
-        }
-    }
-
     /// Returns the given Registry's name validation scheme.
     pub(crate) fn name_validation_scheme(&self) -> ValidationScheme {
         self.name_validation_scheme.clone()

@@ -812,6 +812,8 @@ mod tests {
     use std::fmt::Error;
     use std::sync::atomic::{AtomicI32, AtomicU32};
     use crate::encoding::EscapingScheme::NoEscaping;
+    use crate::encoding::ValidationScheme::UTF8Validation;
+    use crate::registry::RegistryBuilder;
 
     #[test]
     fn encode_counter() {
@@ -851,7 +853,7 @@ mod tests {
 
     #[test]
     fn encode_counter_with_unit_and_quoted_metric_name() {
-        let mut registry = Registry::with_name_validation_scheme_and_escaping_scheme(ValidationScheme::UTF8Validation, NoEscaping);
+        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
         let counter: Counter = Counter::default();
         registry.register_with_unit("my.counter", "My counter", Unit::Seconds, counter);
 
@@ -897,7 +899,7 @@ mod tests {
 
     #[test]
     fn encode_counter_with_exemplar_and_quoted_metric_name() {
-        let mut registry = Registry::with_name_validation_scheme_and_escaping_scheme(ValidationScheme::UTF8Validation, NoEscaping);
+        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
 
         let counter_with_exemplar: CounterWithExemplar<Vec<(String, u64)>> =
             CounterWithExemplar::default();
@@ -995,7 +997,7 @@ mod tests {
 
     #[test]
     fn encode_counter_family_with_prefix_with_label_with_quoted_metric_and_label_names() {
-        let mut registry = Registry::with_name_validation_scheme_and_escaping_scheme(ValidationScheme::UTF8Validation, EscapingScheme::NoEscaping);
+        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
         let sub_registry = registry.sub_registry_with_prefix("my.prefix");
         let sub_sub_registry = sub_registry
             .sub_registry_with_label((Cow::Borrowed("my.key"), Cow::Borrowed("my_value")));
@@ -1041,7 +1043,7 @@ mod tests {
 
     #[test]
     fn encode_info_with_quoted_metric_and_label_names() {
-        let mut registry = Registry::with_name_validation_scheme_and_escaping_scheme(ValidationScheme::UTF8Validation, NoEscaping);
+        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
         let info = Info::new(vec![("os.foo".to_string(), "GNU/linux".to_string())]);
         registry.register("my.info.metric", "My info metric", info);
 
@@ -1147,7 +1149,7 @@ mod tests {
 
     #[test]
     fn encode_histogram_with_exemplars_and_quoted_metric_name() {
-        let mut registry = Registry::with_name_validation_scheme_and_escaping_scheme(ValidationScheme::UTF8Validation, NoEscaping);
+        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
         let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my.histogram", "My histogram", histogram.clone());
         histogram.observe(1.0, Some([("user_id".to_string(), 42u64)]));
@@ -1251,7 +1253,7 @@ mod tests {
     #[test]
     fn sub_registry_with_prefix_and_label_and_quoted_metric_and_label_names() {
         let top_level_metric_name = "my.top.level.metric";
-        let mut registry = Registry::with_name_validation_scheme_and_escaping_scheme(ValidationScheme::UTF8Validation, NoEscaping);
+        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
         let counter: Counter = Counter::default();
         registry.register(top_level_metric_name, "some help", counter.clone());
 
@@ -1411,7 +1413,7 @@ mod tests {
             }
         }
 
-        let mut registry = Registry::with_name_validation_scheme_and_escaping_scheme(ValidationScheme::UTF8Validation, NoEscaping);
+        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
         registry.register_collector(Box::new(Collector::new("top.level")));
 
         let sub_registry = registry.sub_registry_with_prefix("prefix.1");
