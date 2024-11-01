@@ -203,7 +203,7 @@ impl MetricEncoder<'_> {
 /// An encodable label set.
 pub trait EncodeLabelSet {
     /// Encode oneself into the given encoder.
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error>;
 }
 
 impl<'a> From<text::LabelSetEncoder<'a>> for LabelSetEncoder<'a> {
@@ -331,13 +331,13 @@ impl<'a> LabelKeyEncoder<'a> {
     }
 }
 impl<T: EncodeLabel, const N: usize> EncodeLabelSet for [T; N] {
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         self.as_ref().encode(encoder)
     }
 }
 
 impl<T: EncodeLabel> EncodeLabelSet for &[T] {
-    fn encode(&self, mut encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         if self.is_empty() {
             return Ok(());
         }
@@ -351,13 +351,13 @@ impl<T: EncodeLabel> EncodeLabelSet for &[T] {
 }
 
 impl<T: EncodeLabel> EncodeLabelSet for Vec<T> {
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         self.as_slice().encode(encoder)
     }
 }
 
 impl EncodeLabelSet for NoLabelSet {
-    fn encode(&self, _encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, _encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         Ok(())
     }
 }

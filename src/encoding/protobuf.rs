@@ -119,12 +119,11 @@ impl DescriptorEncoder<'_> {
             ..Default::default()
         };
         let mut labels = vec![];
-        self.labels.encode(
-            LabelSetEncoder {
-                labels: &mut labels,
-            }
-            .into(),
-        )?;
+        let mut encoder = LabelSetEncoder {
+            labels: &mut labels,
+        }
+        .into();
+        self.labels.encode(&mut encoder)?;
         self.metric_families.push(family);
 
         Ok(MetricEncoder {
@@ -209,12 +208,11 @@ impl MetricEncoder<'_> {
         label_set: &impl super::EncodeLabelSet,
     ) -> Result<(), std::fmt::Error> {
         let mut info_labels = vec![];
-        label_set.encode(
-            LabelSetEncoder {
-                labels: &mut info_labels,
-            }
-            .into(),
-        )?;
+        let mut encoder = LabelSetEncoder {
+            labels: &mut info_labels,
+        }
+        .into();
+        label_set.encode(&mut encoder)?;
 
         self.family.push(openmetrics_data_model::Metric {
             labels: self.labels.clone(),
@@ -234,12 +232,11 @@ impl MetricEncoder<'_> {
         label_set: &S,
     ) -> Result<MetricEncoder, std::fmt::Error> {
         let mut labels = self.labels.clone();
-        label_set.encode(
-            LabelSetEncoder {
-                labels: &mut labels,
-            }
-            .into(),
-        )?;
+        let mut encoder = LabelSetEncoder {
+            labels: &mut labels,
+        }
+        .into();
+        label_set.encode(&mut encoder)?;
 
         Ok(MetricEncoder {
             metric_type: self.metric_type,
@@ -302,12 +299,11 @@ impl<S: EncodeLabelSet, V: EncodeExemplarValue> TryFrom<&Exemplar<S, V>>
             .encode(ExemplarValueEncoder { value: &mut value }.into())?;
 
         let mut labels = vec![];
-        exemplar.label_set.encode(
-            LabelSetEncoder {
-                labels: &mut labels,
-            }
-            .into(),
-        )?;
+        let mut encoder = LabelSetEncoder {
+            labels: &mut labels,
+        }
+        .into();
+        exemplar.label_set.encode(&mut encoder)?;
 
         Ok(openmetrics_data_model::Exemplar {
             value,
