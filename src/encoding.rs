@@ -240,7 +240,7 @@ impl<'a> LabelSetEncoder<'a> {
 /// An encodable label.
 pub trait EncodeLabel {
     /// Encode oneself into the given encoder.
-    fn encode(&self, encoder: LabelEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: &mut LabelEncoder) -> Result<(), std::fmt::Error>;
 }
 
 /// Encoder for a label.
@@ -343,7 +343,7 @@ impl<T: EncodeLabel> EncodeLabelSet for &[T] {
         }
 
         for label in self.iter() {
-            label.encode(encoder.encode_label())?
+            label.encode(&mut encoder.encode_label())?
         }
 
         Ok(())
@@ -363,7 +363,7 @@ impl EncodeLabelSet for NoLabelSet {
 }
 
 impl<K: EncodeLabelKey, V: EncodeLabelValue> EncodeLabel for (K, V) {
-    fn encode(&self, mut encoder: LabelEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelEncoder) -> Result<(), std::fmt::Error> {
         let (key, value) = self;
 
         let mut label_key_encoder = encoder.encode_label_key()?;
