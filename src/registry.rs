@@ -184,15 +184,15 @@ impl Registry {
     /// struct MyCollector {}
     ///
     /// impl Collector for MyCollector {
-    ///     fn encode(&self, mut encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
+    ///     fn encode(&self, encoder: &mut DescriptorEncoder) -> Result<(), std::fmt::Error> {
     ///         let counter = ConstCounter::new(42u64);
-    ///         let metric_encoder = encoder.encode_descriptor(
+    ///         let mut metric_encoder = encoder.encode_descriptor(
     ///             "my_counter",
     ///             "some help",
     ///             None,
     ///             counter.metric_type(),
     ///         )?;
-    ///         counter.encode(metric_encoder)?;
+    ///         counter.encode(&mut metric_encoder)?;
     ///         Ok(())
     ///     }
     /// }
@@ -300,9 +300,9 @@ impl Registry {
         }
 
         for collector in self.collectors.iter() {
-            let descriptor_encoder =
+            let mut descriptor_encoder =
                 encoder.with_prefix_and_labels(self.prefix.as_ref(), &self.labels);
-            collector.encode(descriptor_encoder)?;
+            collector.encode(&mut descriptor_encoder)?;
         }
 
         for registry in self.sub_registries.iter() {

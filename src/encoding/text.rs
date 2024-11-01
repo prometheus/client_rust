@@ -1077,7 +1077,7 @@ mod tests {
         impl crate::collector::Collector for Collector {
             fn encode(
                 &self,
-                mut encoder: crate::encoding::DescriptorEncoder,
+                encoder: &mut crate::encoding::DescriptorEncoder,
             ) -> Result<(), std::fmt::Error> {
                 let counter = crate::metrics::counter::ConstCounter::new(42u64);
                 let mut metric_encoder = encoder.encode_descriptor(
