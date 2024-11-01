@@ -691,29 +691,29 @@ impl<'a> CounterValueEncoder<'a> {
 /// An encodable exemplar value.
 pub trait EncodeExemplarValue {
     /// Encode the given instance in the OpenMetrics text encoding.
-    fn encode(&self, encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error>;
 }
 
 impl EncodeExemplarValue for f64 {
-    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self)
     }
 }
 
 impl EncodeExemplarValue for u64 {
-    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self as f64)
     }
 }
 
 impl EncodeExemplarValue for f32 {
-    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self as f64)
     }
 }
 
 impl EncodeExemplarValue for u32 {
-    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self as f64)
     }
 }

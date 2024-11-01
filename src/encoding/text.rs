@@ -455,7 +455,7 @@ impl<'a> MetricEncoder<'a> {
             .encode(&mut LabelSetEncoder::new(self.writer).into())?;
         self.writer.write_str("} ")?;
         exemplar.value.encode(
-            ExemplarValueEncoder {
+            &mut ExemplarValueEncoder {
                 writer: self.writer,
             }
             .into(),

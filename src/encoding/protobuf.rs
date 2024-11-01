@@ -294,9 +294,8 @@ impl<S: EncodeLabelSet, V: EncodeExemplarValue> TryFrom<&Exemplar<S, V>>
 
     fn try_from(exemplar: &Exemplar<S, V>) -> Result<Self, Self::Error> {
         let mut value = f64::default();
-        exemplar
-            .value
-            .encode(ExemplarValueEncoder { value: &mut value }.into())?;
+        let mut encoder = ExemplarValueEncoder { value: &mut value }.into();
+        exemplar.value.encode(&mut encoder)?;
 
         let mut labels = vec![];
         let mut encoder = LabelSetEncoder {
