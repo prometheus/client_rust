@@ -43,7 +43,7 @@ macro_rules! for_both {
 pub trait EncodeMetric {
     /// Encode the given instance in the OpenMetrics text encoding.
     // TODO: Lifetimes on MetricEncoder needed?
-    fn encode(&self, encoder: MetricEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error>;
 
     /// The OpenMetrics metric type of the instance.
     // One can not use [`TypedMetric`] directly, as associated constants are not
@@ -52,7 +52,7 @@ pub trait EncodeMetric {
 }
 
 impl EncodeMetric for Box<dyn EncodeMetric> {
-    fn encode(&self, encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         self.deref().encode(encoder)
     }
 

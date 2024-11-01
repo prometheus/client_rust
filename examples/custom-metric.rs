@@ -11,7 +11,7 @@ use prometheus_client::registry::Registry;
 struct MyCustomMetric {}
 
 impl EncodeMetric for MyCustomMetric {
-    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         // This method is called on each Prometheus server scrape. Allowing you
         // to execute whatever logic is needed to generate and encode your
         // custom metric.

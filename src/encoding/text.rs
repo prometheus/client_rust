@@ -1080,13 +1080,13 @@ mod tests {
                 mut encoder: crate::encoding::DescriptorEncoder,
             ) -> Result<(), std::fmt::Error> {
                 let counter = crate::metrics::counter::ConstCounter::new(42u64);
-                let metric_encoder = encoder.encode_descriptor(
+                let mut metric_encoder = encoder.encode_descriptor(
                     &self.name,
                     "some help",
                     None,
                     counter.metric_type(),
                 )?;
-                counter.encode(metric_encoder)?;
+                counter.encode(&mut metric_encoder)?;
                 Ok(())
             }
         }

@@ -290,13 +290,13 @@ impl Registry {
         for (descriptor, metric) in self.metrics.iter() {
             let mut descriptor_encoder =
                 encoder.with_prefix_and_labels(self.prefix.as_ref(), &self.labels);
-            let metric_encoder = descriptor_encoder.encode_descriptor(
+            let mut metric_encoder = descriptor_encoder.encode_descriptor(
                 &descriptor.name,
                 &descriptor.help,
                 descriptor.unit.as_ref(),
                 EncodeMetric::metric_type(metric.as_ref()),
             )?;
-            metric.encode(metric_encoder)?;
+            metric.encode(&mut metric_encoder)?;
         }
 
         for collector in self.collectors.iter() {
