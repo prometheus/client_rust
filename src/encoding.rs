@@ -822,6 +822,18 @@ pub enum EscapingScheme {
     NoEscaping,
 }
 
+impl EscapingScheme {
+    /// Returns a string representation of a `EscapingScheme`.
+    pub fn as_str(&self) -> &str {
+        match self {
+            EscapingScheme::UnderscoreEscaping => "underscores",
+            EscapingScheme::DotsEscaping => "dots",
+            EscapingScheme::ValueEncodingEscaping => "values",
+            EscapingScheme::NoEscaping => "allow-utf-8",
+        }
+    }
+}
+
 fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
     if name.is_empty() {
         return name.to_string();
@@ -876,9 +888,9 @@ fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
 }
 
 /// Returns the escaping scheme to use based on the given header.
-pub fn negotiate(header: &str) -> EscapingScheme {
-    if header.contains("allow-utf-8") {
-        return EscapingScheme::NoEscaping;
+pub fn negotiate_escaping_scheme(header: &str, default_escaping_scheme: EscapingScheme) -> EscapingScheme {
+    if header.contains("underscores") {
+        return EscapingScheme::UnderscoreEscaping;
     }
     if header.contains("dots") {
         return EscapingScheme::DotsEscaping;
@@ -886,5 +898,8 @@ pub fn negotiate(header: &str) -> EscapingScheme {
     if header.contains("values") {
         return EscapingScheme::ValueEncodingEscaping;
     }
-    EscapingScheme::UnderscoreEscaping
+    if header.contains("allow-utf-8") {
+        return EscapingScheme::NoEscaping;
+    }
+    default_escaping_scheme
 }

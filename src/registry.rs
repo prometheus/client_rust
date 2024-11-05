@@ -100,13 +100,18 @@ impl Registry {
     }
 
     /// Returns the given Registry's name validation scheme.
-    pub(crate) fn name_validation_scheme(&self) -> ValidationScheme {
+    pub fn name_validation_scheme(&self) -> ValidationScheme {
         self.name_validation_scheme.clone()
     }
 
     /// Returns the given Registry's escaping scheme.
-    pub(crate) fn escaping_scheme(&self) -> EscapingScheme {
+    pub fn escaping_scheme(&self) -> EscapingScheme {
         self.escaping_scheme.clone()
+    }
+
+    /// Sets the escaping scheme for the [`RegistryBuilder`].
+    pub fn set_escaping_scheme(&mut self, escaping_scheme: EscapingScheme) {
+        self.escaping_scheme = escaping_scheme;
     }
 
     /// Register a metric with the [`Registry`].

@@ -232,20 +232,28 @@ impl DescriptorEncoder<'_> {
         unit: Option<&'s Unit>,
         metric_type: MetricType,
     ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
+        let escaped_name = escape_name(name, self.escaping_scheme);
+        let mut escaped_prefix: Option<&Prefix> = None;
+        let escaped_prefix_value: Prefix;
+        if let Some(prefix) = self.prefix {
+            escaped_prefix_value = Prefix::from(escape_name(prefix.as_str(), self.escaping_scheme));
+            escaped_prefix = Some(&escaped_prefix_value);
+        }
+        let is_quoted_metric_name = is_quoted_metric_name(escaped_name.as_str(), escaped_prefix, self.name_validation_scheme);
         self.writer.write_str("# HELP ")?;
-        if is_quoted_metric_name(name, self.prefix, self.name_validation_scheme) {
+        if is_quoted_metric_name {
             self.writer.write_str("\"")?;
         }
         if let Some(prefix) = self.prefix {
             self.writer.write_str(escape_name(prefix.as_str(), self.escaping_scheme).as_str())?;
             self.writer.write_str("_")?;
         }
-        self.writer.write_str(escape_name(name, self.escaping_scheme).as_str())?;
+        self.writer.write_str(escaped_name.as_str())?;
         if let Some(unit) = unit {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
         }
-        if is_quoted_metric_name(name, self.prefix, self.name_validation_scheme) {
+        if is_quoted_metric_name {
             self.writer.write_str("\"")?;
         }
         self.writer.write_str(" ")?;
@@ -253,7 +261,7 @@ impl DescriptorEncoder<'_> {
         self.writer.write_str("\n")?;
 
         self.writer.write_str("# TYPE ")?;
-        if is_quoted_metric_name(name, self.prefix, self.name_validation_scheme) {
+        if is_quoted_metric_name {
             self.writer.write_str("\"")?;
         }
         if let Some(prefix) = self.prefix {
@@ -265,7 +273,7 @@ impl DescriptorEncoder<'_> {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
         }
-        if is_quoted_metric_name(name, self.prefix, self.name_validation_scheme) {
+        if is_quoted_metric_name {
             self.writer.write_str("\"")?;
         }
         self.writer.write_str(" ")?;
@@ -274,7 +282,7 @@ impl DescriptorEncoder<'_> {
 
         if let Some(unit) = unit {
             self.writer.write_str("# UNIT ")?;
-            if is_quoted_metric_name(name, self.prefix, self.name_validation_scheme) {
+            if is_quoted_metric_name {
                 self.writer.write_str("\"")?;
             }
             if let Some(prefix) = self.prefix {
@@ -284,7 +292,7 @@ impl DescriptorEncoder<'_> {
             self.writer.write_str(escape_name(name, self.escaping_scheme).as_str())?;
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
-            if is_quoted_metric_name(name, self.prefix, self.name_validation_scheme) {
+            if is_quoted_metric_name {
                 self.writer.write_str("\"")?;
             }
             self.writer.write_str(" ")?;
@@ -353,8 +361,6 @@ impl<'a> MetricEncoder<'a> {
         exemplar: Option<&Exemplar<S, ExemplarValue>>,
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit_suffix(Option::from("total"))?;
-
-        //self.write_suffix("total")?;
 
         self.encode_labels::<NoLabelSet>(None)?;
 
@@ -500,7 +506,15 @@ impl<'a> MetricEncoder<'a> {
         self.writer.write_str("\n")
     }
     fn write_prefix_name_unit_suffix(&mut self, suffix: Option<&'static str>) -> Result<(), std::fmt::Error> {
-        if is_quoted_metric_name(self.name, self.prefix, &self.name_validation_scheme) {
+        let escaped_name = escape_name(self.name, self.escaping_scheme);
+        let mut escaped_prefix: Option<&Prefix> = None;
+        let escaped_prefix_value: Prefix;
+        if let Some(prefix) = self.prefix {
+            escaped_prefix_value = Prefix::from(escape_name(prefix.as_str(), self.escaping_scheme));
+            escaped_prefix = Some(&escaped_prefix_value);
+        }
+        let is_quoted_metric_name = is_quoted_metric_name(escaped_name.as_str(), escaped_prefix, self.name_validation_scheme);
+        if is_quoted_metric_name {
             self.writer.write_str("{")?;
             self.writer.write_str("\"")?;
         }
@@ -517,7 +531,7 @@ impl<'a> MetricEncoder<'a> {
             self.writer.write_str("_")?;
             self.writer.write_str(suffix)?;
         }
-        if is_quoted_metric_name(self.name, self.prefix, &self.name_validation_scheme) {
+        if is_quoted_metric_name {
             self.writer.write_str("\"")?;
         }
 
@@ -537,17 +551,25 @@ impl<'a> MetricEncoder<'a> {
         &mut self,
         additional_labels: Option<&S>,
     ) -> Result<(), std::fmt::Error> {
+        let escaped_name = escape_name(self.name, self.escaping_scheme);
+        let mut escaped_prefix: Option<&Prefix> = None;
+        let escaped_prefix_value: Prefix;
+        if let Some(prefix) = self.prefix {
+            escaped_prefix_value = Prefix::from(escape_name(prefix.as_str(), self.escaping_scheme));
+            escaped_prefix = Some(&escaped_prefix_value);
+        }
+        let is_quoted_metric_name = is_quoted_metric_name(escaped_name.as_str(), escaped_prefix, self.name_validation_scheme);
         if self.const_labels.is_empty()
             && additional_labels.is_none()
             && self.family_labels.is_none()
         {
-            if is_quoted_metric_name(self.name, self.prefix, &self.name_validation_scheme) {
+            if is_quoted_metric_name {
                 self.writer.write_str("}")?;
             }
             return Ok(());
         }
 
-        if is_quoted_metric_name(self.name, self.prefix, &self.name_validation_scheme) {
+        if is_quoted_metric_name {
             self.writer.write_str(",")?;
         } else {
             self.writer.write_str("{")?;
@@ -765,11 +787,13 @@ impl<'a> LabelKeyEncoder<'a> {
 
 impl<'a> std::fmt::Write for LabelKeyEncoder<'a> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        if is_quoted_label_name(s, self.name_validation_scheme) {
+        let escaped_name = escape_name(s, self.escaping_scheme);
+        let is_quoted_label_name = is_quoted_label_name(escaped_name.as_str(), self.name_validation_scheme);
+        if is_quoted_label_name {
             self.writer.write_str("\"")?;
         }
-        self.writer.write_str(escape_name(s, self.escaping_scheme).as_str())?;
-        if is_quoted_label_name(s, self.name_validation_scheme) {
+        self.writer.write_str(escaped_name.as_str())?;
+        if is_quoted_label_name {
             self.writer.write_str("\"")?;
         }
         Ok(())
