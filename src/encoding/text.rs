@@ -244,8 +244,8 @@ impl DescriptorEncoder<'_> {
         if is_quoted_metric_name {
             self.writer.write_str("\"")?;
         }
-        if let Some(prefix) = self.prefix {
-            self.writer.write_str(escape_name(prefix.as_str(), self.escaping_scheme).as_str())?;
+        if let Some(prefix) = escaped_prefix {
+            self.writer.write_str(prefix.as_str())?;
             self.writer.write_str("_")?;
         }
         self.writer.write_str(escaped_name.as_str())?;
@@ -264,11 +264,11 @@ impl DescriptorEncoder<'_> {
         if is_quoted_metric_name {
             self.writer.write_str("\"")?;
         }
-        if let Some(prefix) = self.prefix {
-            self.writer.write_str(escape_name(prefix.as_str(), self.escaping_scheme).as_str())?;
+        if let Some(prefix) = escaped_prefix {
+            self.writer.write_str(prefix.as_str())?;
             self.writer.write_str("_")?;
         }
-        self.writer.write_str(escape_name(name, self.escaping_scheme).as_str())?;
+        self.writer.write_str(escaped_name.as_str())?;
         if let Some(unit) = unit {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
@@ -285,11 +285,11 @@ impl DescriptorEncoder<'_> {
             if is_quoted_metric_name {
                 self.writer.write_str("\"")?;
             }
-            if let Some(prefix) = self.prefix {
-                self.writer.write_str(escape_name(prefix.as_str(), self.escaping_scheme).as_str())?;
+            if let Some(prefix) = escaped_prefix {
+                self.writer.write_str(prefix.as_str())?;
                 self.writer.write_str("_")?;
             }
-            self.writer.write_str(escape_name(name, self.escaping_scheme).as_str())?;
+            self.writer.write_str(escaped_name.as_str())?;
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
             if is_quoted_metric_name {
@@ -513,11 +513,11 @@ impl<'a> MetricEncoder<'a> {
             self.writer.write_str("{")?;
             self.writer.write_str("\"")?;
         }
-        if let Some(prefix) = self.prefix {
-            self.writer.write_str(escape_name(prefix.as_str(), &self.escaping_scheme).as_str())?;
+        if let Some(prefix) = escaped_prefix {
+            self.writer.write_str(prefix.as_str())?;
             self.writer.write_str("_")?;
         }
-        self.writer.write_str(escape_name(self.name, &self.escaping_scheme).as_str())?;
+        self.writer.write_str(escaped_name.as_str())?;
         if let Some(unit) = self.unit {
             self.writer.write_str("_")?;
             self.writer.write_str(unit.as_str())?;
