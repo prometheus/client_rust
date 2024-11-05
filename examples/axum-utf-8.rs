@@ -9,23 +9,11 @@ use prometheus_client::encoding::text::encode;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::{Registry, RegistryBuilder};
-use prometheus_client_derive_encode::{EncodeLabelSet, EncodeLabelValue};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use prometheus_client::encoding::EscapingScheme::UnderscoreEscaping;
 use prometheus_client::encoding::negotiate_escaping_scheme;
 use prometheus_client::encoding::ValidationScheme::UTF8Validation;
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
-pub enum Method {
-    Get,
-    Post,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-pub struct MethodLabels {
-    pub method: Method,
-}
 
 #[derive(Debug)]
 pub struct Metrics {
