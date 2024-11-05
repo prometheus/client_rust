@@ -403,8 +403,6 @@ impl<'a> MetricEncoder<'a> {
     pub fn encode_info<S: EncodeLabelSet>(&mut self, label_set: &S) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit_suffix(Option::from("info"))?;
 
-        //self.write_suffix("info")?;
-
         self.encode_labels(Some(label_set))?;
 
         self.writer.write_str(" ")?;
@@ -443,14 +441,12 @@ impl<'a> MetricEncoder<'a> {
         exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit_suffix(Option::from("sum"))?;
-        //self.write_suffix("sum")?;
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(sum))?;
         self.newline()?;
 
         self.write_prefix_name_unit_suffix(Option::from("count"))?;
-        //self.write_suffix("count")?;
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(count))?;
@@ -461,7 +457,6 @@ impl<'a> MetricEncoder<'a> {
             cummulative += count;
 
             self.write_prefix_name_unit_suffix(Option::from("bucket"))?;
-            //self.write_suffix("bucket")?;
 
             if *upper_bound == f64::MAX {
                 self.encode_labels(Some(&[("le", "+Inf")]))?;
@@ -537,13 +532,6 @@ impl<'a> MetricEncoder<'a> {
 
         Ok(())
     }
-
-/*    fn write_suffix(&mut self, suffix: &'static str) -> Result<(), std::fmt::Error> {
-        self.writer.write_str("_")?;
-        self.writer.write_str(suffix)?;
-
-        Ok(())
-    }*/
 
     // TODO: Consider caching the encoded labels for Histograms as they stay the
     // same but are currently encoded multiple times.
