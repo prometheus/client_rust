@@ -37,7 +37,10 @@
 //! assert_eq!(expected_msg, buffer);
 //! ```
 
-use crate::encoding::{escape_name, is_quoted_label_name, is_quoted_metric_name, EncodeExemplarValue, EncodeLabelSet, EscapingScheme, NoLabelSet, ValidationScheme};
+use crate::encoding::{
+    escape_name, is_quoted_label_name, is_quoted_metric_name, EncodeExemplarValue, EncodeLabelSet,
+    EscapingScheme, NoLabelSet, ValidationScheme,
+};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -142,7 +145,14 @@ pub fn encode_registry<W>(writer: &mut W, registry: &Registry) -> Result<(), std
 where
     W: Write,
 {
-    registry.encode(&mut DescriptorEncoder::new(writer, &registry.name_validation_scheme(), &registry.escaping_scheme()).into())
+    registry.encode(
+        &mut DescriptorEncoder::new(
+            writer,
+            &registry.name_validation_scheme(),
+            &registry.escaping_scheme(),
+        )
+        .into(),
+    )
 }
 
 /// Encode the EOF marker into the provided [`Write`]r using the OpenMetrics
@@ -198,7 +208,7 @@ impl<'a> std::fmt::Debug for DescriptorEncoder<'a> {
 
 impl DescriptorEncoder<'_> {
     pub(crate) fn new<'a>(
-        writer: &'a mut dyn Write, 
+        writer: &'a mut dyn Write,
         name_validation_scheme: &'a ValidationScheme,
         escaping_scheme: &'a EscapingScheme,
     ) -> DescriptorEncoder<'a> {
@@ -239,7 +249,11 @@ impl DescriptorEncoder<'_> {
             escaped_prefix_value = Prefix::from(escape_name(prefix.as_str(), self.escaping_scheme));
             escaped_prefix = Some(&escaped_prefix_value);
         }
-        let is_quoted_metric_name = is_quoted_metric_name(escaped_name.as_str(), escaped_prefix, self.name_validation_scheme);
+        let is_quoted_metric_name = is_quoted_metric_name(
+            escaped_name.as_str(),
+            escaped_prefix,
+            self.name_validation_scheme,
+        );
         self.writer.write_str("# HELP ")?;
         if is_quoted_metric_name {
             self.writer.write_str("\"")?;
@@ -337,7 +351,14 @@ impl<'a> std::fmt::Debug for MetricEncoder<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut labels = String::new();
         if let Some(l) = self.family_labels {
-            l.encode(LabelSetEncoder::new(&mut labels, self.name_validation_scheme, self.escaping_scheme).into())?;
+            l.encode(
+                LabelSetEncoder::new(
+                    &mut labels,
+                    self.name_validation_scheme,
+                    self.escaping_scheme,
+                )
+                .into(),
+            )?;
         }
 
         f.debug_struct("Encoder")
@@ -484,9 +505,14 @@ impl<'a> MetricEncoder<'a> {
         exemplar: &Exemplar<S, V>,
     ) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" # {")?;
-        exemplar
-            .label_set
-            .encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme, self.escaping_scheme).into())?;
+        exemplar.label_set.encode(
+            LabelSetEncoder::new(
+                self.writer,
+                self.name_validation_scheme,
+                self.escaping_scheme,
+            )
+            .into(),
+        )?;
         self.writer.write_str("} ")?;
         exemplar.value.encode(
             ExemplarValueEncoder {
@@ -500,7 +526,10 @@ impl<'a> MetricEncoder<'a> {
     fn newline(&mut self) -> Result<(), std::fmt::Error> {
         self.writer.write_str("\n")
     }
-    fn write_prefix_name_unit_suffix(&mut self, suffix: Option<&'static str>) -> Result<(), std::fmt::Error> {
+    fn write_prefix_name_unit_suffix(
+        &mut self,
+        suffix: Option<&'static str>,
+    ) -> Result<(), std::fmt::Error> {
         let escaped_name = escape_name(self.name, self.escaping_scheme);
         let mut escaped_prefix: Option<&Prefix> = None;
         let escaped_prefix_value: Prefix;
@@ -508,7 +537,11 @@ impl<'a> MetricEncoder<'a> {
             escaped_prefix_value = Prefix::from(escape_name(prefix.as_str(), self.escaping_scheme));
             escaped_prefix = Some(&escaped_prefix_value);
         }
-        let is_quoted_metric_name = is_quoted_metric_name(escaped_name.as_str(), escaped_prefix, self.name_validation_scheme);
+        let is_quoted_metric_name = is_quoted_metric_name(
+            escaped_name.as_str(),
+            escaped_prefix,
+            self.name_validation_scheme,
+        );
         if is_quoted_metric_name {
             self.writer.write_str("{")?;
             self.writer.write_str("\"")?;
@@ -546,7 +579,11 @@ impl<'a> MetricEncoder<'a> {
             escaped_prefix_value = Prefix::from(escape_name(prefix.as_str(), self.escaping_scheme));
             escaped_prefix = Some(&escaped_prefix_value);
         }
-        let is_quoted_metric_name = is_quoted_metric_name(escaped_name.as_str(), escaped_prefix, self.name_validation_scheme);
+        let is_quoted_metric_name = is_quoted_metric_name(
+            escaped_name.as_str(),
+            escaped_prefix,
+            self.name_validation_scheme,
+        );
         if self.const_labels.is_empty()
             && additional_labels.is_none()
             && self.family_labels.is_none()
@@ -563,15 +600,28 @@ impl<'a> MetricEncoder<'a> {
             self.writer.write_str("{")?;
         }
 
-        self.const_labels
-            .encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme, self.escaping_scheme).into())?;
+        self.const_labels.encode(
+            LabelSetEncoder::new(
+                self.writer,
+                self.name_validation_scheme,
+                self.escaping_scheme,
+            )
+            .into(),
+        )?;
 
         if let Some(additional_labels) = additional_labels {
             if !self.const_labels.is_empty() {
                 self.writer.write_str(",")?;
             }
 
-            additional_labels.encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme, self.escaping_scheme).into())?;
+            additional_labels.encode(
+                LabelSetEncoder::new(
+                    self.writer,
+                    self.name_validation_scheme,
+                    self.escaping_scheme,
+                )
+                .into(),
+            )?;
         }
 
         /// Writer impl which prepends a comma on the first call to write output to the wrapped writer
@@ -601,9 +651,23 @@ impl<'a> MetricEncoder<'a> {
                     writer: self.writer,
                     should_prepend: true,
                 };
-                labels.encode(LabelSetEncoder::new(&mut writer, self.name_validation_scheme, self.escaping_scheme).into())?;
+                labels.encode(
+                    LabelSetEncoder::new(
+                        &mut writer,
+                        self.name_validation_scheme,
+                        self.escaping_scheme,
+                    )
+                    .into(),
+                )?;
             } else {
-                labels.encode(LabelSetEncoder::new(self.writer, self.name_validation_scheme, self.escaping_scheme).into())?;
+                labels.encode(
+                    LabelSetEncoder::new(
+                        self.writer,
+                        self.name_validation_scheme,
+                        self.escaping_scheme,
+                    )
+                    .into(),
+                )?;
             };
         }
 
@@ -700,8 +764,8 @@ impl<'a> std::fmt::Debug for LabelSetEncoder<'a> {
 
 impl<'a> LabelSetEncoder<'a> {
     fn new(
-        writer: &'a mut dyn Write, 
-        name_validation_scheme: &'a ValidationScheme, 
+        writer: &'a mut dyn Write,
+        name_validation_scheme: &'a ValidationScheme,
         escaping_scheme: &'a EscapingScheme,
     ) -> Self {
         Self {
@@ -776,7 +840,8 @@ impl<'a> LabelKeyEncoder<'a> {
 impl<'a> std::fmt::Write for LabelKeyEncoder<'a> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         let escaped_name = escape_name(s, self.escaping_scheme);
-        let is_quoted_label_name = is_quoted_label_name(escaped_name.as_str(), self.name_validation_scheme);
+        let is_quoted_label_name =
+            is_quoted_label_name(escaped_name.as_str(), self.name_validation_scheme);
         if is_quoted_label_name {
             self.writer.write_str("\"")?;
         }
@@ -813,19 +878,19 @@ impl<'a> std::fmt::Write for LabelValueEncoder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::encoding::EscapingScheme::NoEscaping;
+    use crate::encoding::ValidationScheme::UTF8Validation;
     use crate::metrics::exemplar::HistogramWithExemplars;
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{exponential_buckets, Histogram};
     use crate::metrics::info::Info;
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
+    use crate::registry::RegistryBuilder;
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
     use std::fmt::Error;
     use std::sync::atomic::{AtomicI32, AtomicU32};
-    use crate::encoding::EscapingScheme::NoEscaping;
-    use crate::encoding::ValidationScheme::UTF8Validation;
-    use crate::registry::RegistryBuilder;
 
     #[test]
     fn encode_counter() {
@@ -865,7 +930,10 @@ mod tests {
 
     #[test]
     fn encode_counter_with_unit_and_quoted_metric_name() {
-        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
+        let mut registry = RegistryBuilder::new()
+            .with_name_validation_scheme(UTF8Validation)
+            .with_escaping_scheme(NoEscaping)
+            .build();
         let counter: Counter = Counter::default();
         registry.register_with_unit("my.counter", "My counter", Unit::Seconds, counter);
 
@@ -911,7 +979,10 @@ mod tests {
 
     #[test]
     fn encode_counter_with_exemplar_and_quoted_metric_name() {
-        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
+        let mut registry = RegistryBuilder::new()
+            .with_name_validation_scheme(UTF8Validation)
+            .with_escaping_scheme(NoEscaping)
+            .build();
 
         let counter_with_exemplar: CounterWithExemplar<Vec<(String, u64)>> =
             CounterWithExemplar::default();
@@ -1009,7 +1080,10 @@ mod tests {
 
     #[test]
     fn encode_counter_family_with_prefix_with_label_with_quoted_metric_and_label_names() {
-        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
+        let mut registry = RegistryBuilder::new()
+            .with_name_validation_scheme(UTF8Validation)
+            .with_escaping_scheme(NoEscaping)
+            .build();
         let sub_registry = registry.sub_registry_with_prefix("my.prefix");
         let sub_sub_registry = sub_registry
             .sub_registry_with_label((Cow::Borrowed("my.key"), Cow::Borrowed("my_value")));
@@ -1055,7 +1129,10 @@ mod tests {
 
     #[test]
     fn encode_info_with_quoted_metric_and_label_names() {
-        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
+        let mut registry = RegistryBuilder::new()
+            .with_name_validation_scheme(UTF8Validation)
+            .with_escaping_scheme(NoEscaping)
+            .build();
         let info = Info::new(vec![("os.foo".to_string(), "GNU/linux".to_string())]);
         registry.register("my.info.metric", "My info metric", info);
 
@@ -1161,7 +1238,10 @@ mod tests {
 
     #[test]
     fn encode_histogram_with_exemplars_and_quoted_metric_name() {
-        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
+        let mut registry = RegistryBuilder::new()
+            .with_name_validation_scheme(UTF8Validation)
+            .with_escaping_scheme(NoEscaping)
+            .build();
         let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my.histogram", "My histogram", histogram.clone());
         histogram.observe(1.0, Some([("user_id".to_string(), 42u64)]));
@@ -1265,7 +1345,10 @@ mod tests {
     #[test]
     fn sub_registry_with_prefix_and_label_and_quoted_metric_and_label_names() {
         let top_level_metric_name = "my.top.level.metric";
-        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
+        let mut registry = RegistryBuilder::new()
+            .with_name_validation_scheme(UTF8Validation)
+            .with_escaping_scheme(NoEscaping)
+            .build();
         let counter: Counter = Counter::default();
         registry.register(top_level_metric_name, "some help", counter.clone());
 
@@ -1425,7 +1508,10 @@ mod tests {
             }
         }
 
-        let mut registry = RegistryBuilder::new().with_name_validation_scheme(UTF8Validation).with_escaping_scheme(NoEscaping).build();
+        let mut registry = RegistryBuilder::new()
+            .with_name_validation_scheme(UTF8Validation)
+            .with_escaping_scheme(NoEscaping)
+            .build();
         registry.register_collector(Box::new(Collector::new("top.level")));
 
         let sub_registry = registry.sub_registry_with_prefix("prefix.1");

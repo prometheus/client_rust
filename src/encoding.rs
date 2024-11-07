@@ -797,8 +797,13 @@ fn is_valid_legacy_prefix(prefix: Option<&Prefix>) -> bool {
     }
 }
 
-fn is_quoted_metric_name(name: &str, prefix: Option<&Prefix>, validation_scheme: &ValidationScheme) -> bool {
-    *validation_scheme == ValidationScheme::UTF8Validation && (!is_valid_legacy_metric_name(name) || !is_valid_legacy_prefix(prefix))
+fn is_quoted_metric_name(
+    name: &str,
+    prefix: Option<&Prefix>,
+    validation_scheme: &ValidationScheme,
+) -> bool {
+    *validation_scheme == ValidationScheme::UTF8Validation
+        && (!is_valid_legacy_metric_name(name) || !is_valid_legacy_prefix(prefix))
 }
 
 fn is_valid_legacy_label_name(label_name: &str) -> bool {
@@ -806,7 +811,11 @@ fn is_valid_legacy_label_name(label_name: &str) -> bool {
         return false;
     }
     for (i, b) in label_name.chars().enumerate() {
-        if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
+        if !((b >= 'a' && b <= 'z')
+            || (b >= 'A' && b <= 'Z')
+            || b == '_'
+            || (b >= '0' && b <= '9' && i > 0))
+        {
             return false;
         }
     }
@@ -901,7 +910,10 @@ fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
 }
 
 /// Returns the escaping scheme to use based on the given header.
-pub fn negotiate_escaping_scheme(header: &str, default_escaping_scheme: EscapingScheme) -> EscapingScheme {
+pub fn negotiate_escaping_scheme(
+    header: &str,
+    default_escaping_scheme: EscapingScheme,
+) -> EscapingScheme {
     if header.contains("underscores") {
         return EscapingScheme::UnderscoreEscaping;
     }
