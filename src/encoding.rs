@@ -537,6 +537,12 @@ where
     }
 }
 
+impl EncodeLabelValue for bool {
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.write_str(if *self { "true" } else { "false" })
+    }
+}
+
 macro_rules! impl_encode_label_value_for_integer {
     ($($t:ident),*) => {$(
         impl EncodeLabelValue for $t {
