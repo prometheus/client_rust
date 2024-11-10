@@ -24,7 +24,7 @@ use tokio::{
 async fn main() {
     let request_counter: Counter<u64> = Default::default();
 
-    let mut registry = <Registry>::with_prefix("tokio_hyper_example");
+    let mut registry = Registry::default().with_prefix("tokio_hyper_example");
 
     registry.register(
         "requests",
