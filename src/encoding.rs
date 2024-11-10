@@ -206,12 +206,6 @@ pub trait EncodeLabelSet {
     fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error>;
 }
 
-impl<'a> From<text::LabelSetEncoder<'a>> for LabelSetEncoder<'a> {
-    fn from(e: text::LabelSetEncoder<'a>) -> Self {
-        Self(LabelSetEncoderInner::Text(e))
-    }
-}
-
 /// Encoder for a label set.
 #[derive(Debug)]
 pub struct LabelSetEncoder<'a>(LabelSetEncoderInner<'a>);
@@ -221,6 +215,12 @@ enum LabelSetEncoderInner<'a> {
     Text(text::LabelSetEncoder<'a>),
     #[cfg(feature = "protobuf")]
     Protobuf(protobuf::LabelSetEncoder<'a>),
+}
+
+impl<'a> From<text::LabelSetEncoder<'a>> for LabelSetEncoder<'a> {
+    fn from(e: text::LabelSetEncoder<'a>) -> Self {
+        Self(LabelSetEncoderInner::Text(e))
+    }
 }
 
 #[cfg(feature = "protobuf")]
@@ -237,6 +237,42 @@ impl LabelSetEncoder<'_> {
     }
 }
 
+impl<T: EncodeLabel, const N: usize> EncodeLabelSet for [T; N] {
+    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+        self.as_ref().encode(encoder)
+    }
+}
+
+impl<T: EncodeLabel> EncodeLabelSet for &[T] {
+    fn encode(&self, mut encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        for label in self.iter() {
+            label.encode(encoder.encode_label())?
+        }
+
+        Ok(())
+    }
+}
+
+impl<T: EncodeLabel> EncodeLabelSet for Vec<T> {
+    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+        self.as_slice().encode(encoder)
+    }
+}
+
+/// Uninhabited type to represent the lack of a label set for a metric
+#[derive(Debug)]
+pub enum NoLabelSet {}
+
+impl EncodeLabelSet for NoLabelSet {
+    fn encode(&self, _encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+        Ok(())
+    }
+}
+
 /// An encodable label.
 pub trait EncodeLabel {
     /// Encode oneself into the given encoder.
@@ -246,10 +282,6 @@ pub trait EncodeLabel {
 /// Encoder for a label.
 #[derive(Debug)]
 pub struct LabelEncoder<'a>(LabelEncoderInner<'a>);
-
-/// Uninhabited type to represent the lack of a label set for a metric
-#[derive(Debug)]
-pub enum NoLabelSet {}
 
 #[derive(Debug)]
 enum LabelEncoderInner<'a> {
@@ -280,6 +312,21 @@ impl LabelEncoder<'_> {
             e,
             e.encode_label_key().map(Into::into)
         )
+    }
+}
+
+impl<K: EncodeLabelKey, V: EncodeLabelValue> EncodeLabel for (K, V) {
+    fn encode(&self, mut encoder: LabelEncoder) -> Result<(), std::fmt::Error> {
+        let (key, value) = self;
+
+        let mut label_key_encoder = encoder.encode_label_key()?;
+        key.encode(&mut label_key_encoder)?;
+
+        let mut label_value_encoder = label_key_encoder.encode_label_value()?;
+        value.encode(&mut label_value_encoder)?;
+        label_value_encoder.finish()?;
+
+        Ok(())
     }
 }
 
@@ -328,52 +375,6 @@ impl<'a> LabelKeyEncoder<'a> {
             e,
             e.encode_label_value().map(LabelValueEncoder::from)
         )
-    }
-}
-impl<T: EncodeLabel, const N: usize> EncodeLabelSet for [T; N] {
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
-        self.as_ref().encode(encoder)
-    }
-}
-
-impl<T: EncodeLabel> EncodeLabelSet for &[T] {
-    fn encode(&self, mut encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
-        if self.is_empty() {
-            return Ok(());
-        }
-
-        for label in self.iter() {
-            label.encode(encoder.encode_label())?
-        }
-
-        Ok(())
-    }
-}
-
-impl<T: EncodeLabel> EncodeLabelSet for Vec<T> {
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
-        self.as_slice().encode(encoder)
-    }
-}
-
-impl EncodeLabelSet for NoLabelSet {
-    fn encode(&self, _encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
-        Ok(())
-    }
-}
-
-impl<K: EncodeLabelKey, V: EncodeLabelValue> EncodeLabel for (K, V) {
-    fn encode(&self, mut encoder: LabelEncoder) -> Result<(), std::fmt::Error> {
-        let (key, value) = self;
-
-        let mut label_key_encoder = encoder.encode_label_key()?;
-        key.encode(&mut label_key_encoder)?;
-
-        let mut label_value_encoder = label_key_encoder.encode_label_value()?;
-        value.encode(&mut label_value_encoder)?;
-        label_value_encoder.finish()?;
-
-        Ok(())
     }
 }
 
@@ -433,6 +434,13 @@ pub trait EncodeLabelValue {
 #[derive(Debug)]
 pub struct LabelValueEncoder<'a>(LabelValueEncoderInner<'a>);
 
+#[derive(Debug)]
+enum LabelValueEncoderInner<'a> {
+    Text(text::LabelValueEncoder<'a>),
+    #[cfg(feature = "protobuf")]
+    Protobuf(protobuf::LabelValueEncoder<'a>),
+}
+
 impl<'a> From<text::LabelValueEncoder<'a>> for LabelValueEncoder<'a> {
     fn from(e: text::LabelValueEncoder<'a>) -> Self {
         LabelValueEncoder(LabelValueEncoderInner::Text(e))
@@ -446,23 +454,16 @@ impl<'a> From<protobuf::LabelValueEncoder<'a>> for LabelValueEncoder<'a> {
     }
 }
 
-#[derive(Debug)]
-enum LabelValueEncoderInner<'a> {
-    Text(text::LabelValueEncoder<'a>),
-    #[cfg(feature = "protobuf")]
-    Protobuf(protobuf::LabelValueEncoder<'a>),
+impl std::fmt::Write for LabelValueEncoder<'_> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        for_both_mut!(self, LabelValueEncoderInner, e, e.write_str(s))
+    }
 }
 
 impl LabelValueEncoder<'_> {
     /// Finish encoding the label value.
     pub fn finish(self) -> Result<(), std::fmt::Error> {
         for_both!(self, LabelValueEncoderInner, e, e.finish())
-    }
-}
-
-impl std::fmt::Write for LabelValueEncoder<'_> {
-    fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        for_both_mut!(self, LabelValueEncoderInner, e, e.write_str(s))
     }
 }
 
@@ -678,6 +679,19 @@ enum CounterValueEncoderInner<'a> {
     Protobuf(protobuf::CounterValueEncoder<'a>),
 }
 
+impl<'a> From<text::CounterValueEncoder<'a>> for CounterValueEncoder<'a> {
+    fn from(e: text::CounterValueEncoder<'a>) -> Self {
+        CounterValueEncoder(CounterValueEncoderInner::Text(e))
+    }
+}
+
+#[cfg(feature = "protobuf")]
+impl<'a> From<protobuf::CounterValueEncoder<'a>> for CounterValueEncoder<'a> {
+    fn from(e: protobuf::CounterValueEncoder<'a>) -> Self {
+        CounterValueEncoder(CounterValueEncoderInner::Protobuf(e))
+    }
+}
+
 impl CounterValueEncoder<'_> {
     fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, CounterValueEncoderInner, e, e.encode_f64(v))
@@ -718,19 +732,6 @@ impl EncodeExemplarValue for u32 {
     }
 }
 
-impl<'a> From<text::CounterValueEncoder<'a>> for CounterValueEncoder<'a> {
-    fn from(e: text::CounterValueEncoder<'a>) -> Self {
-        CounterValueEncoder(CounterValueEncoderInner::Text(e))
-    }
-}
-
-#[cfg(feature = "protobuf")]
-impl<'a> From<protobuf::CounterValueEncoder<'a>> for CounterValueEncoder<'a> {
-    fn from(e: protobuf::CounterValueEncoder<'a>) -> Self {
-        CounterValueEncoder(CounterValueEncoderInner::Protobuf(e))
-    }
-}
-
 /// Encoder for an exemplar value.
 #[derive(Debug)]
 pub struct ExemplarValueEncoder<'a>(ExemplarValueEncoderInner<'a>);
@@ -740,12 +741,6 @@ enum ExemplarValueEncoderInner<'a> {
     Text(text::ExemplarValueEncoder<'a>),
     #[cfg(feature = "protobuf")]
     Protobuf(protobuf::ExemplarValueEncoder<'a>),
-}
-
-impl ExemplarValueEncoder<'_> {
-    fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
-        for_both_mut!(self, ExemplarValueEncoderInner, e, e.encode(v))
-    }
 }
 
 impl<'a> From<text::ExemplarValueEncoder<'a>> for ExemplarValueEncoder<'a> {
@@ -758,5 +753,11 @@ impl<'a> From<text::ExemplarValueEncoder<'a>> for ExemplarValueEncoder<'a> {
 impl<'a> From<protobuf::ExemplarValueEncoder<'a>> for ExemplarValueEncoder<'a> {
     fn from(e: protobuf::ExemplarValueEncoder<'a>) -> Self {
         ExemplarValueEncoder(ExemplarValueEncoderInner::Protobuf(e))
+    }
+}
+
+impl ExemplarValueEncoder<'_> {
+    fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
+        for_both_mut!(self, ExemplarValueEncoderInner, e, e.encode(v))
     }
 }
