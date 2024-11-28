@@ -760,3 +760,171 @@ impl<'a> From<protobuf::ExemplarValueEncoder<'a>> for ExemplarValueEncoder<'a> {
         ExemplarValueEncoder(ExemplarValueEncoderInner::Protobuf(e))
     }
 }
+
+/// Enum for determining how metric and label names will
+/// be validated.
+#[derive(Debug, PartialEq, Default, Clone)]
+pub enum ValidationScheme {
+    /// Setting that requires that metric and label names
+    /// conform to the original OpenMetrics character requirements.
+    #[default]
+    LegacyValidation,
+    /// Only requires that metric and label names be valid UTF-8
+    /// strings.
+    UTF8Validation,
+}
+
+fn is_valid_legacy_char(c: char, i: usize) -> bool {
+    c.is_ascii_alphabetic() || c == '_' || c == ':' || (c.is_ascii_digit() && i > 0)
+}
+
+fn is_valid_legacy_metric_name(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    for (i, c) in name.chars().enumerate() {
+        if !is_valid_legacy_char(c, i) {
+            return false;
+        }
+    }
+    true
+}
+
+fn is_valid_legacy_prefix(prefix: Option<&Prefix>) -> bool {
+    match prefix {
+        Some(prefix) => is_valid_legacy_metric_name(prefix.as_str()),
+        None => true,
+    }
+}
+
+fn is_quoted_metric_name(
+    name: &str,
+    prefix: Option<&Prefix>,
+    validation_scheme: &ValidationScheme,
+) -> bool {
+    *validation_scheme == ValidationScheme::UTF8Validation
+        && (!is_valid_legacy_metric_name(name) || !is_valid_legacy_prefix(prefix))
+}
+
+fn is_valid_legacy_label_name(label_name: &str) -> bool {
+    if label_name.is_empty() {
+        return false;
+    }
+    for (i, b) in label_name.chars().enumerate() {
+        if !((b >= 'a' && b <= 'z')
+            || (b >= 'A' && b <= 'Z')
+            || b == '_'
+            || (b >= '0' && b <= '9' && i > 0))
+        {
+            return false;
+        }
+    }
+    true
+}
+
+fn is_quoted_label_name(name: &str, validation_scheme: &ValidationScheme) -> bool {
+    *validation_scheme == ValidationScheme::UTF8Validation && !is_valid_legacy_label_name(name)
+}
+
+/// Enum for determining how metric and label names will
+/// be escaped.
+#[derive(Debug, Default, Clone)]
+pub enum EscapingScheme {
+    /// Replaces all legacy-invalid characters with underscores.
+    #[default]
+    UnderscoreEscaping,
+    /// Similar to UnderscoreEscaping, except that dots are
+    /// converted to `_dot_` and pre-existing underscores are converted to `__`.
+    DotsEscaping,
+    /// Prepends the name with `U__` and replaces all invalid
+    /// characters with the Unicode value, surrounded by underscores. Single
+    /// underscores are replaced with double underscores.
+    ValueEncodingEscaping,
+    /// Indicates that a name will not be escaped.
+    NoEscaping,
+}
+
+impl EscapingScheme {
+    /// Returns a string representation of a `EscapingScheme`.
+    pub fn as_str(&self) -> &str {
+        match self {
+            EscapingScheme::UnderscoreEscaping => "underscores",
+            EscapingScheme::DotsEscaping => "dots",
+            EscapingScheme::ValueEncodingEscaping => "values",
+            EscapingScheme::NoEscaping => "allow-utf-8",
+        }
+    }
+}
+
+fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
+    if name.is_empty() {
+        return name.to_string();
+    }
+    let mut escaped = String::new();
+    match scheme {
+        EscapingScheme::NoEscaping => return name.to_string(),
+        EscapingScheme::UnderscoreEscaping => {
+            if is_valid_legacy_metric_name(name) {
+                return name.to_string();
+            }
+            for (i, b) in name.chars().enumerate() {
+                if is_valid_legacy_char(b, i) {
+                    escaped.push(b);
+                } else {
+                    escaped.push('_');
+                }
+            }
+        }
+        EscapingScheme::DotsEscaping => {
+            for (i, b) in name.chars().enumerate() {
+                if b == '_' {
+                    escaped.push_str("__");
+                } else if b == '.' {
+                    escaped.push_str("_dot_");
+                } else if is_valid_legacy_char(b, i) {
+                    escaped.push(b);
+                } else {
+                    escaped.push('_');
+                }
+            }
+        }
+        EscapingScheme::ValueEncodingEscaping => {
+            if is_valid_legacy_metric_name(name) {
+                return name.to_string();
+            }
+            escaped.push_str("U__");
+            for (i, b) in name.chars().enumerate() {
+                if is_valid_legacy_char(b, i) {
+                    escaped.push(b);
+                } else if !b.is_ascii() {
+                    escaped.push_str("_FFFD_");
+                } else if b as u32 <= 0xFF {
+                    write!(escaped, "_{:02X}_", b as u32).unwrap();
+                } else if b as u32 <= 0xFFFF {
+                    write!(escaped, "_{:04X}_", b as u32).unwrap();
+                }
+            }
+        }
+    }
+    escaped
+}
+
+/// Returns the escaping scheme to use based on the given header.
+pub fn negotiate_escaping_scheme(
+    header: &str,
+    default_escaping_scheme: EscapingScheme,
+) -> EscapingScheme {
+    if header.contains("underscores") {
+        return EscapingScheme::UnderscoreEscaping;
+    }
+    if header.contains("dots") {
+        return EscapingScheme::DotsEscaping;
+    }
+    if header.contains("values") {
+        return EscapingScheme::ValueEncodingEscaping;
+    }
+    if header.contains("allow-utf-8") {
+        return EscapingScheme::NoEscaping;
+    }
+    default_escaping_scheme
+}
