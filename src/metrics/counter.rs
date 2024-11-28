@@ -203,7 +203,7 @@ where
     N: crate::encoding::EncodeCounterValue,
     A: Atomic<N>,
 {
-    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_counter::<NoLabelSet, _, u64>(&self.get(), None)
     }
 
@@ -235,7 +235,7 @@ impl<N> EncodeMetric for ConstCounter<N>
 where
     N: crate::encoding::EncodeCounterValue,
 {
-    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_counter::<NoLabelSet, _, u64>(&self.value, None)
     }
 

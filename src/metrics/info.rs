@@ -33,7 +33,7 @@ impl<S> EncodeMetric for Info<S>
 where
     S: Clone + std::hash::Hash + Eq + EncodeLabelSet,
 {
-    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_info(&self.0)
     }
 

@@ -312,11 +312,11 @@ where
     M: EncodeMetric + TypedMetric,
     C: MetricConstructor<M>,
 {
-    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         let guard = self.read();
         for (label_set, m) in guard.iter() {
-            let encoder = encoder.encode_family(label_set)?;
-            m.encode(encoder)?;
+            let mut encoder = encoder.encode_family(label_set)?;
+            m.encode(&mut encoder)?;
         }
         Ok(())
     }

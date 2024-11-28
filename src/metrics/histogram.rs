@@ -131,7 +131,7 @@ pub fn linear_buckets(start: f64, width: f64, length: u16) -> impl Iterator<Item
 }
 
 impl EncodeMetric for Histogram {
-    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         let (sum, count, buckets) = self.get();
         encoder.encode_histogram::<NoLabelSet>(sum, count, &buckets, None)
     }

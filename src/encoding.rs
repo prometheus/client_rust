@@ -43,7 +43,7 @@ macro_rules! for_both {
 pub trait EncodeMetric {
     /// Encode the given instance in the OpenMetrics text encoding.
     // TODO: Lifetimes on MetricEncoder needed?
-    fn encode(&self, encoder: MetricEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error>;
 
     /// The OpenMetrics metric type of the instance.
     // One can not use [`TypedMetric`] directly, as associated constants are not
@@ -52,7 +52,7 @@ pub trait EncodeMetric {
 }
 
 impl EncodeMetric for Box<dyn EncodeMetric> {
-    fn encode(&self, encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         self.deref().encode(encoder)
     }
 
@@ -203,7 +203,7 @@ impl MetricEncoder<'_> {
 /// An encodable label set.
 pub trait EncodeLabelSet {
     /// Encode oneself into the given encoder.
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error>;
 }
 
 impl<'a> From<text::LabelSetEncoder<'a>> for LabelSetEncoder<'a> {
@@ -240,7 +240,7 @@ impl<'a> LabelSetEncoder<'a> {
 /// An encodable label.
 pub trait EncodeLabel {
     /// Encode oneself into the given encoder.
-    fn encode(&self, encoder: LabelEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: &mut LabelEncoder) -> Result<(), std::fmt::Error>;
 }
 
 /// Encoder for a label.
@@ -331,19 +331,19 @@ impl<'a> LabelKeyEncoder<'a> {
     }
 }
 impl<T: EncodeLabel, const N: usize> EncodeLabelSet for [T; N] {
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         self.as_ref().encode(encoder)
     }
 }
 
 impl<T: EncodeLabel> EncodeLabelSet for &[T] {
-    fn encode(&self, mut encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         if self.is_empty() {
             return Ok(());
         }
 
         for label in self.iter() {
-            label.encode(encoder.encode_label())?
+            label.encode(&mut encoder.encode_label())?
         }
 
         Ok(())
@@ -351,19 +351,19 @@ impl<T: EncodeLabel> EncodeLabelSet for &[T] {
 }
 
 impl<T: EncodeLabel> EncodeLabelSet for Vec<T> {
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         self.as_slice().encode(encoder)
     }
 }
 
 impl EncodeLabelSet for NoLabelSet {
-    fn encode(&self, _encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, _encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         Ok(())
     }
 }
 
 impl<K: EncodeLabelKey, V: EncodeLabelValue> EncodeLabel for (K, V) {
-    fn encode(&self, mut encoder: LabelEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelEncoder) -> Result<(), std::fmt::Error> {
         let (key, value) = self;
 
         let mut label_key_encoder = encoder.encode_label_key()?;
@@ -691,29 +691,29 @@ impl<'a> CounterValueEncoder<'a> {
 /// An encodable exemplar value.
 pub trait EncodeExemplarValue {
     /// Encode the given instance in the OpenMetrics text encoding.
-    fn encode(&self, encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error>;
 }
 
 impl EncodeExemplarValue for f64 {
-    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self)
     }
 }
 
 impl EncodeExemplarValue for u64 {
-    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self as f64)
     }
 }
 
 impl EncodeExemplarValue for f32 {
-    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self as f64)
     }
 }
 
 impl EncodeExemplarValue for u32 {
-    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self as f64)
     }
 }

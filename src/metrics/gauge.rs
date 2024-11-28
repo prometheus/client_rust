@@ -346,7 +346,7 @@ where
     N: EncodeGaugeValue,
     A: Atomic<N>,
 {
-    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_gauge(&self.get())
     }
     fn metric_type(&self) -> MetricType {
@@ -377,7 +377,7 @@ impl<N> EncodeMetric for ConstGauge<N>
 where
     N: EncodeGaugeValue,
 {
-    fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut MetricEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_gauge(&self.value)
     }
 
