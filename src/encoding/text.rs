@@ -462,6 +462,41 @@ impl<'a> MetricEncoder<'a> {
         Ok(())
     }
 
+    pub fn encode_summary<T: ToString>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        quantiles: &[(f64, T)],
+    ) -> Result<(), std::fmt::Error> {
+        self.write_prefix_name_unit()?;
+        self.write_suffix("sum")?;
+        self.encode_labels::<NoLabelSet>(None)?;
+        self.writer.write_str(" ")?;
+        self.writer.write_str(dtoa::Buffer::new().format(sum))?;
+        self.newline()?;
+
+        self.write_prefix_name_unit()?;
+        self.write_suffix("count")?;
+        self.encode_labels::<NoLabelSet>(None)?;
+        self.writer.write_str(" ")?;
+        self.writer.write_str(itoa::Buffer::new().format(count))?;
+        self.newline()?;
+
+        for (quantile, value) in quantiles {
+            self.write_prefix_name_unit()?;
+
+            self.encode_labels(Some(&[("quantile", *quantile)]))?;
+
+            self.writer.write_str(" ")?;
+            self.writer
+                .write_str(&value.to_string())?;
+
+            self.newline()?;
+        }
+
+        Ok(())
+    }
+
     fn newline(&mut self) -> Result<(), std::fmt::Error> {
         self.writer.write_str("\n")
     }
@@ -730,6 +765,7 @@ mod tests {
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{exponential_buckets, Histogram};
+    use crate::metrics::summary::Summary;
     use crate::metrics::info::Info;
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
@@ -979,6 +1015,103 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_summary() {
+        let mut registry = Registry::default();
+        let summary = Summary::default();
+        registry.register("my_summary", "My Summary", summary.clone());
+        let quantiles = vec![
+            (0.5, 100.1),
+            (0.9, 300.2),
+            (0.99, 700.3),
+        ];
+        let _ = summary.reset(123.0, 10, quantiles);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_summary My Summary.\n".to_owned()
+            + "# TYPE my_summary summary\n"
+            + "my_summary_sum 123.0\n"
+            + "my_summary_count 10\n"
+            + "my_summary{quantile=\"0.5\"} 100.1\n"
+            + "my_summary{quantile=\"0.9\"} 300.2\n"
+            + "my_summary{quantile=\"0.99\"} 700.3\n"
+            + "# EOF\n";
+
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn encode_summary_family() {
+        let mut registry = Registry::default();
+        let family =
+            Family::new_with_constructor(|| Summary::default());
+        registry.register("my_summary", "My Summary", family.clone());
+        let quantiles = vec![
+            (0.5, 100_u64),
+            (0.9, 300),
+            (0.99, 700),
+        ];
+        let _ = family
+            .get_or_create(&vec![
+                ("method".to_string(), "GET".to_string()),
+                ("status".to_string(), "200".to_string()),
+            ])
+            .reset(123.0, 10, quantiles);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_summary My Summary.\n".to_owned()
+            + "# TYPE my_summary summary\n"
+            + "my_summary_sum{method=\"GET\",status=\"200\"} 123.0\n"
+            + "my_summary_count{method=\"GET\",status=\"200\"} 10\n"
+            + "my_summary{quantile=\"0.5\",method=\"GET\",status=\"200\"} 100\n"
+            + "my_summary{quantile=\"0.9\",method=\"GET\",status=\"200\"} 300\n"
+            + "my_summary{quantile=\"0.99\",method=\"GET\",status=\"200\"} 700\n"
+            + "# EOF\n";
+
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn encode_summary_family_with_empty_struct_family_labels() {
+        let mut registry = Registry::default();
+        let family =
+            Family::new_with_constructor(|| Summary::default());
+        registry.register("my_summary", "My Summary", family.clone());
+
+        #[derive(Eq, PartialEq, Hash, Debug, Clone)]
+        struct EmptyLabels {}
+
+        impl EncodeLabelSet for EmptyLabels {
+            fn encode(&self, _encoder: crate::encoding::LabelSetEncoder) -> Result<(), Error> {
+                Ok(())
+            }
+        }
+
+        let quantiles = vec![
+            (0.5, 100.1),
+            (0.9, 300.2),
+            (0.99, 700.3),
+        ];
+        let _ = family.get_or_create(&EmptyLabels {}).reset(123.0, 10, quantiles);
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_summary My Summary.\n".to_owned()
+            + "# TYPE my_summary summary\n"
+            + "my_summary_sum{} 123.0\n"
+            + "my_summary_count{} 10\n"
+            + "my_summary{quantile=\"0.5\"} 100.1\n"
+            + "my_summary{quantile=\"0.9\"} 300.2\n"
+            + "my_summary{quantile=\"0.99\"} 700.3\n"
+            + "# EOF\n";
+
+        assert_eq!(expected, encoded);
     }
 
     #[test]

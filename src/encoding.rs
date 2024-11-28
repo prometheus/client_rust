@@ -4,6 +4,7 @@ pub use prometheus_client_derive_encode::*;
 
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
+use crate::metrics::summary::Numeric;
 use crate::registry::{Prefix, Unit};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -183,6 +184,21 @@ impl MetricEncoder<'_> {
             MetricEncoderInner,
             e,
             e.encode_histogram(sum, count, buckets, exemplars)
+        )
+    }
+
+    /// Encode a summary.
+    pub fn encode_summary<T: ToString + Numeric>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        quantiles: &[(f64, T)],
+    ) -> Result<(), std::fmt::Error> {
+        for_both_mut!(
+            self,
+            MetricEncoderInner,
+            e,
+            e.encode_summary(sum, count, quantiles)
         )
     }
 

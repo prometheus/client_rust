@@ -5,6 +5,7 @@ pub mod exemplar;
 pub mod family;
 pub mod gauge;
 pub mod histogram;
+pub mod summary;
 pub mod info;
 
 /// A metric that is aware of its Open Metrics metric type.
@@ -20,13 +21,13 @@ pub enum MetricType {
     Counter,
     Gauge,
     Histogram,
+    Summary,
     Info,
     Unknown,
     // Not (yet) supported metric types.
     //
     // GaugeHistogram,
     // StateSet,
-    // Summary
 }
 
 impl MetricType {
@@ -36,6 +37,7 @@ impl MetricType {
             MetricType::Counter => "counter",
             MetricType::Gauge => "gauge",
             MetricType::Histogram => "histogram",
+            MetricType::Summary => "summary",
             MetricType::Info => "info",
             MetricType::Unknown => "unknown",
         }
