@@ -188,7 +188,7 @@ pub(crate) struct DescriptorEncoder<'a> {
     labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 }
 
-impl<'a> std::fmt::Debug for DescriptorEncoder<'a> {
+impl std::fmt::Debug for DescriptorEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DescriptorEncoder").finish()
     }
@@ -293,7 +293,7 @@ pub(crate) struct MetricEncoder<'a> {
     family_labels: Option<&'a dyn super::EncodeLabelSet>,
 }
 
-impl<'a> std::fmt::Debug for MetricEncoder<'a> {
+impl std::fmt::Debug for MetricEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut labels = String::new();
         if let Some(l) = self.family_labels {
@@ -310,7 +310,7 @@ impl<'a> std::fmt::Debug for MetricEncoder<'a> {
     }
 }
 
-impl<'a> MetricEncoder<'a> {
+impl MetricEncoder<'_> {
     pub fn encode_counter<
         S: EncodeLabelSet,
         CounterValue: super::EncodeCounterValue,
@@ -590,13 +590,13 @@ pub(crate) struct CounterValueEncoder<'a> {
     writer: &'a mut dyn Write,
 }
 
-impl<'a> std::fmt::Debug for CounterValueEncoder<'a> {
+impl std::fmt::Debug for CounterValueEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CounterValueEncoder").finish()
     }
 }
 
-impl<'a> CounterValueEncoder<'a> {
+impl CounterValueEncoder<'_> {
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(v))?;
@@ -614,13 +614,13 @@ pub(crate) struct GaugeValueEncoder<'a> {
     writer: &'a mut dyn Write,
 }
 
-impl<'a> std::fmt::Debug for GaugeValueEncoder<'a> {
+impl std::fmt::Debug for GaugeValueEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GaugeValueEncoder").finish()
     }
 }
 
-impl<'a> GaugeValueEncoder<'a> {
+impl GaugeValueEncoder<'_> {
     pub fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(v))?;
@@ -644,13 +644,13 @@ pub(crate) struct ExemplarValueEncoder<'a> {
     writer: &'a mut dyn Write,
 }
 
-impl<'a> std::fmt::Debug for ExemplarValueEncoder<'a> {
+impl std::fmt::Debug for ExemplarValueEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExemplarValueEncoder").finish()
     }
 }
 
-impl<'a> ExemplarValueEncoder<'a> {
+impl ExemplarValueEncoder<'_> {
     pub fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(dtoa::Buffer::new().format(v))
     }
@@ -661,7 +661,7 @@ pub(crate) struct LabelSetEncoder<'a> {
     first: bool,
 }
 
-impl<'a> std::fmt::Debug for LabelSetEncoder<'a> {
+impl std::fmt::Debug for LabelSetEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LabelSetEncoder")
             .field("first", &self.first)
@@ -692,7 +692,7 @@ pub(crate) struct LabelEncoder<'a> {
     first: bool,
 }
 
-impl<'a> std::fmt::Debug for LabelEncoder<'a> {
+impl std::fmt::Debug for LabelEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LabelEncoder")
             .field("first", &self.first)
@@ -700,7 +700,7 @@ impl<'a> std::fmt::Debug for LabelEncoder<'a> {
     }
 }
 
-impl<'a> LabelEncoder<'a> {
+impl LabelEncoder<'_> {
     pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder, std::fmt::Error> {
         if !self.first {
             self.writer.write_str(",")?;
@@ -715,7 +715,7 @@ pub(crate) struct LabelKeyEncoder<'a> {
     writer: &'a mut dyn Write,
 }
 
-impl<'a> std::fmt::Debug for LabelKeyEncoder<'a> {
+impl std::fmt::Debug for LabelKeyEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LabelKeyEncoder").finish()
     }
@@ -730,7 +730,7 @@ impl<'a> LabelKeyEncoder<'a> {
     }
 }
 
-impl<'a> std::fmt::Write for LabelKeyEncoder<'a> {
+impl std::fmt::Write for LabelKeyEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         self.writer.write_str(s)
     }
@@ -740,19 +740,19 @@ pub(crate) struct LabelValueEncoder<'a> {
     writer: &'a mut dyn Write,
 }
 
-impl<'a> std::fmt::Debug for LabelValueEncoder<'a> {
+impl std::fmt::Debug for LabelValueEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LabelValueEncoder").finish()
     }
 }
 
-impl<'a> LabelValueEncoder<'a> {
+impl LabelValueEncoder<'_> {
     pub fn finish(self) -> Result<(), std::fmt::Error> {
         self.writer.write_str("\"")
     }
 }
 
-impl<'a> std::fmt::Write for LabelValueEncoder<'a> {
+impl std::fmt::Write for LabelValueEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         self.writer.write_str(s)
     }

@@ -359,7 +359,7 @@ pub(crate) struct GaugeValueEncoder<'a> {
     value: &'a mut openmetrics_data_model::gauge_value::Value,
 }
 
-impl<'a> GaugeValueEncoder<'a> {
+impl GaugeValueEncoder<'_> {
     pub fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
         self.encode_i64(v as i64)
     }
@@ -380,7 +380,7 @@ pub(crate) struct ExemplarValueEncoder<'a> {
     value: &'a mut f64,
 }
 
-impl<'a> ExemplarValueEncoder<'a> {
+impl ExemplarValueEncoder<'_> {
     pub fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         *self.value = v;
         Ok(())
@@ -401,7 +401,7 @@ pub(crate) struct CounterValueEncoder<'a> {
     value: &'a mut openmetrics_data_model::counter_value::Total,
 }
 
-impl<'a> CounterValueEncoder<'a> {
+impl CounterValueEncoder<'_> {
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         *self.value = openmetrics_data_model::counter_value::Total::DoubleValue(v);
         Ok(())
@@ -418,7 +418,7 @@ pub(crate) struct LabelSetEncoder<'a> {
     labels: &'a mut Vec<openmetrics_data_model::Label>,
 }
 
-impl<'a> LabelSetEncoder<'a> {
+impl LabelSetEncoder<'_> {
     pub fn encode_label(&mut self) -> LabelEncoder {
         LabelEncoder {
             labels: self.labels,
@@ -431,7 +431,7 @@ pub(crate) struct LabelEncoder<'a> {
     labels: &'a mut Vec<openmetrics_data_model::Label>,
 }
 
-impl<'a> LabelEncoder<'a> {
+impl LabelEncoder<'_> {
     pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder, std::fmt::Error> {
         self.labels.push(openmetrics_data_model::Label::default());
 
@@ -446,7 +446,7 @@ pub(crate) struct LabelKeyEncoder<'a> {
     label: &'a mut openmetrics_data_model::Label,
 }
 
-impl<'a> std::fmt::Write for LabelKeyEncoder<'a> {
+impl std::fmt::Write for LabelKeyEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         self.label.name.write_str(s)
     }
@@ -465,13 +465,13 @@ pub(crate) struct LabelValueEncoder<'a> {
     label_value: &'a mut String,
 }
 
-impl<'a> LabelValueEncoder<'a> {
+impl LabelValueEncoder<'_> {
     pub fn finish(self) -> Result<(), std::fmt::Error> {
         Ok(())
     }
 }
 
-impl<'a> std::fmt::Write for LabelValueEncoder<'a> {
+impl std::fmt::Write for LabelValueEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         self.label_value.write_str(s)
     }
