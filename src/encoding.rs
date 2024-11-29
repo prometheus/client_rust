@@ -230,7 +230,7 @@ impl<'a> From<protobuf::LabelSetEncoder<'a>> for LabelSetEncoder<'a> {
     }
 }
 
-impl<'a> LabelSetEncoder<'a> {
+impl LabelSetEncoder<'_> {
     /// Encode the given label.
     pub fn encode_label(&mut self) -> LabelEncoder {
         for_both_mut!(self, LabelSetEncoderInner, e, e.encode_label().into())
@@ -271,7 +271,7 @@ impl<'a> From<protobuf::LabelEncoder<'a>> for LabelEncoder<'a> {
     }
 }
 
-impl<'a> LabelEncoder<'a> {
+impl LabelEncoder<'_> {
     /// Encode a label.
     pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder, std::fmt::Error> {
         for_both_mut!(
@@ -313,7 +313,7 @@ impl<'a> From<protobuf::LabelKeyEncoder<'a>> for LabelKeyEncoder<'a> {
     }
 }
 
-impl<'a> std::fmt::Write for LabelKeyEncoder<'a> {
+impl std::fmt::Write for LabelKeyEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         for_both_mut!(self, LabelKeyEncoderInner, e, e.write_str(s))
     }
@@ -390,7 +390,7 @@ impl EncodeLabelKey for String {
     }
 }
 
-impl<'a> EncodeLabelKey for Cow<'a, str> {
+impl EncodeLabelKey for Cow<'_, str> {
     fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
         EncodeLabelKey::encode(&self.as_ref(), encoder)
     }
@@ -453,14 +453,14 @@ enum LabelValueEncoderInner<'a> {
     Protobuf(protobuf::LabelValueEncoder<'a>),
 }
 
-impl<'a> LabelValueEncoder<'a> {
+impl LabelValueEncoder<'_> {
     /// Finish encoding the label value.
     pub fn finish(self) -> Result<(), std::fmt::Error> {
         for_both!(self, LabelValueEncoderInner, e, e.finish())
     }
 }
 
-impl<'a> std::fmt::Write for LabelValueEncoder<'a> {
+impl std::fmt::Write for LabelValueEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         for_both_mut!(self, LabelValueEncoderInner, e, e.write_str(s))
     }
@@ -485,7 +485,7 @@ impl EncodeLabelValue for &String {
     }
 }
 
-impl<'a> EncodeLabelValue for Cow<'a, str> {
+impl EncodeLabelValue for Cow<'_, str> {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
         EncodeLabelValue::encode(&self.as_ref(), encoder)
     }
@@ -610,7 +610,7 @@ enum GaugeValueEncoderInner<'a> {
     Protobuf(protobuf::GaugeValueEncoder<'a>),
 }
 
-impl<'a> GaugeValueEncoder<'a> {
+impl GaugeValueEncoder<'_> {
     fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_u32(v))
     }
@@ -678,7 +678,7 @@ enum CounterValueEncoderInner<'a> {
     Protobuf(protobuf::CounterValueEncoder<'a>),
 }
 
-impl<'a> CounterValueEncoder<'a> {
+impl CounterValueEncoder<'_> {
     fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, CounterValueEncoderInner, e, e.encode_f64(v))
     }
@@ -742,7 +742,7 @@ enum ExemplarValueEncoderInner<'a> {
     Protobuf(protobuf::ExemplarValueEncoder<'a>),
 }
 
-impl<'a> ExemplarValueEncoder<'a> {
+impl ExemplarValueEncoder<'_> {
     fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, ExemplarValueEncoderInner, e, e.encode(v))
     }
