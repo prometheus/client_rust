@@ -18,8 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement `Atomic<u64>` for `AtomicU64` for gauges.
   See [PR 226].
 
-[PR 226]: https://github.com/prometheus/client_rust/pull/198
+- Implement `EnableLabelValue` for `bool`.
+  See [PR 237]
+
+[PR 173]: https://github.com/prometheus/client_rust/pull/173
 [PR 198]: https://github.com/prometheus/client_rust/pull/198
+[PR 226]: https://github.com/prometheus/client_rust/pull/226
+[PR 237]: https://github.com/prometheus/client_rust/pull/237
 
 ### Added
 
