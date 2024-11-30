@@ -67,34 +67,19 @@ pub struct Registry {
 }
 
 impl Registry {
-    /// Creates a new default [`Registry`] with the given prefix.
-    pub fn with_prefix(prefix: impl Into<String>) -> Self {
-        Self {
-            prefix: Some(Prefix(prefix.into())),
-            ..Default::default()
-        }
+    /// Sets the prefix of the [`Registry`].
+    pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = Some(Prefix(prefix.into()));
+        self
     }
 
-    /// Creates a new default [`Registry`] with the given labels.
+    /// Sets the labels of the [`Registry`].
     pub fn with_labels(
+        mut self,
         labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
     ) -> Self {
-        Self {
-            labels: labels.into_iter().collect(),
-            ..Default::default()
-        }
-    }
-
-    /// Creates a new default [`Registry`] with the given prefix and labels.
-    pub fn with_prefix_and_labels(
-        prefix: impl Into<String>,
-        labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
-    ) -> Self {
-        Self {
-            prefix: Some(Prefix(prefix.into())),
-            labels: labels.into_iter().collect(),
-            ..Default::default()
-        }
+        self.labels = labels.into_iter().collect();
+        self
     }
 
     /// Register a metric with the [`Registry`].
@@ -242,13 +227,11 @@ impl Registry {
     /// See [`Registry::sub_registry_with_label`] for the same functionality,
     /// but namespacing with a label instead of a metric name prefix.
     pub fn sub_registry_with_prefix<P: AsRef<str>>(&mut self, prefix: P) -> &mut Self {
-        let sub_registry = Registry {
-            prefix: Some(Prefix(
+        let sub_registry = Registry::default()
+            .with_prefix(
                 self.prefix.clone().map(|p| p.0 + "_").unwrap_or_default() + prefix.as_ref(),
-            )),
-            labels: self.labels.clone(),
-            ..Default::default()
-        };
+            )
+            .with_labels(self.labels.clone().into_iter());
 
         self.priv_sub_registry(sub_registry)
     }

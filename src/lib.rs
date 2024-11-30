@@ -25,7 +25,7 @@
 //! //
 //! // Note the angle brackets to make sure to use the default (dynamic
 //! // dispatched boxed metric) for the generic type parameter.
-//! let mut registry = <Registry>::default();
+//! let mut registry = Registry::default();
 //!
 //! // Define a type representing a metric label set, i.e. a key value pair.
 //! //
@@ -37,13 +37,13 @@
 //!   method: Method,
 //!   // Or just a plain string.
 //!   path: String,
-//! };
+//! }
 //!
 //! #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
 //! enum Method {
 //!   GET,
 //!   PUT,
-//! };
+//! }
 //!
 //! // Create a sample counter metric family utilizing the above custom label
 //! // type, representing the number of HTTP requests received.
