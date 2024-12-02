@@ -28,7 +28,7 @@ use std::sync::Arc;
 /// let custom_buckets = [
 ///    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
 /// ];
-/// let histogram = Histogram::new(custom_buckets.into_iter());
+/// let histogram = Histogram::new(custom_buckets);
 /// histogram.observe(4.2);
 /// ```
 // TODO: Consider using atomics. See
@@ -57,7 +57,12 @@ pub(crate) struct Inner {
 
 impl Histogram {
     /// Create a new [`Histogram`].
-    pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
+    ///
+    /// ```rust
+    /// # use prometheus_client::metrics::histogram::Histogram;
+    /// let histogram = Histogram::new([10.0, 100.0, 1_000.0]);
+    /// ```
+    pub fn new(buckets: impl IntoIterator<Item = f64>) -> Self {
         Self {
             inner: Arc::new(RwLock::new(Inner {
                 sum: Default::default(),
