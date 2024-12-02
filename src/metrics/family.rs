@@ -247,6 +247,23 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         })
     }
 
+    /// Access a metric with the given label set, returning None if one
+    /// does not yet exist.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    ///
+    /// if let Some(metric) = family.get(&vec![("method".to_owned(), "GET".to_owned())]) {
+    ///     metric.inc();
+    /// };
+    /// ```
+    pub fn get(&self, label_set: &S) -> Option<MappedRwLockReadGuard<M>> {
+        RwLockReadGuard::try_map(self.metrics.read(), |metrics| metrics.get(label_set)).ok()
+    }
+
     /// Remove a label set from the metric family.
     ///
     /// Returns a bool indicating if a label set was removed or not.
@@ -323,6 +340,51 @@ where
 
     fn metric_type(&self) -> MetricType {
         M::TYPE
+    }
+}
+
+impl<S, M, C> Family<S, M, C>
+where
+    S: Clone + std::hash::Hash + Eq,
+{
+    /// Provides controlled access to the internal metrics storage.
+    ///
+    /// This method allows performing custom operations on the metrics
+    /// while maintaining encapsulation. It takes a closure that can
+    /// read from or write to the metrics.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - A closure that takes a reference to the metrics storage
+    ///   and returns a value of type `R`.
+    ///
+    /// # Returns
+    ///
+    /// Returns the value produced by the closure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::Counter;
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<String, Counter>::default();
+    ///
+    /// // Read operation
+    /// let count = family.with_metrics(|metrics| {
+    ///     metrics.read().len()
+    /// });
+    ///
+    /// // Write operation
+    /// family.with_metrics(|metrics| {
+    ///     metrics.write().insert("new".to_string(), Counter::default());
+    /// });
+    /// ```
+    pub fn with_metrics<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&RwLock<HashMap<S, M>>) -> R
+    {
+        f(&self.metrics)
     }
 }
 
@@ -451,5 +513,78 @@ mod tests {
                 .get_or_create(&vec![("method".to_string(), "GET".to_string())])
                 .get()
         );
+    }
+
+    #[test]
+    fn test_with_metrics() {
+        let family = Family::<String, Counter>::default();
+
+        // Test read operation
+        family.get_or_create(&"test".to_string()).inc();
+        let count = family.with_metrics(|metrics| {
+            metrics.read().get("test").map(|counter| counter.get()).unwrap_or(0)
+        });
+        assert_eq!(count, 1);
+
+        // Test write operation
+        family.with_metrics(|metrics| {
+            metrics.write().insert("new".to_string(), Counter::default());
+        });
+        assert!(family.get(&"new".to_string()).is_some());
+
+        // Test complex operation
+        let keys: Vec<String> = family.with_metrics(|metrics| {
+            metrics.read().keys().cloned().collect()
+        });
+        assert_eq!(keys.len(), 2);
+        assert!(keys.contains(&"test".to_string()));
+        assert!(keys.contains(&"new".to_string()));
+
+        // Test returning different types
+        let key_count: usize = family.with_metrics(|metrics| {
+            metrics.read().len()
+        });
+        assert_eq!(key_count, 2);
+    }
+
+    #[test]
+    fn test_get() {
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+
+        // Test getting a non-existent metric
+        let non_existent = family.get(&vec![("method".to_string(), "GET".to_string())]);
+        assert!(non_existent.is_none());
+
+        // Create a metric
+        family.get_or_create(&vec![("method".to_string(), "GET".to_string())]).inc();
+
+        // Test getting an existing metric
+        let existing = family.get(&vec![("method".to_string(), "GET".to_string())]);
+        assert!(existing.is_some());
+        assert_eq!(existing.unwrap().get(), 1);
+
+        // Test getting a different non-existent metric
+        let another_non_existent = family.get(&vec![("method".to_string(), "POST".to_string())]);
+        assert!(another_non_existent.is_none());
+
+        // Test modifying the metric through the returned reference
+        if let Some(metric) = family.get(&vec![("method".to_string(), "GET".to_string())]) {
+            metric.inc();
+        }
+
+        // Verify the modification
+        let modified = family.get(&vec![("method".to_string(), "GET".to_string())]);
+        assert_eq!(modified.unwrap().get(), 2);
+
+        // Test with a different label set type
+        let string_family = Family::<String, Counter>::default();
+        string_family.get_or_create(&"test".to_string()).inc();
+
+        let string_metric = string_family.get(&"test".to_string());
+        assert!(string_metric.is_some());
+        assert_eq!(string_metric.unwrap().get(), 1);
+
+        let non_existent_string = string_family.get(&"non_existent".to_string());
+        assert!(non_existent_string.is_none());
     }
 }
