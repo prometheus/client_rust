@@ -226,9 +226,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
     /// ```
     pub fn get_or_create(&self, label_set: &S) -> MappedRwLockReadGuard<M> {
-        if let Ok(metric) =
-            RwLockReadGuard::try_map(self.metrics.read(), |metrics| metrics.get(label_set))
-        {
+        if let Some(metric) = self.get(label_set) {
             return metric;
         }
 
@@ -245,6 +243,23 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
                 .get(label_set)
                 .expect("Metric to exist after creating it.")
         })
+    }
+
+    /// Access a metric with the given label set, returning None if one
+    /// does not yet exist.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    ///
+    /// if let Some(metric) = family.get(&vec![("method".to_owned(), "GET".to_owned())]) {
+    ///     metric.inc();
+    /// };
+    /// ```
+    pub fn get(&self, label_set: &S) -> Option<MappedRwLockReadGuard<M>> {
+        RwLockReadGuard::try_map(self.metrics.read(), |metrics| metrics.get(label_set)).ok()
     }
 
     /// Remove a label set from the metric family.
@@ -451,5 +466,48 @@ mod tests {
                 .get_or_create(&vec![("method".to_string(), "GET".to_string())])
                 .get()
         );
+    }
+
+    #[test]
+    fn test_get() {
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+
+        // Test getting a non-existent metric.
+        let non_existent = family.get(&vec![("method".to_string(), "GET".to_string())]);
+        assert!(non_existent.is_none());
+
+        // Create a metric.
+        family
+            .get_or_create(&vec![("method".to_string(), "GET".to_string())])
+            .inc();
+
+        // Test getting an existing metric.
+        let existing = family.get(&vec![("method".to_string(), "GET".to_string())]);
+        assert!(existing.is_some());
+        assert_eq!(existing.unwrap().get(), 1);
+
+        // Test getting a different non-existent metric.
+        let another_non_existent = family.get(&vec![("method".to_string(), "POST".to_string())]);
+        assert!(another_non_existent.is_none());
+
+        // Test modifying the metric through the returned reference.
+        if let Some(metric) = family.get(&vec![("method".to_string(), "GET".to_string())]) {
+            metric.inc();
+        }
+
+        // Verify the modification.
+        let modified = family.get(&vec![("method".to_string(), "GET".to_string())]);
+        assert_eq!(modified.unwrap().get(), 2);
+
+        // Test with a different label set type.
+        let string_family = Family::<String, Counter>::default();
+        string_family.get_or_create(&"test".to_string()).inc();
+
+        let string_metric = string_family.get(&"test".to_string());
+        assert!(string_metric.is_some());
+        assert_eq!(string_metric.unwrap().get(), 1);
+
+        let non_existent_string = string_family.get(&"non_existent".to_string());
+        assert!(non_existent_string.is_none());
     }
 }
