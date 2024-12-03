@@ -226,9 +226,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
     /// ```
     pub fn get_or_create(&self, label_set: &S) -> MappedRwLockReadGuard<M> {
-        if let Ok(metric) =
-            RwLockReadGuard::try_map(self.metrics.read(), |metrics| metrics.get(label_set))
-        {
+        if let Some(metric) = self.get(label_set) {
             return metric;
         }
 
@@ -474,34 +472,34 @@ mod tests {
     fn test_get() {
         let family = Family::<Vec<(String, String)>, Counter>::default();
 
-        // Test getting a non-existent metric
+        // Test getting a non-existent metric.
         let non_existent = family.get(&vec![("method".to_string(), "GET".to_string())]);
         assert!(non_existent.is_none());
 
-        // Create a metric
+        // Create a metric.
         family
             .get_or_create(&vec![("method".to_string(), "GET".to_string())])
             .inc();
 
-        // Test getting an existing metric
+        // Test getting an existing metric.
         let existing = family.get(&vec![("method".to_string(), "GET".to_string())]);
         assert!(existing.is_some());
         assert_eq!(existing.unwrap().get(), 1);
 
-        // Test getting a different non-existent metric
+        // Test getting a different non-existent metric.
         let another_non_existent = family.get(&vec![("method".to_string(), "POST".to_string())]);
         assert!(another_non_existent.is_none());
 
-        // Test modifying the metric through the returned reference
+        // Test modifying the metric through the returned reference.
         if let Some(metric) = family.get(&vec![("method".to_string(), "GET".to_string())]) {
             metric.inc();
         }
 
-        // Verify the modification
+        // Verify the modification.
         let modified = family.get(&vec![("method".to_string(), "GET".to_string())]);
         assert_eq!(modified.unwrap().get(), 2);
 
-        // Test with a different label set type
+        // Test with a different label set type.
         let string_family = Family::<String, Counter>::default();
         string_family.get_or_create(&"test".to_string()).inc();
 
