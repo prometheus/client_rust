@@ -2,6 +2,8 @@
 //!
 //! See [`Registry`] for details.
 
+pub use prometheus_client_derive_register::*;
+
 use std::borrow::Cow;
 
 use crate::collector::Collector;
@@ -389,3 +391,51 @@ pub trait Metric: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug 
 
 impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
 {}
+
+pub trait Register {
+    fn register(&self, registry: &mut Registry);
+}
+
+pub trait RegisterDefault {
+    fn register_default(registry: &mut Registry) -> Self;
+}
+
+impl<T> RegisterDefault for T
+where
+    T: Register + Default,
+{
+    fn register_default(registry: &mut Registry) -> Self {
+        let this = Self::default();
+        this.register(registry);
+        this
+    }
+}
+
+pub trait RegisterField {
+    fn register_field<N: Into<String>, H: Into<String>>(
+        &self,
+        name: N,
+        help: H,
+        unit: Option<Unit>,
+        registry: &mut Registry,
+    );
+}
+
+impl<T> RegisterField for T
+where
+    T: Metric + Clone,
+{
+    fn register_field<N: Into<String>, H: Into<String>>(
+        &self,
+        name: N,
+        help: H,
+        unit: Option<Unit>,
+        registry: &mut Registry,
+    ) {
+        if let Some(unit) = unit {
+            registry.register_with_unit(name, help, unit, self.clone())
+        } else {
+            registry.register(name, help, self.clone())
+        }
+    }
+}
