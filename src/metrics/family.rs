@@ -303,6 +303,14 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         self.metrics.write().clear()
     }
 
+    /// retain
+    pub fn retain<F>(&self, f: F)
+    where
+        F: FnMut(&S, &mut M) -> bool,
+    {
+        self.metrics.write().retain(f)
+    }
+
     pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
         self.metrics.read()
     }
