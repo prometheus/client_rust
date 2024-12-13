@@ -29,6 +29,7 @@ prost-types = { version = "0.12.0", optional = true }
 async-std = { version = "1", features = ["attributes"] }
 axum = "0.7"
 criterion = "0.5"
+futures = "0.3"
 http-types = "2"
 pyo3 = "0.22"
 quickcheck = "1"
