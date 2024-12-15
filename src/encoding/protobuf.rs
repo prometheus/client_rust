@@ -53,6 +53,8 @@ impl From<MetricType> for openmetrics_data_model::MetricType {
             MetricType::Counter => openmetrics_data_model::MetricType::Counter,
             MetricType::Gauge => openmetrics_data_model::MetricType::Gauge,
             MetricType::Histogram => openmetrics_data_model::MetricType::Histogram,
+            #[cfg(feature = "summary")]
+            MetricType::Summary => openmetrics_data_model::MetricType::Summary,
             MetricType::Info => openmetrics_data_model::MetricType::Info,
             MetricType::Unknown => openmetrics_data_model::MetricType::Unknown,
         }
@@ -280,6 +282,42 @@ impl MetricEncoder<'_> {
                         sum: Some(openmetrics_data_model::histogram_value::Sum::DoubleValue(
                             sum,
                         )),
+                    },
+                )),
+                ..Default::default()
+            }],
+        });
+
+        Ok(())
+    }
+
+    #[cfg(feature = "summary")]
+    pub fn encode_summary<S: EncodeLabelSet>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        quantiles: &[(f64, f64)],
+    ) -> Result<(), std::fmt::Error> {
+        let quantile = quantiles
+            .iter()
+            .enumerate()
+            .map(|(_, (quantile, value))| {
+                Ok(openmetrics_data_model::summary_value::Quantile {
+                    quantile: *quantile,
+                    value: *value,
+                })
+            })
+            .collect::<Result<Vec<_>, std::fmt::Error>>()?;
+
+        self.family.push(openmetrics_data_model::Metric {
+            labels: self.labels.clone(),
+            metric_points: vec![openmetrics_data_model::MetricPoint {
+                value: Some(openmetrics_data_model::metric_point::Value::SummaryValue(
+                    openmetrics_data_model::SummaryValue {
+                        count,
+                        created: None,
+                        quantile,
+                        sum: Some(openmetrics_data_model::summary_value::Sum::DoubleValue(sum)),
                     },
                 )),
                 ..Default::default()
@@ -744,6 +782,40 @@ mod tests {
                 assert_eq!(Some(expected), value.total);
                 assert_eq!(None, value.exemplar);
                 assert_eq!(None, value.created);
+            }
+            _ => panic!("wrong value type"),
+        }
+    }
+
+    #[cfg(feature = "summary")]
+    #[test]
+    fn encode_summary() {
+        use crate::metrics::summary::Summary;
+
+        let mut registry = Registry::default();
+        let summary = Summary::new(5, 10, vec![0.5, 0.9, 0.99], 0.01);
+        registry.register("my_summary", "My summary", summary.clone());
+        summary.observe(1.0);
+
+        let metric_set = encode(&registry).unwrap();
+
+        let family = metric_set.metric_families.first().unwrap();
+        assert_eq!("my_summary", family.name);
+        assert_eq!("My summary.", family.help);
+
+        assert_eq!(
+            openmetrics_data_model::MetricType::Summary as i32,
+            extract_metric_type(&metric_set)
+        );
+
+        match extract_metric_point_value(&metric_set) {
+            openmetrics_data_model::metric_point::Value::SummaryValue(value) => {
+                assert_eq!(
+                    Some(openmetrics_data_model::summary_value::Sum::DoubleValue(1.0)),
+                    value.sum
+                );
+                assert_eq!(1, value.count);
+                assert_eq!(11, value.quantile.len());
             }
             _ => panic!("wrong value type"),
         }

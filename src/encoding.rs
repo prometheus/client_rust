@@ -186,6 +186,22 @@ impl MetricEncoder<'_> {
         )
     }
 
+    /// Encode a summary.
+    #[cfg(feature = "summary")]
+    pub fn encode_summary<S: EncodeLabelSet>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        quantiles: &[(f64, f64)],
+    ) -> Result<(), std::fmt::Error> {
+        for_both_mut!(
+            self,
+            MetricEncoderInner,
+            e,
+            e.encode_summary::<S>(sum, count, quantiles)
+        )
+    }
+
     /// Encode a metric family.
     pub fn encode_family<'s, S: EncodeLabelSet>(
         &'s mut self,
