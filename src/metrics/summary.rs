@@ -84,9 +84,9 @@ impl Summary {
 
     /// Observe the given value.
     pub fn observe(&self, v: f64) {
-        self.rotate_buckets();
-
         let mut inner = self.inner.write();
+        self.rotate_buckets(&mut inner);
+
         inner.sum += v;
         inner.count += 1;
 
@@ -98,7 +98,9 @@ impl Summary {
 
     /// Retrieve the values of the summary metric.
     pub(crate) fn get(&self) -> (f64, u64, Vec<(f64, f64)>) {
-        self.rotate_buckets();
+        let mut inner = self.inner.write();
+        self.rotate_buckets(&mut inner);
+        drop(inner);
 
         let inner = self.inner.read();
         let sum = inner.sum;
@@ -114,8 +116,7 @@ impl Summary {
         (sum, count, quantile_values)
     }
 
-    fn rotate_buckets(&self) {
-        let mut inner = self.inner.write();
+    fn rotate_buckets(&self, inner: &mut InnerSummary) {
         if inner.last_rotated_timestamp.elapsed() >= self.stream_duration {
             inner.last_rotated_timestamp = Instant::now();
             if inner.head_stream_idx == self.max_age_buckets {
