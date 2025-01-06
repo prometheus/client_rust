@@ -1,11 +1,9 @@
 //! Module implementing an Open Metrics histogram.
 //!
 //! See [`Histogram`] for details.
-
 use crate::encoding::{EncodeMetric, MetricEncoder, NoLabelSet};
 
 use super::{MetricType, TypedMetric};
-use log::warn;
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use std::iter::{self, once};
 use std::sync::Arc;
@@ -127,20 +125,17 @@ pub fn exponential_buckets(start: f64, factor: f64, length: u16) -> impl Iterato
 ///
 /// Creates `length` buckets, where the lowest bucket is `min` and the highest bucket is `max`.
 ///
-/// The function defaults to `length` = 1 if `length` is 0 or negative,
-/// and defaults to `min` = 1.0 if `min` is 0 or negative.
+/// If `length` is less than 1, or `min` is less than or equal to 0, an empty iterator is returned.
 pub fn exponential_buckets_range(min: f64, max: f64, length: u16) -> impl Iterator<Item = f64> {
     let mut len_observed = length;
     let mut min_bucket = min;
-    if length < 1 {
-        warn!("exponential_buckets_range length needs a positive length, defaulting to 1");
-        len_observed = 1;
-    }
-    if min <= 0.0 {
-        warn!("exponential_buckets_range min needs to be greater than 0, defaulting to 1.0");
+    // length needs a positive length and min needs to be greater than 0
+    // set len_observed to 0 and min_bucket to 1.0
+    // this will return an empty iterator in the result
+    if length < 1 || min <= 0.0 {
+        len_observed = 0;
         min_bucket = 1.0;
     }
-
     // We know max/min and highest bucket. Solve for growth_factor.
     let growth_factor = (max / min_bucket).powf(1.0 / (len_observed as f64 - 1.0));
 
@@ -201,5 +196,14 @@ mod tests {
             vec![1.0, 2.0, 4.0, 8.0, 16.0, 32.0],
             exponential_buckets_range(1.0, 32.0, 6).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn exponential_range_incorrect() {
+        let res = exponential_buckets_range(1.0, 32.0, 0).collect::<Vec<_>>();
+        assert!(res.is_empty());
+
+        let res = exponential_buckets_range(0.0, 32.0, 6).collect::<Vec<_>>();
+        assert!(res.is_empty());
     }
 }
