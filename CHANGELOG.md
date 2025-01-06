@@ -29,9 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supoort `Arc<String>` for `EncodeLabelValue`.
   See [PR 217].
 
+- Add `histogram::exponential_buckets_range`.
+  See [PR 233].
+
 [PR 173]: https://github.com/prometheus/client_rust/pull/173
 [PR 216]: https://github.com/prometheus/client_rust/pull/216
 [PR 217]: https://github.com/prometheus/client_rust/pull/217
+[PR 233]: https://github.com/prometheus/client_rust/pull/233
 
 ### Fixed
 
