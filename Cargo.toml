@@ -30,6 +30,7 @@ log = "0.4.22"
 async-std = { version = "1", features = ["attributes"] }
 axum = "0.7"
 criterion = "0.5"
+futures = "0.3"
 http-types = "2"
 pyo3 = "0.22"
 quickcheck = "1"

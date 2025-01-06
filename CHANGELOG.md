@@ -18,8 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement `Atomic<u64>` for `AtomicU64` for gauges.
   See [PR 226].
 
-[PR 226]: https://github.com/prometheus/client_rust/pull/198
+- Implement `EnableLabelValue` for `bool`.
+  See [PR 237]
+
+[PR 173]: https://github.com/prometheus/client_rust/pull/173
 [PR 198]: https://github.com/prometheus/client_rust/pull/198
+[PR 226]: https://github.com/prometheus/client_rust/pull/226
+[PR 237]: https://github.com/prometheus/client_rust/pull/237
 
 ### Added
 
@@ -32,10 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `histogram::exponential_buckets_range`.
   See [PR 233].
 
+- Added `get` method to `Family`.
+  See [PR 234].
+
 [PR 173]: https://github.com/prometheus/client_rust/pull/173
 [PR 216]: https://github.com/prometheus/client_rust/pull/216
 [PR 217]: https://github.com/prometheus/client_rust/pull/217
 [PR 233]: https://github.com/prometheus/client_rust/pull/233
+[PR 234]: https://github.com/prometheus/client_rust/pull/234
 
 ### Fixed
 

@@ -1,3 +1,4 @@
+use futures::future::BoxFuture;
 use http_body_util::{combinators, BodyExt, Full};
 use hyper::{
     body::{Bytes, Incoming},
@@ -8,10 +9,8 @@ use hyper::{
 use hyper_util::rt::TokioIo;
 use prometheus_client::{encoding::text::encode, metrics::counter::Counter, registry::Registry};
 use std::{
-    future::Future,
     io,
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    pin::Pin,
     sync::Arc,
 };
 use tokio::{
@@ -69,8 +68,7 @@ type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 /// This function returns a HTTP handler (i.e. another function)
 pub fn make_handler(
     registry: Arc<Registry>,
-) -> impl Fn(Request<Incoming>) -> Pin<Box<dyn Future<Output = io::Result<Response<BoxBody>>> + Send>>
-{
+) -> impl Fn(Request<Incoming>) -> BoxFuture<'static, io::Result<Response<BoxBody>>> {
     // This closure accepts a request and responds with the OpenMetrics encoding of our metrics.
     move |_req: Request<Incoming>| {
         let reg = registry.clone();
