@@ -1,6 +1,7 @@
 //! Module implementing an Open Metrics histogram.
 //!
 //! See [`Histogram`] for details.
+
 use crate::encoding::{EncodeMetric, MetricEncoder, NoLabelSet};
 
 use super::{MetricType, TypedMetric};
