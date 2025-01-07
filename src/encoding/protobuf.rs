@@ -14,7 +14,7 @@
 //! #   counter.clone(),
 //! # );
 //! # counter.inc();
-//! // Returns `MetricSet`, the top-level container type. Please refer to [openmetrics_data_model.proto](https://github.com/OpenObservability/OpenMetrics/blob/main/proto/openmetrics_data_model.proto) for details.
+//! // Returns `MetricSet`, the top-level container type. Please refer to [openmetrics_data_model.proto](https://github.com/prometheus/OpenMetrics/blob/v1.0.0/proto/openmetrics_data_model.proto) for details.
 //! let metric_set = encode(&registry).unwrap();
 //!
 //! let family = metric_set.metric_families.first().unwrap();
