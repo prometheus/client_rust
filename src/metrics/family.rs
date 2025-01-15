@@ -261,7 +261,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     /// ```
     ///
     /// NB: This method can cause deadlocks if multiple metrics within this family are read at
-    /// once. Use [`Family::get_or_create()`] if you would like to avoid this by cloning the
+    /// once. Use [`Family::get_or_create_clone()`] if you would like to avoid this by cloning the
     /// metric `M`.
     pub fn get_or_create(&self, label_set: &S) -> MappedRwLockReadGuard<M> {
         if let Some(metric) = self.get(label_set) {
