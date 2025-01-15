@@ -120,7 +120,7 @@ impl DescriptorEncoder<'_> {
         };
         let mut labels = vec![];
         self.labels.encode(
-            LabelSetEncoder {
+            &mut LabelSetEncoder {
                 labels: &mut labels,
             }
             .into(),
@@ -210,7 +210,7 @@ impl MetricEncoder<'_> {
     ) -> Result<(), std::fmt::Error> {
         let mut info_labels = vec![];
         label_set.encode(
-            LabelSetEncoder {
+            &mut LabelSetEncoder {
                 labels: &mut info_labels,
             }
             .into(),
@@ -235,7 +235,7 @@ impl MetricEncoder<'_> {
     ) -> Result<MetricEncoder, std::fmt::Error> {
         let mut labels = self.labels.clone();
         label_set.encode(
-            LabelSetEncoder {
+            &mut LabelSetEncoder {
                 labels: &mut labels,
             }
             .into(),
@@ -303,7 +303,7 @@ impl<S: EncodeLabelSet, V: EncodeExemplarValue> TryFrom<&Exemplar<S, V>>
 
         let mut labels = vec![];
         exemplar.label_set.encode(
-            LabelSetEncoder {
+            &mut LabelSetEncoder {
                 labels: &mut labels,
             }
             .into(),
