@@ -1582,6 +1582,66 @@ mod tests {
         assert_eq!(&response[response.len() - 20..], "ogins_total 0\n# EOF\n");
     }
 
+    #[test]
+    fn encode_labels_no_labels() {
+        let mut buffer = String::new();
+        let mut encoder = MetricEncoder {
+            writer: &mut buffer,
+            prefix: None,
+            name: "name",
+            unit: None,
+            const_labels: &[],
+            family_labels: None,
+            name_validation_scheme: &UTF8Validation,
+            escaping_scheme: &NoEscaping,
+        };
+
+        encoder.encode_labels::<NoLabelSet>(None).unwrap();
+        assert_eq!(buffer, "");
+    }
+
+    #[test]
+    fn encode_labels_with_all_labels() {
+        let mut buffer = String::new();
+        let const_labels = vec![(Cow::Borrowed("t1"), Cow::Borrowed("t1"))];
+        let additional_labels = vec![(Cow::Borrowed("t2"), Cow::Borrowed("t2"))];
+        let family_labels = vec![(Cow::Borrowed("t3"), Cow::Borrowed("t3"))];
+        let mut encoder = MetricEncoder {
+            writer: &mut buffer,
+            prefix: None,
+            name: "name",
+            unit: None,
+            const_labels: &const_labels,
+            family_labels: Some(&family_labels),
+            name_validation_scheme: &UTF8Validation,
+            escaping_scheme: &NoEscaping,
+        };
+
+        encoder.encode_labels(Some(&additional_labels)).unwrap();
+        assert_eq!(buffer, "{t1=\"t1\",t2=\"t2\",t3=\"t3\"}");
+    }
+
+    #[test]
+    fn encode_labels_with_quoted_label_names() {
+        let mut buffer = String::new();
+        let const_labels = vec![(Cow::Borrowed("service.name"), Cow::Borrowed("t1"))];
+        let additional_labels = vec![(Cow::Borrowed("whatever\\whatever"), Cow::Borrowed("t2"))];
+        let family_labels = vec![(Cow::Borrowed("t*3"), Cow::Borrowed("t3"))];
+        let mut encoder = MetricEncoder {
+            writer: &mut buffer,
+            prefix: None,
+            name: "name",
+            unit: None,
+            const_labels: &const_labels,
+            family_labels: Some(&family_labels),
+            name_validation_scheme: &UTF8Validation,
+            escaping_scheme: &NoEscaping,
+        };
+
+        encoder.encode_labels(Some(&additional_labels)).unwrap();
+        assert_eq!(buffer, "{\"service.name\"=\"t1\",\"whatever\\whatever\"=\"t2\",\"t*3\"=\"t3\"}");
+    }
+
     fn parse_with_python_client(input: String) {
         pyo3::prepare_freethreaded_python();
 

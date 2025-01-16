@@ -891,7 +891,7 @@ fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
                 } else if is_valid_legacy_char(b, i) {
                     escaped.push(b);
                 } else {
-                    escaped.push('_');
+                    escaped.push_str("__");
                 }
             }
         }
@@ -901,14 +901,12 @@ fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
             }
             escaped.push_str("U__");
             for (i, b) in name.chars().enumerate() {
-                if is_valid_legacy_char(b, i) {
+                if b == '_' {
+                    escaped.push_str("__");
+                } else if is_valid_legacy_char(b, i) {
                     escaped.push(b);
-                } else if !b.is_ascii() {
-                    escaped.push_str("_FFFD_");
-                } else if b as u32 <= 0xFF {
-                    write!(escaped, "_{:02X}_", b as u32).unwrap();
-                } else if b as u32 <= 0xFFFF {
-                    write!(escaped, "_{:04X}_", b as u32).unwrap();
+                } else {
+                    write!(escaped, "_{:x}_", b as i64).unwrap();
                 }
             }
         }
@@ -934,4 +932,146 @@ pub fn negotiate_escaping_scheme(
         return EscapingScheme::NoEscaping;
     }
     default_escaping_scheme
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metric_name_is_legacy_valid() {
+        struct Scenario {
+            input: &'static str,
+            expected: bool,
+        }
+
+        let scenarios = vec![
+            Scenario {
+                input: "Avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "_Avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "1valid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: "avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "Ava:lid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "a lid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: ":leading_colon",
+                expected: true,
+            },
+            Scenario {
+                input: "colon:in:the:middle",
+                expected: true,
+            },
+            Scenario {
+                input: "",
+                expected: false,
+            },
+            Scenario {
+                input: "aÅz",
+                expected: false,
+            },
+        ];
+
+        for scenario in scenarios {
+            let result = is_valid_legacy_metric_name(scenario.input);
+            assert_eq!(result, scenario.expected);
+        }
+    }
+
+    #[test]
+    fn test_escape_name() {
+        struct Scenario {
+            name: &'static str,
+            input: &'static str,
+            expected_underscores: &'static str,
+            expected_dots: &'static str,
+            expected_value: &'static str,
+        }
+
+        let scenarios = vec![
+            Scenario {
+                name: "empty string",
+                input: "",
+                expected_underscores: "",
+                expected_dots: "",
+                expected_value: "",
+            },
+            Scenario {
+                name: "legacy valid name",
+                input: "no:escaping_required",
+                expected_underscores: "no:escaping_required",
+                expected_dots: "no:escaping__required",
+                expected_value: "no:escaping_required",
+            },
+            Scenario {
+                name: "name with dots",
+                input: "mysystem.prod.west.cpu.load",
+                expected_underscores: "mysystem_prod_west_cpu_load",
+                expected_dots: "mysystem_dot_prod_dot_west_dot_cpu_dot_load",
+                expected_value: "U__mysystem_2e_prod_2e_west_2e_cpu_2e_load",
+            },
+            Scenario {
+                name: "name with dots and underscore",
+                input: "mysystem.prod.west.cpu.load_total",
+                expected_underscores: "mysystem_prod_west_cpu_load_total",
+                expected_dots: "mysystem_dot_prod_dot_west_dot_cpu_dot_load__total",
+                expected_value: "U__mysystem_2e_prod_2e_west_2e_cpu_2e_load__total",
+            },
+            Scenario {
+                name: "name with dots and colon",
+                input: "http.status:sum",
+                expected_underscores: "http_status:sum",
+                expected_dots: "http_dot_status:sum",
+                expected_value: "U__http_2e_status:sum",
+            },
+            Scenario {
+                name: "name with spaces and emoji",
+                input: "label with 😱",
+                expected_underscores: "label_with__",
+                expected_dots: "label__with____",
+                expected_value: "U__label_20_with_20__1f631_",
+            },
+            Scenario {
+                name: "name with unicode characters > 0x100",
+                input: "花火",
+                expected_underscores: "__",
+                expected_dots: "____",
+                expected_value: "U___82b1__706b_",
+            },
+            Scenario {
+                name: "name with spaces and edge-case value",
+                input: "label with \u{0100}",
+                expected_underscores: "label_with__",
+                expected_dots: "label__with____",
+                expected_value: "U__label_20_with_20__100_",
+            },
+        ];
+
+        for scenario in scenarios {
+            let result = escape_name(scenario.input, &EscapingScheme::UnderscoreEscaping);
+            assert_eq!(result, scenario.expected_underscores, "{}", scenario.name);
+
+            let result = escape_name(scenario.input, &EscapingScheme::DotsEscaping);
+            assert_eq!(result, scenario.expected_dots, "{}", scenario.name);
+
+            let result = escape_name(scenario.input, &EscapingScheme::ValueEncodingEscaping);
+            assert_eq!(result, scenario.expected_value, "{}", scenario.name);
+        }
+    }
 }
