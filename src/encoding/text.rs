@@ -56,7 +56,7 @@ use std::fmt::Write;
 ///
 /// Use [`encode_registry`] or [`encode_eof`] if partial encoding is needed.
 ///
-/// See [OpenMetrics exposition format](https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#text-format)
+/// See [OpenMetrics exposition format](https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#text-format)
 /// for additional details.
 ///
 /// # Examples

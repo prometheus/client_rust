@@ -4,8 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.23.0] - unreleased
+## [0.23.1] - unreleased
 
+### Changed
+
+- `Histogram::new` now accepts an `IntoIterator` argument, rather than an `Iterator`.
+  See [PR 243].
+
+[PR 243]: https://github.com/prometheus/client_rust/pull/243
+
+## [0.23.0]
 
 ### Changed
 
@@ -34,12 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supoort `Arc<String>` for `EncodeLabelValue`.
   See [PR 217].
 
+- Add `histogram::exponential_buckets_range`.
+  See [PR 233].
+
 - Added `get` method to `Family`.
   See [PR 234].
 
 [PR 173]: https://github.com/prometheus/client_rust/pull/173
 [PR 216]: https://github.com/prometheus/client_rust/pull/216
 [PR 217]: https://github.com/prometheus/client_rust/pull/217
+[PR 233]: https://github.com/prometheus/client_rust/pull/233
 [PR 234]: https://github.com/prometheus/client_rust/pull/234
 
 ### Fixed
