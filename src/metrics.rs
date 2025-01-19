@@ -6,6 +6,8 @@ pub mod family;
 pub mod gauge;
 pub mod histogram;
 pub mod info;
+#[cfg(feature = "summary")]
+pub mod summary;
 
 /// A metric that is aware of its Open Metrics metric type.
 pub trait TypedMetric {
@@ -21,12 +23,13 @@ pub enum MetricType {
     Gauge,
     Histogram,
     Info,
+    #[cfg(feature = "summary")]
+    Summary,
     Unknown,
     // Not (yet) supported metric types.
     //
     // GaugeHistogram,
     // StateSet,
-    // Summary
 }
 
 impl MetricType {
@@ -37,6 +40,8 @@ impl MetricType {
             MetricType::Gauge => "gauge",
             MetricType::Histogram => "histogram",
             MetricType::Info => "info",
+            #[cfg(feature = "summary")]
+            MetricType::Summary => "summary",
             MetricType::Unknown => "unknown",
         }
     }
