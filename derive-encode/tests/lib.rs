@@ -205,3 +205,104 @@ fn flatten() {
         + "# EOF\n";
     assert_eq!(expected, buffer);
 }
+
+#[test]
+fn case_per_label() {
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    struct Labels {
+        lower: EnumLabel,
+        upper: EnumLabel,
+        no_change: EnumLabel,
+    }
+
+    #[derive(EncodeLabelValue, Hash, Clone, Eq, PartialEq, Debug)]
+    enum EnumLabel {
+        #[prometheus(lower)]
+        One,
+        #[prometheus(upper)]
+        Two,
+        Three,
+    }
+
+    let mut registry = Registry::default();
+    let family = Family::<Labels, Counter>::default();
+    registry.register("my_counter", "This is my counter", family.clone());
+
+    // Record a single HTTP GET request.
+    family
+        .get_or_create(&Labels {
+            lower: EnumLabel::One,
+            upper: EnumLabel::Two,
+            no_change: EnumLabel::Three,
+        })
+        .inc();
+
+    // Encode all metrics in the registry in the text format.
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+
+    let expected = "# HELP my_counter This is my counter.\n".to_owned()
+        + "# TYPE my_counter counter\n"
+        + "my_counter_total{lower=\"one\",upper=\"TWO\",no_change=\"Three\"} 1\n"
+        + "# EOF\n";
+    assert_eq!(expected, buffer);
+}
+
+#[test]
+fn case_whole_enum() {
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    struct Labels {
+        lower: EnumLowerLabel,
+        upper: EnumUpperLabel,
+        no_change: EnumNoChangeLabel,
+        override_case: EnumOverrideLabel,
+    }
+
+    #[derive(EncodeLabelValue, Hash, Clone, Eq, PartialEq, Debug)]
+    #[prometheus(value_case = "lower")]
+    enum EnumLowerLabel {
+        One,
+    }
+
+    #[derive(EncodeLabelValue, Hash, Clone, Eq, PartialEq, Debug)]
+    #[prometheus(value_case = "upper")]
+    enum EnumUpperLabel {
+        Two,
+    }
+
+    #[derive(EncodeLabelValue, Hash, Clone, Eq, PartialEq, Debug)]
+    enum EnumNoChangeLabel {
+        Three,
+    }
+
+    #[derive(EncodeLabelValue, Hash, Clone, Eq, PartialEq, Debug)]
+    #[prometheus(value_case = "upper")]
+    enum EnumOverrideLabel {
+        #[prometheus(lower)]
+        Four,
+    }
+
+    let mut registry = Registry::default();
+    let family = Family::<Labels, Counter>::default();
+    registry.register("my_counter", "This is my counter", family.clone());
+
+    // Record a single HTTP GET request.
+    family
+        .get_or_create(&Labels {
+            lower: EnumLowerLabel::One,
+            upper: EnumUpperLabel::Two,
+            no_change: EnumNoChangeLabel::Three,
+            override_case: EnumOverrideLabel::Four,
+        })
+        .inc();
+
+    // Encode all metrics in the registry in the text format.
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+
+    let expected = "# HELP my_counter This is my counter.\n".to_owned()
+        + "# TYPE my_counter counter\n"
+        + "my_counter_total{lower=\"one\",upper=\"TWO\",no_change=\"Three\",override_case=\"four\"} 1\n"
+        + "# EOF\n";
+    assert_eq!(expected, buffer);
+}
