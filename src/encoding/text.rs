@@ -878,7 +878,7 @@ impl std::fmt::Write for LabelValueEncoder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::encoding::EscapingScheme::NoEscaping;
+    use crate::encoding::EscapingScheme::{NoEscaping, UnderscoreEscaping};
     use crate::encoding::ValidationScheme::UTF8Validation;
     use crate::metrics::exemplar::HistogramWithExemplars;
     use crate::metrics::family::Family;
@@ -1029,6 +1029,29 @@ mod tests {
     }
 
     #[test]
+    fn encode_gauge_with_quoted_metric_name() {
+        let mut registry = RegistryBuilder::new()
+            .with_name_validation_scheme(UTF8Validation)
+            .with_escaping_scheme(NoEscaping)
+            .build();
+        let gauge = Gauge::<f32, AtomicU32>::default();
+        registry.register("my.gauge\"", "My\ngau\nge\"", gauge.clone());
+
+        gauge.set(f32::INFINITY);
+
+        let mut encoded = String::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP \"my.gauge\"\" My\ngau\nge\".\n"
+            .to_owned()
+            + "# TYPE \"my.gauge\"\" gauge\n"
+            + "{\"my.gauge\"\"} inf\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
     fn encode_counter_family() {
         let mut registry = Registry::default();
         let family = Family::<Vec<(String, String)>, Counter>::default();
@@ -1105,6 +1128,37 @@ mod tests {
             .to_owned()
             + "# TYPE \"my.prefix_my_counter_family\" counter\n"
             + "{\"my.prefix_my_counter_family_total\",\"my.key\"=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn escaped_encode_counter_family_with_prefix_with_label_with_quoted_metric_and_label_names() {
+        let mut registry = RegistryBuilder::new()
+            .with_name_validation_scheme(UTF8Validation)
+            .with_escaping_scheme(UnderscoreEscaping)
+            .build();
+        let sub_registry = registry.sub_registry_with_prefix("my.prefix");
+        let sub_sub_registry = sub_registry
+            .sub_registry_with_label((Cow::Borrowed("my.key"), Cow::Borrowed("my_value")));
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+        sub_sub_registry.register("my_counter_family", "My counter family", family.clone());
+
+        family
+            .get_or_create(&vec![
+                ("method".to_string(), "GET".to_string()),
+                ("status".to_string(), "200".to_string()),
+            ])
+            .inc();
+
+        let mut encoded = String::new();
+
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_prefix_my_counter_family My counter family.\n"
+            .to_owned()
+            + "# TYPE my_prefix_my_counter_family counter\n"
+            + "my_prefix_my_counter_family_total{my_key=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
     }

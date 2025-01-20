@@ -995,6 +995,62 @@ mod tests {
     }
 
     #[test]
+    fn label_name_is_legacy_valid() {
+        struct Scenario {
+            input: &'static str,
+            expected: bool,
+        }
+
+        let scenarios = vec![
+            Scenario {
+                input: "Avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "_Avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "1valid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: "avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "Ava:lid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: "a lid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: ":leading_colon",
+                expected: false,
+            },
+            Scenario {
+                input: "colon:in:the:middle",
+                expected: false,
+            },
+            Scenario {
+                input: "",
+                expected: false,
+            },
+            Scenario {
+                input: "aÅz",
+                expected: false,
+            },
+        ];
+
+        for scenario in scenarios {
+            let result = is_valid_legacy_label_name(scenario.input);
+            assert_eq!(result, scenario.expected);
+        }
+    }
+
+    #[test]
     fn test_escape_name() {
         struct Scenario {
             name: &'static str,
