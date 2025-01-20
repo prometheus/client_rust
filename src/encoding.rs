@@ -770,7 +770,7 @@ impl ExemplarValueEncoder<'_> {
 
 /// Enum for determining how metric and label names will
 /// be validated.
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum ValidationScheme {
     /// Setting that requires that metric and label names
     /// conform to the original OpenMetrics character requirements.
@@ -807,9 +807,9 @@ fn is_valid_legacy_prefix(prefix: Option<&Prefix>) -> bool {
 fn is_quoted_metric_name(
     name: &str,
     prefix: Option<&Prefix>,
-    validation_scheme: &ValidationScheme,
+    validation_scheme: ValidationScheme,
 ) -> bool {
-    *validation_scheme == ValidationScheme::UTF8Validation
+    validation_scheme == ValidationScheme::UTF8Validation
         && (!is_valid_legacy_metric_name(name) || !is_valid_legacy_prefix(prefix))
 }
 
@@ -818,24 +818,20 @@ fn is_valid_legacy_label_name(label_name: &str) -> bool {
         return false;
     }
     for (i, b) in label_name.chars().enumerate() {
-        if !((b >= 'a' && b <= 'z')
-            || (b >= 'A' && b <= 'Z')
-            || b == '_'
-            || (b >= '0' && b <= '9' && i > 0))
-        {
+        if !(b.is_ascii_alphabetic() || b == '_' || (b.is_ascii_digit() && i > 0)) {
             return false;
         }
     }
     true
 }
 
-fn is_quoted_label_name(name: &str, validation_scheme: &ValidationScheme) -> bool {
-    *validation_scheme == ValidationScheme::UTF8Validation && !is_valid_legacy_label_name(name)
+fn is_quoted_label_name(name: &str, validation_scheme: ValidationScheme) -> bool {
+    validation_scheme == ValidationScheme::UTF8Validation && !is_valid_legacy_label_name(name)
 }
 
 /// Enum for determining how metric and label names will
 /// be escaped.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum EscapingScheme {
     /// Replaces all legacy-invalid characters with underscores.
     #[default]
@@ -863,17 +859,19 @@ impl EscapingScheme {
     }
 }
 
-fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
+fn escape_name(name: &str, scheme: EscapingScheme) -> Cow<'_, str> {
     if name.is_empty() {
-        return name.to_string();
+        return name.into();
     }
-    let mut escaped = String::new();
     match scheme {
-        EscapingScheme::NoEscaping => return name.to_string(),
+        EscapingScheme::NoEscaping => name.into(),
+        EscapingScheme::UnderscoreEscaping | EscapingScheme::ValueEncodingEscaping
+            if is_valid_legacy_metric_name(name) =>
+        {
+            name.into()
+        }
         EscapingScheme::UnderscoreEscaping => {
-            if is_valid_legacy_metric_name(name) {
-                return name.to_string();
-            }
+            let mut escaped = String::with_capacity(name.len());
             for (i, b) in name.chars().enumerate() {
                 if is_valid_legacy_char(b, i) {
                     escaped.push(b);
@@ -881,8 +879,10 @@ fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
                     escaped.push('_');
                 }
             }
+            escaped.into()
         }
         EscapingScheme::DotsEscaping => {
+            let mut escaped = String::with_capacity(name.len());
             for (i, b) in name.chars().enumerate() {
                 if b == '_' {
                     escaped.push_str("__");
@@ -894,11 +894,10 @@ fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
                     escaped.push_str("__");
                 }
             }
+            escaped.into()
         }
         EscapingScheme::ValueEncodingEscaping => {
-            if is_valid_legacy_metric_name(name) {
-                return name.to_string();
-            }
+            let mut escaped = String::with_capacity(name.len());
             escaped.push_str("U__");
             for (i, b) in name.chars().enumerate() {
                 if b == '_' {
@@ -909,9 +908,9 @@ fn escape_name(name: &str, scheme: &EscapingScheme) -> String {
                     write!(escaped, "_{:x}_", b as i64).unwrap();
                 }
             }
+            escaped.into()
         }
     }
-    escaped
 }
 
 /// Returns the escaping scheme to use based on the given header.
@@ -1120,13 +1119,13 @@ mod tests {
         ];
 
         for scenario in scenarios {
-            let result = escape_name(scenario.input, &EscapingScheme::UnderscoreEscaping);
+            let result = escape_name(scenario.input, EscapingScheme::UnderscoreEscaping);
             assert_eq!(result, scenario.expected_underscores, "{}", scenario.name);
 
-            let result = escape_name(scenario.input, &EscapingScheme::DotsEscaping);
+            let result = escape_name(scenario.input, EscapingScheme::DotsEscaping);
             assert_eq!(result, scenario.expected_dots, "{}", scenario.name);
 
-            let result = escape_name(scenario.input, &EscapingScheme::ValueEncodingEscaping);
+            let result = escape_name(scenario.input, EscapingScheme::ValueEncodingEscaping);
             assert_eq!(result, scenario.expected_value, "{}", scenario.name);
         }
     }

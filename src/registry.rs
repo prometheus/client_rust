@@ -101,12 +101,12 @@ impl Registry {
 
     /// Returns the given Registry's name validation scheme.
     pub fn name_validation_scheme(&self) -> ValidationScheme {
-        self.name_validation_scheme.clone()
+        self.name_validation_scheme
     }
 
     /// Returns the given Registry's escaping scheme.
     pub fn escaping_scheme(&self) -> EscapingScheme {
-        self.escaping_scheme.clone()
+        self.escaping_scheme
     }
 
     /// Sets the escaping scheme for the [`RegistryBuilder`].
