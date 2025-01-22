@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use crate::collector::Collector;
-use crate::encoding::{DescriptorEncoder, EncodeMetric};
+use crate::encoding::{DescriptorEncoder, EncodeMetric, EscapingScheme, ValidationScheme};
 
 /// A metric registry.
 ///
@@ -64,6 +64,8 @@ pub struct Registry {
     metrics: Vec<(Descriptor, Box<dyn Metric>)>,
     collectors: Vec<Box<dyn Collector>>,
     sub_registries: Vec<Registry>,
+    name_validation_scheme: ValidationScheme,
+    escaping_scheme: EscapingScheme,
 }
 
 impl Registry {
@@ -95,6 +97,21 @@ impl Registry {
             labels: labels.into_iter().collect(),
             ..Default::default()
         }
+    }
+
+    /// Returns the given Registry's name validation scheme.
+    pub fn name_validation_scheme(&self) -> ValidationScheme {
+        self.name_validation_scheme
+    }
+
+    /// Returns the given Registry's escaping scheme.
+    pub fn escaping_scheme(&self) -> EscapingScheme {
+        self.escaping_scheme
+    }
+
+    /// Sets the escaping scheme for the [`RegistryBuilder`].
+    pub fn set_escaping_scheme(&mut self, escaping_scheme: EscapingScheme) {
+        self.escaping_scheme = escaping_scheme;
     }
 
     /// Register a metric with the [`Registry`].
@@ -310,6 +327,79 @@ impl Registry {
         }
 
         Ok(())
+    }
+}
+
+/// A builder for creating a [`Registry`].
+///
+/// This struct allows for a more flexible and readable way to construct
+/// a [`Registry`] by providing methods to set various parameters such as
+/// prefix, labels, name validation scheme, and escaping scheme.
+///
+/// ```
+/// # use prometheus_client::encoding::EscapingScheme::UnderscoreEscaping;
+/// # use prometheus_client::encoding::ValidationScheme::{LegacyValidation, UTF8Validation};
+/// # use prometheus_client::registry::RegistryBuilder;
+/// #
+/// let registry = RegistryBuilder::new()
+///     .with_prefix("my_prefix")
+///     .with_labels(vec![("label1".into(), "value1".into())].into_iter())
+///     .with_name_validation_scheme(LegacyValidation)
+///     .with_escaping_scheme(UnderscoreEscaping)
+///     .build();
+/// ```
+#[derive(Debug, Default)]
+pub struct RegistryBuilder {
+    prefix: Option<Prefix>,
+    labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
+    name_validation_scheme: ValidationScheme,
+    escaping_scheme: EscapingScheme,
+}
+
+impl RegistryBuilder {
+    /// Creates a new default ['RegistryBuilder'].
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+
+    /// Sets the prefix for the [`RegistryBuilder`].
+    pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = Some(Prefix(prefix.into()));
+        self
+    }
+
+    /// Sets the labels for the [`RegistryBuilder`].
+    pub fn with_labels(
+        mut self,
+        labels: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>)>,
+    ) -> Self {
+        self.labels = labels.into_iter().collect();
+        self
+    }
+
+    /// Sets the name validation scheme for the [`RegistryBuilder`].
+    pub fn with_name_validation_scheme(mut self, name_validation_scheme: ValidationScheme) -> Self {
+        self.name_validation_scheme = name_validation_scheme;
+        self
+    }
+
+    /// Sets the escaping scheme for the [`RegistryBuilder`].
+    pub fn with_escaping_scheme(mut self, escaping_scheme: EscapingScheme) -> Self {
+        self.escaping_scheme = escaping_scheme;
+        self
+    }
+
+    /// Builds the [`Registry`] with the given parameters.
+    pub fn build(self) -> Registry {
+        Registry {
+            prefix: self.prefix,
+            labels: self.labels,
+            name_validation_scheme: self.name_validation_scheme,
+            escaping_scheme: self.escaping_scheme,
+            ..Default::default()
+        }
     }
 }
 

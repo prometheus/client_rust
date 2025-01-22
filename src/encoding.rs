@@ -767,3 +767,366 @@ impl ExemplarValueEncoder<'_> {
         for_both_mut!(self, ExemplarValueEncoderInner, e, e.encode(v))
     }
 }
+
+/// Enum for determining how metric and label names will
+/// be validated.
+#[derive(Debug, PartialEq, Default, Clone, Copy)]
+pub enum ValidationScheme {
+    /// Setting that requires that metric and label names
+    /// conform to the original OpenMetrics character requirements.
+    #[default]
+    LegacyValidation,
+    /// Only requires that metric and label names be valid UTF-8
+    /// strings.
+    UTF8Validation,
+}
+
+fn is_valid_legacy_char(c: char, i: usize) -> bool {
+    c.is_ascii_alphabetic() || c == '_' || c == ':' || (c.is_ascii_digit() && i > 0)
+}
+
+fn is_valid_legacy_metric_name(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    for (i, c) in name.chars().enumerate() {
+        if !is_valid_legacy_char(c, i) {
+            return false;
+        }
+    }
+    true
+}
+
+fn is_valid_legacy_prefix(prefix: Option<&Prefix>) -> bool {
+    match prefix {
+        Some(prefix) => is_valid_legacy_metric_name(prefix.as_str()),
+        None => true,
+    }
+}
+
+fn is_quoted_metric_name(
+    name: &str,
+    prefix: Option<&Prefix>,
+    validation_scheme: ValidationScheme,
+) -> bool {
+    validation_scheme == ValidationScheme::UTF8Validation
+        && (!is_valid_legacy_metric_name(name) || !is_valid_legacy_prefix(prefix))
+}
+
+fn is_valid_legacy_label_name(label_name: &str) -> bool {
+    if label_name.is_empty() {
+        return false;
+    }
+    for (i, b) in label_name.chars().enumerate() {
+        if !(b.is_ascii_alphabetic() || b == '_' || (b.is_ascii_digit() && i > 0)) {
+            return false;
+        }
+    }
+    true
+}
+
+fn is_quoted_label_name(name: &str, validation_scheme: ValidationScheme) -> bool {
+    validation_scheme == ValidationScheme::UTF8Validation && !is_valid_legacy_label_name(name)
+}
+
+/// Enum for determining how metric and label names will
+/// be escaped.
+#[derive(Debug, Default, Clone, Copy)]
+pub enum EscapingScheme {
+    /// Replaces all legacy-invalid characters with underscores.
+    #[default]
+    UnderscoreEscaping,
+    /// Similar to UnderscoreEscaping, except that dots are
+    /// converted to `_dot_` and pre-existing underscores are converted to `__`.
+    DotsEscaping,
+    /// Prepends the name with `U__` and replaces all invalid
+    /// characters with the Unicode value, surrounded by underscores. Single
+    /// underscores are replaced with double underscores.
+    ValueEncodingEscaping,
+    /// Indicates that a name will not be escaped.
+    NoEscaping,
+}
+
+impl EscapingScheme {
+    /// Returns a string representation of a `EscapingScheme`.
+    pub fn as_str(&self) -> &str {
+        match self {
+            EscapingScheme::UnderscoreEscaping => "underscores",
+            EscapingScheme::DotsEscaping => "dots",
+            EscapingScheme::ValueEncodingEscaping => "values",
+            EscapingScheme::NoEscaping => "allow-utf-8",
+        }
+    }
+}
+
+fn escape_name(name: &str, scheme: EscapingScheme) -> Cow<'_, str> {
+    if name.is_empty() {
+        return name.into();
+    }
+    match scheme {
+        EscapingScheme::NoEscaping => name.into(),
+        EscapingScheme::UnderscoreEscaping | EscapingScheme::ValueEncodingEscaping
+            if is_valid_legacy_metric_name(name) =>
+        {
+            name.into()
+        }
+        EscapingScheme::UnderscoreEscaping => {
+            let mut escaped = String::with_capacity(name.len());
+            for (i, b) in name.chars().enumerate() {
+                if is_valid_legacy_char(b, i) {
+                    escaped.push(b);
+                } else {
+                    escaped.push('_');
+                }
+            }
+            escaped.into()
+        }
+        EscapingScheme::DotsEscaping => {
+            let mut escaped = String::with_capacity(name.len());
+            for (i, b) in name.chars().enumerate() {
+                if b == '_' {
+                    escaped.push_str("__");
+                } else if b == '.' {
+                    escaped.push_str("_dot_");
+                } else if is_valid_legacy_char(b, i) {
+                    escaped.push(b);
+                } else {
+                    escaped.push_str("__");
+                }
+            }
+            escaped.into()
+        }
+        EscapingScheme::ValueEncodingEscaping => {
+            let mut escaped = String::with_capacity(name.len());
+            escaped.push_str("U__");
+            for (i, b) in name.chars().enumerate() {
+                if b == '_' {
+                    escaped.push_str("__");
+                } else if is_valid_legacy_char(b, i) {
+                    escaped.push(b);
+                } else {
+                    write!(escaped, "_{:x}_", b as i64).unwrap();
+                }
+            }
+            escaped.into()
+        }
+    }
+}
+
+/// Returns the escaping scheme to use based on the given header.
+pub fn negotiate_escaping_scheme(
+    header: &str,
+    default_escaping_scheme: EscapingScheme,
+) -> EscapingScheme {
+    if header.contains("underscores") {
+        return EscapingScheme::UnderscoreEscaping;
+    }
+    if header.contains("dots") {
+        return EscapingScheme::DotsEscaping;
+    }
+    if header.contains("values") {
+        return EscapingScheme::ValueEncodingEscaping;
+    }
+    if header.contains("allow-utf-8") {
+        return EscapingScheme::NoEscaping;
+    }
+    default_escaping_scheme
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metric_name_is_legacy_valid() {
+        struct Scenario {
+            input: &'static str,
+            expected: bool,
+        }
+
+        let scenarios = vec![
+            Scenario {
+                input: "Avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "_Avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "1valid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: "avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "Ava:lid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "a lid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: ":leading_colon",
+                expected: true,
+            },
+            Scenario {
+                input: "colon:in:the:middle",
+                expected: true,
+            },
+            Scenario {
+                input: "",
+                expected: false,
+            },
+            Scenario {
+                input: "aÅz",
+                expected: false,
+            },
+        ];
+
+        for scenario in scenarios {
+            let result = is_valid_legacy_metric_name(scenario.input);
+            assert_eq!(result, scenario.expected);
+        }
+    }
+
+    #[test]
+    fn label_name_is_legacy_valid() {
+        struct Scenario {
+            input: &'static str,
+            expected: bool,
+        }
+
+        let scenarios = vec![
+            Scenario {
+                input: "Avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "_Avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "1valid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: "avalid_23name",
+                expected: true,
+            },
+            Scenario {
+                input: "Ava:lid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: "a lid_23name",
+                expected: false,
+            },
+            Scenario {
+                input: ":leading_colon",
+                expected: false,
+            },
+            Scenario {
+                input: "colon:in:the:middle",
+                expected: false,
+            },
+            Scenario {
+                input: "",
+                expected: false,
+            },
+            Scenario {
+                input: "aÅz",
+                expected: false,
+            },
+        ];
+
+        for scenario in scenarios {
+            let result = is_valid_legacy_label_name(scenario.input);
+            assert_eq!(result, scenario.expected);
+        }
+    }
+
+    #[test]
+    fn test_escape_name() {
+        struct Scenario {
+            name: &'static str,
+            input: &'static str,
+            expected_underscores: &'static str,
+            expected_dots: &'static str,
+            expected_value: &'static str,
+        }
+
+        let scenarios = vec![
+            Scenario {
+                name: "empty string",
+                input: "",
+                expected_underscores: "",
+                expected_dots: "",
+                expected_value: "",
+            },
+            Scenario {
+                name: "legacy valid name",
+                input: "no:escaping_required",
+                expected_underscores: "no:escaping_required",
+                expected_dots: "no:escaping__required",
+                expected_value: "no:escaping_required",
+            },
+            Scenario {
+                name: "name with dots",
+                input: "mysystem.prod.west.cpu.load",
+                expected_underscores: "mysystem_prod_west_cpu_load",
+                expected_dots: "mysystem_dot_prod_dot_west_dot_cpu_dot_load",
+                expected_value: "U__mysystem_2e_prod_2e_west_2e_cpu_2e_load",
+            },
+            Scenario {
+                name: "name with dots and underscore",
+                input: "mysystem.prod.west.cpu.load_total",
+                expected_underscores: "mysystem_prod_west_cpu_load_total",
+                expected_dots: "mysystem_dot_prod_dot_west_dot_cpu_dot_load__total",
+                expected_value: "U__mysystem_2e_prod_2e_west_2e_cpu_2e_load__total",
+            },
+            Scenario {
+                name: "name with dots and colon",
+                input: "http.status:sum",
+                expected_underscores: "http_status:sum",
+                expected_dots: "http_dot_status:sum",
+                expected_value: "U__http_2e_status:sum",
+            },
+            Scenario {
+                name: "name with spaces and emoji",
+                input: "label with 😱",
+                expected_underscores: "label_with__",
+                expected_dots: "label__with____",
+                expected_value: "U__label_20_with_20__1f631_",
+            },
+            Scenario {
+                name: "name with unicode characters > 0x100",
+                input: "花火",
+                expected_underscores: "__",
+                expected_dots: "____",
+                expected_value: "U___82b1__706b_",
+            },
+            Scenario {
+                name: "name with spaces and edge-case value",
+                input: "label with \u{0100}",
+                expected_underscores: "label_with__",
+                expected_dots: "label__with____",
+                expected_value: "U__label_20_with_20__100_",
+            },
+        ];
+
+        for scenario in scenarios {
+            let result = escape_name(scenario.input, EscapingScheme::UnderscoreEscaping);
+            assert_eq!(result, scenario.expected_underscores, "{}", scenario.name);
+
+            let result = escape_name(scenario.input, EscapingScheme::DotsEscaping);
+            assert_eq!(result, scenario.expected_dots, "{}", scenario.name);
+
+            let result = escape_name(scenario.input, EscapingScheme::ValueEncodingEscaping);
+            assert_eq!(result, scenario.expected_value, "{}", scenario.name);
+        }
+    }
+}
