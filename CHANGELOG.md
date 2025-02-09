@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    method avoids the risk of runtime deadlocks at the expense of creating an
    owned type. See [PR 244].
  
- [PR 244]: https://github.com/prometheus/client_rust/pull/244
+[PR 244]: https://github.com/prometheus/client_rust/pull/244
+[PR 257]: https://github.com/prometheus/client_rust/pull/257
 
 ### Changed
 
