@@ -72,7 +72,7 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
 
     let gen = quote! {
         impl prometheus_client::encoding::EncodeLabelSet for #name {
-            fn encode(&self, mut encoder: prometheus_client::encoding::LabelSetEncoder) -> std::result::Result<(), std::fmt::Error> {
+            fn encode(&self, encoder: &mut prometheus_client::encoding::LabelSetEncoder) -> std::result::Result<(), std::fmt::Error> {
                 use prometheus_client::encoding::EncodeLabel;
                 use prometheus_client::encoding::EncodeLabelKey;
                 use prometheus_client::encoding::EncodeLabelValue;
