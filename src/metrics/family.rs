@@ -207,6 +207,40 @@ impl<S: Clone + std::hash::Hash + Eq, M, C> Family<S, M, C> {
     }
 }
 
+impl<S: Clone + std::hash::Hash + Eq, M: Clone, C: MetricConstructor<M>> Family<S, M, C>
+where
+    S: Clone + std::hash::Hash + Eq,
+    M: Clone,
+    C: MetricConstructor<M>,
+{
+    /// Access a metric with the given label set, creating it if one does not yet exist.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    ///
+    /// // Will create and return the metric with label `method="GET"` when first called.
+    /// family.get_or_create_owned(&vec![("method".to_owned(), "GET".to_owned())]).inc();
+    ///
+    /// // Will return a clone of the existing metric on all subsequent calls.
+    /// family.get_or_create_owned(&vec![("method".to_owned(), "GET".to_owned())]).inc();
+    /// ```
+    ///
+    /// Callers wishing to avoid a clone of the metric `M` can call [`Family::get_or_create()`] to
+    /// return a reference to the metric instead.
+    pub fn get_or_create_owned(&self, label_set: &S) -> M {
+        use std::ops::Deref;
+
+        let guard = self.get_or_create(label_set);
+        let metric = guard.deref().to_owned();
+        drop(guard);
+
+        metric
+    }
+}
+
 impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C> {
     /// Access a metric with the given label set, creating it if one does not
     /// yet exist.
@@ -225,6 +259,10 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     /// // calls.
     /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
     /// ```
+    ///
+    /// NB: This method can cause deadlocks if multiple metrics within this family are read at
+    /// once. Use [`Family::get_or_create_owned()`] if you would like to avoid this by cloning the
+    /// metric `M`.
     pub fn get_or_create(&self, label_set: &S) -> MappedRwLockReadGuard<M> {
         if let Some(metric) = self.get(label_set) {
             return metric;
@@ -509,5 +547,24 @@ mod tests {
 
         let non_existent_string = string_family.get(&"non_existent".to_string());
         assert!(non_existent_string.is_none());
+    }
+
+    /// Tests that [`Family::get_or_create_owned()`] does not cause deadlocks.
+    #[test]
+    fn counter_family_does_not_deadlock() {
+        /// A structure we'll place two counters into, within a single expression.
+        struct S {
+            apples: Counter,
+            oranges: Counter,
+        }
+
+        let family = Family::<(&str, &str), Counter>::default();
+        let s = S {
+            apples: family.get_or_create_owned(&("kind", "apple")),
+            oranges: family.get_or_create_owned(&("kind", "orange")),
+        };
+
+        s.apples.inc();
+        s.oranges.inc_by(2);
     }
 }
