@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `EncodeLabelSet::encode()` now accepts a mutable reference to its encoder parameter.
 
+- Update `prost` dependencies to `v0.13`. See [PR 260].
+
+[PR 260]: https://github.com/prometheus/client_rust/pull/260
+
 ## [0.23.1]
 
 ### Changed
