@@ -14,7 +14,7 @@
 //! #   counter.clone(),
 //! # );
 //! # counter.inc();
-//! // Returns `MetricSet`, the top-level container type. Please refer to [openmetrics_data_model.proto](https://github.com/OpenObservability/OpenMetrics/blob/main/proto/openmetrics_data_model.proto) for details.
+//! // Returns `MetricSet`, the top-level container type. Please refer to [openmetrics_data_model.proto](https://github.com/prometheus/OpenMetrics/blob/v1.0.0/proto/openmetrics_data_model.proto) for details.
 //! let metric_set = encode(&registry).unwrap();
 //!
 //! let family = metric_set.metric_families.first().unwrap();
@@ -122,7 +122,7 @@ impl DescriptorEncoder<'_> {
         };
         let mut labels = vec![];
         self.labels.encode(
-            LabelSetEncoder {
+            &mut LabelSetEncoder {
                 labels: &mut labels,
             }
             .into(),
@@ -212,7 +212,7 @@ impl MetricEncoder<'_> {
     ) -> Result<(), std::fmt::Error> {
         let mut info_labels = vec![];
         label_set.encode(
-            LabelSetEncoder {
+            &mut LabelSetEncoder {
                 labels: &mut info_labels,
             }
             .into(),
@@ -237,7 +237,7 @@ impl MetricEncoder<'_> {
     ) -> Result<MetricEncoder, std::fmt::Error> {
         let mut labels = self.labels.clone();
         label_set.encode(
-            LabelSetEncoder {
+            &mut LabelSetEncoder {
                 labels: &mut labels,
             }
             .into(),
@@ -341,7 +341,7 @@ impl<S: EncodeLabelSet, V: EncodeExemplarValue> TryFrom<&Exemplar<S, V>>
 
         let mut labels = vec![];
         exemplar.label_set.encode(
-            LabelSetEncoder {
+            &mut LabelSetEncoder {
                 labels: &mut labels,
             }
             .into(),

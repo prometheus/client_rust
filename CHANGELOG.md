@@ -4,8 +4,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.23.0] - unreleased
+## [0.24.0] - unreleased
 
+### Added
+
+- `EncodeLabelSet` is now implemented for tuples `(A: EncodeLabelSet, B: EncodeLabelSet)`.
+   See [PR 257].
+
+- `Family::get_or_create_owned` can access a metric in a labeled family. This
+   method avoids the risk of runtime deadlocks at the expense of creating an
+   owned type. See [PR 244].
+ 
+[PR 244]: https://github.com/prometheus/client_rust/pull/244
+[PR 257]: https://github.com/prometheus/client_rust/pull/257
+
+### Changed
+
+- `EncodeLabelSet::encode()` now accepts a mutable reference to its encoder parameter.
+
+## [0.23.1]
+
+### Changed
+
+- `Histogram::new` now accepts an `IntoIterator` argument, rather than an `Iterator`.
+  See [PR 243].
+
+[PR 243]: https://github.com/prometheus/client_rust/pull/243
+
+## [0.23.0]
 
 ### Changed
 
@@ -34,12 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supoort `Arc<String>` for `EncodeLabelValue`.
   See [PR 217].
 
+- Add `histogram::exponential_buckets_range`.
+  See [PR 233].
+
 - Added `get` method to `Family`.
   See [PR 234].
 
 [PR 173]: https://github.com/prometheus/client_rust/pull/173
 [PR 216]: https://github.com/prometheus/client_rust/pull/216
 [PR 217]: https://github.com/prometheus/client_rust/pull/217
+[PR 233]: https://github.com/prometheus/client_rust/pull/233
 [PR 234]: https://github.com/prometheus/client_rust/pull/234
 
 ### Fixed

@@ -219,7 +219,7 @@ impl MetricEncoder<'_> {
 /// An encodable label set.
 pub trait EncodeLabelSet {
     /// Encode oneself into the given encoder.
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error>;
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error>;
 }
 
 /// Encoder for a label set.
@@ -254,19 +254,20 @@ impl LabelSetEncoder<'_> {
 }
 
 impl<T: EncodeLabel, const N: usize> EncodeLabelSet for [T; N] {
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         self.as_ref().encode(encoder)
     }
 }
 
 impl<T: EncodeLabel> EncodeLabelSet for &[T] {
-    fn encode(&self, mut encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         if self.is_empty() {
             return Ok(());
         }
 
         for label in self.iter() {
-            label.encode(encoder.encode_label())?
+            let encoder = encoder.encode_label();
+            label.encode(encoder)?
         }
 
         Ok(())
@@ -274,8 +275,23 @@ impl<T: EncodeLabel> EncodeLabelSet for &[T] {
 }
 
 impl<T: EncodeLabel> EncodeLabelSet for Vec<T> {
-    fn encode(&self, encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         self.as_slice().encode(encoder)
+    }
+}
+
+impl<A, B> EncodeLabelSet for (A, B)
+where
+    A: EncodeLabelSet,
+    B: EncodeLabelSet,
+{
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
+        let (a, b) = self;
+
+        a.encode(encoder)?;
+        b.encode(encoder)?;
+
+        Ok(())
     }
 }
 
@@ -284,7 +300,7 @@ impl<T: EncodeLabel> EncodeLabelSet for Vec<T> {
 pub enum NoLabelSet {}
 
 impl EncodeLabelSet for NoLabelSet {
-    fn encode(&self, _encoder: LabelSetEncoder) -> Result<(), std::fmt::Error> {
+    fn encode(&self, _encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
         Ok(())
     }
 }

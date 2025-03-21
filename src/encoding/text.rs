@@ -53,7 +53,7 @@ use std::fmt::Write;
 ///
 /// Use [`encode_registry`] or [`encode_eof`] if partial encoding is needed.
 ///
-/// See [OpenMetrics exposition format](https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#text-format)
+/// See [OpenMetrics exposition format](https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#text-format)
 /// for additional details.
 ///
 /// # Examples
@@ -296,8 +296,9 @@ pub(crate) struct MetricEncoder<'a> {
 impl std::fmt::Debug for MetricEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut labels = String::new();
+        let mut encoder = LabelSetEncoder::new(&mut labels).into();
         if let Some(l) = self.family_labels {
-            l.encode(LabelSetEncoder::new(&mut labels).into())?;
+            l.encode(&mut encoder)?;
         }
 
         f.debug_struct("Encoder")
@@ -485,7 +486,7 @@ impl MetricEncoder<'_> {
         self.writer.write_str(" # {")?;
         exemplar
             .label_set
-            .encode(LabelSetEncoder::new(self.writer).into())?;
+            .encode(&mut LabelSetEncoder::new(self.writer).into())?;
         self.writer.write_str("} ")?;
         exemplar.value.encode(
             ExemplarValueEncoder {
@@ -536,14 +537,14 @@ impl MetricEncoder<'_> {
         self.writer.write_str("{")?;
 
         self.const_labels
-            .encode(LabelSetEncoder::new(self.writer).into())?;
+            .encode(&mut LabelSetEncoder::new(self.writer).into())?;
 
         if let Some(additional_labels) = additional_labels {
             if !self.const_labels.is_empty() {
                 self.writer.write_str(",")?;
             }
 
-            additional_labels.encode(LabelSetEncoder::new(self.writer).into())?;
+            additional_labels.encode(&mut LabelSetEncoder::new(self.writer).into())?;
         }
 
         /// Writer impl which prepends a comma on the first call to write output to the wrapped writer
@@ -573,9 +574,9 @@ impl MetricEncoder<'_> {
                     writer: self.writer,
                     should_prepend: true,
                 };
-                labels.encode(LabelSetEncoder::new(&mut writer).into())?;
+                labels.encode(&mut LabelSetEncoder::new(&mut writer).into())?;
             } else {
-                labels.encode(LabelSetEncoder::new(self.writer).into())?;
+                labels.encode(&mut LabelSetEncoder::new(self.writer).into())?;
             };
         }
 
@@ -970,7 +971,7 @@ mod tests {
         struct EmptyLabels {}
 
         impl EncodeLabelSet for EmptyLabels {
-            fn encode(&self, _encoder: crate::encoding::LabelSetEncoder) -> Result<(), Error> {
+            fn encode(&self, _encoder: &mut crate::encoding::LabelSetEncoder) -> Result<(), Error> {
                 Ok(())
             }
         }
@@ -1143,6 +1144,60 @@ mod tests {
             + "# TYPE prefix_1_prefix_1_2_sub_sub_level counter\n"
             + "prefix_1_prefix_1_2_sub_sub_level_total 42\n"
             + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn label_sets_can_be_composed() {
+        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+        struct Color(&'static str);
+        impl EncodeLabelSet for Color {
+            fn encode(
+                &self,
+                encoder: &mut crate::encoding::LabelSetEncoder,
+            ) -> Result<(), std::fmt::Error> {
+                use crate::encoding::EncodeLabel;
+                let Self(color) = *self;
+                let labels = ("color", color);
+                let encoder = encoder.encode_label();
+                labels.encode(encoder)
+            }
+        }
+
+        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+        struct Size(&'static str);
+        impl EncodeLabelSet for Size {
+            fn encode(
+                &self,
+                encoder: &mut crate::encoding::LabelSetEncoder,
+            ) -> Result<(), std::fmt::Error> {
+                use crate::encoding::EncodeLabel;
+                let Self(size) = *self;
+                let labels = ("size", size);
+                let encoder = encoder.encode_label();
+                labels.encode(encoder)
+            }
+        }
+
+        type Labels = (Color, Size);
+
+        let mut registry = Registry::default();
+        let family = Family::<Labels, Counter>::default();
+        registry.register("items", "Example metric", family.clone());
+
+        let labels = (Color("red"), Size("large"));
+        let counter = family.get_or_create(&labels);
+        counter.inc();
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP items Example metric.\n\
+                        # TYPE items counter\n\
+                        items_total{color=\"red\",size=\"large\"} 1\n\
+                        # EOF\n";
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);

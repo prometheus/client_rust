@@ -28,7 +28,7 @@ use std::sync::Arc;
 /// let custom_buckets = [
 ///    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
 /// ];
-/// let histogram = Histogram::new(custom_buckets.into_iter());
+/// let histogram = Histogram::new(custom_buckets);
 /// histogram.observe(4.2);
 /// ```
 // TODO: Consider using atomics. See
@@ -57,7 +57,12 @@ pub(crate) struct Inner {
 
 impl Histogram {
     /// Create a new [`Histogram`].
-    pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
+    ///
+    /// ```rust
+    /// # use prometheus_client::metrics::histogram::Histogram;
+    /// let histogram = Histogram::new([10.0, 100.0, 1_000.0]);
+    /// ```
+    pub fn new(buckets: impl IntoIterator<Item = f64>) -> Self {
         Self {
             inner: Arc::new(RwLock::new(Inner {
                 sum: Default::default(),
@@ -122,6 +127,30 @@ pub fn exponential_buckets(start: f64, factor: f64, length: u16) -> impl Iterato
         .take(length.into())
 }
 
+/// Exponential bucket distribution within a range
+///
+/// Creates `length` buckets, where the lowest bucket is `min` and the highest bucket is `max`.
+///
+/// If `length` is less than 1, or `min` is less than or equal to 0, an empty iterator is returned.
+pub fn exponential_buckets_range(min: f64, max: f64, length: u16) -> impl Iterator<Item = f64> {
+    let mut len_observed = length;
+    let mut min_bucket = min;
+    // length needs a positive length and min needs to be greater than 0
+    // set len_observed to 0 and min_bucket to 1.0
+    // this will return an empty iterator in the result
+    if length < 1 || min <= 0.0 {
+        len_observed = 0;
+        min_bucket = 1.0;
+    }
+    // We know max/min and highest bucket. Solve for growth_factor.
+    let growth_factor = (max / min_bucket).powf(1.0 / (len_observed as f64 - 1.0));
+
+    iter::repeat(())
+        .enumerate()
+        .map(move |(i, _)| min_bucket * growth_factor.powf(i as f64))
+        .take(len_observed.into())
+}
+
 /// Linear bucket distribution.
 pub fn linear_buckets(start: f64, width: f64, length: u16) -> impl Iterator<Item = f64> {
     iter::repeat(())
@@ -165,5 +194,22 @@ mod tests {
             vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
             linear_buckets(0.0, 1.0, 10).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn exponential_range() {
+        assert_eq!(
+            vec![1.0, 2.0, 4.0, 8.0, 16.0, 32.0],
+            exponential_buckets_range(1.0, 32.0, 6).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn exponential_range_incorrect() {
+        let res = exponential_buckets_range(1.0, 32.0, 0).collect::<Vec<_>>();
+        assert!(res.is_empty());
+
+        let res = exponential_buckets_range(0.0, 32.0, 6).collect::<Vec<_>>();
+        assert!(res.is_empty());
     }
 }
