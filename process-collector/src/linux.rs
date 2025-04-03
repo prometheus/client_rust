@@ -1,3 +1,6 @@
+use std::io;
+
+use libc::{self};
 use procfs::process::{LimitValue, Process};
 use prometheus_client::{
     collector::Collector,
@@ -7,7 +10,16 @@ use prometheus_client::{
 };
 
 #[derive(Debug)]
-pub(crate) struct System {}
+pub(crate) struct System {
+    page_size: u64,
+}
+
+impl System {
+    pub fn load() -> std::io::Result<Self> {
+        let page_size = page_size()?;
+        Ok(Self { page_size })
+    }
+}
 
 impl Collector for System {
     fn encode(
@@ -16,7 +28,6 @@ impl Collector for System {
     ) -> Result<(), std::fmt::Error> {
         let tps = procfs::ticks_per_second();
 
-        // TODO: handle errors
         let proc = match Process::myself() {
             Ok(proc) => proc,
             Err(_) => {
@@ -86,16 +97,31 @@ impl Collector for System {
         vm_bytes.encode(vme)?;
 
         // TODO: add rss_bytes (fix self.page_size)
-        //
-        // let rss_bytes = ConstGauge::new((stat.rss * self.page_size) as i64);
-        // let rsse = encoder.encode_descriptor(
-        //     "process_resident_memory_bytes",
-        //     "Resident memory size in bytes.",
-        //     Some(&Unit::Bytes),
-        //     rss_bytes.metric_type(),
-        // )?;
-        // rss_bytes.encode(rsse)?;
+
+        let rss_bytes = ConstGauge::new((stat.rss * self.page_size) as i64);
+        let rsse = encoder.encode_descriptor(
+            "process_resident_memory_bytes",
+            "Resident memory size in bytes.",
+            Some(&Unit::Bytes),
+            rss_bytes.metric_type(),
+        )?;
+        rss_bytes.encode(rsse)?;
 
         Ok(())
+    }
+}
+
+fn page_size() -> io::Result<u64> {
+    sysconf(libc::_SC_PAGESIZE)
+}
+
+#[allow(unsafe_code)]
+fn sysconf(num: libc::c_int) -> Result<u64, io::Error> {
+    match unsafe { libc::sysconf(num) } {
+        e if e <= 0 => {
+            let error = io::Error::last_os_error();
+            Err(error)
+        }
+        val => Ok(val as u64),
     }
 }
