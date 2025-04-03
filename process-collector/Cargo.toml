@@ -8,6 +8,3 @@ edition = "2021"
 [dependencies]
 procfs = "0.17.0"
 prometheus-client = { path = "../" }
-
-[target.'cfg(unix)'.dependencies]
-libc = "^0.2"

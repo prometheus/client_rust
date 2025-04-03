@@ -32,7 +32,7 @@ impl Collector for ProcessCollector {
     fn encode(&self, mut encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
         let start_time_from_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_err(|e| std::fmt::Error)?;
+            .map_err(|_| std::fmt::Error)?;
         let start_time = ConstGauge::new(start_time_from_epoch.as_secs_f64());
         let start_time_metric = encoder.encode_descriptor(
             "process_start_time_seconds",
