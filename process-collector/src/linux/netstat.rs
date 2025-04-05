@@ -55,13 +55,12 @@ fn parse_proc_netstat<R: io::Read>(reader: R, file_name: &str) -> io::Result<Net
                 )
             })?;
             let key = name_parts[i];
-            match protocol {
-                "IpExt" => match key {
+            if protocol == "IpExt" {
+                match key {
                     "InOctets" => proc_netstat.ip_ext.in_octets = Some(value),
                     "OutOctets" => proc_netstat.ip_ext.out_octets = Some(value),
                     _ => {}
-                },
-                _ => {}
+                }
             }
         }
     }

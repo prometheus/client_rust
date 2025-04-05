@@ -59,7 +59,7 @@ impl System {
         let tps = procfs::ticks_per_second();
         let cpu_time = (stat.stime + stat.utime) / tps;
         let counter = ConstCounter::new(cpu_time);
-        let metric_name = format!("{}process_cpu_seconds_total", &self.namespace);
+        let metric_name = format!("{}process_cpu", &self.namespace);
         let metric_encoder = encoder.encode_descriptor(
             &metric_name,
             "Total user and system CPU time spent in seconds.",
@@ -116,7 +116,7 @@ impl System {
                 LimitValue::Value(soft) => soft,
             };
             let gauge = ConstGauge::new(max_virtual_memory as i64);
-            let metric_name = format!("{}process_virtual_memory_max_bytes", &self.namespace);
+            let metric_name = format!("{}process_virtual_memory_max", &self.namespace);
             let metric_encoder = encoder.encode_descriptor(
                 &metric_name,
                 "Maximum amount of virtual memory available in bytes.",
@@ -135,7 +135,7 @@ impl System {
         encoder: &mut prometheus_client::encoding::DescriptorEncoder,
     ) -> SystemResult {
         let vm_bytes = ConstGauge::new(stat.vsize as i64);
-        let metric_name = format!("{}process_virtual_memory_bytes", &self.namespace);
+        let metric_name = format!("{}process_virtual_memory", &self.namespace);
         let vme = encoder.encode_descriptor(
             &metric_name,
             "Virtual memory size in bytes",
@@ -153,7 +153,7 @@ impl System {
         encoder: &mut prometheus_client::encoding::DescriptorEncoder,
     ) -> SystemResult {
         let rss_bytes = ConstGauge::new((stat.rss * self.page_size) as i64);
-        let metric_name = format!("{}process_resident_memory_bytes", &self.namespace);
+        let metric_name = format!("{}process_resident_memory", &self.namespace);
         let rsse = encoder.encode_descriptor(
             &metric_name,
             "Resident memory size in bytes.",
@@ -173,7 +173,7 @@ impl System {
         match Netstat::read(stat.pid) {
             Ok(Netstat { ip_ext, .. }) => {
                 let recv_bytes = ConstCounter::new(ip_ext.in_octets.unwrap_or_default());
-                let metric_name = format!("{}process_network_receive_bytes_total", &self.namespace);
+                let metric_name = format!("{}process_network_receive", &self.namespace);
                 let rbe = encoder.encode_descriptor(
                     &metric_name,
                     "Number of bytes received by the process over the network.",
@@ -183,8 +183,7 @@ impl System {
                 recv_bytes.encode(rbe)?;
 
                 let transmit_bytes = ConstCounter::new(ip_ext.out_octets.unwrap_or_default());
-                let metric_name =
-                    format!("{}process_network_transmit_bytes_total", &self.namespace);
+                let metric_name = format!("{}process_network_transmit", &self.namespace);
                 let tbe = encoder.encode_descriptor(
                     &metric_name,
                     "Number of bytes sent by the process over the network.",
