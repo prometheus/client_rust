@@ -26,12 +26,12 @@ jobs:
 
       # Caching
       - name: Cache cargo registry
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: cargo-registry-${{ hashFiles('Cargo.toml') }}
       - name: Cache cargo index
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: cargo-index-${{ hashFiles('Cargo.toml') }}
@@ -68,12 +68,12 @@ jobs:
 
       # Caching
       - name: Cache cargo registry
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: cargo-registry-${{ hashFiles('Cargo.toml') }}
       - name: Cache cargo index
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: cargo-index-${{ hashFiles('Cargo.toml') }}
@@ -121,12 +121,12 @@ jobs:
 
       # Caching
       - name: Cache cargo registry
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: cargo-registry-${{ hashFiles('Cargo.toml') }}
       - name: Cache cargo index
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: cargo-index-${{ hashFiles('Cargo.toml') }}
