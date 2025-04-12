@@ -1,55 +1,47 @@
-use prometheus_client::{
-    collector::Collector,
-    encoding::{DescriptorEncoder, EncodeMetric},
-    metrics::gauge::ConstGauge,
-    registry::Unit,
-};
-use std::time::{SystemTime, UNIX_EPOCH};
+use prometheus_client::{collector::Collector, encoding::DescriptorEncoder};
 
 mod linux;
 
+#[derive(Debug, Default)]
+pub struct CollectorConfig {
+    namespace: Option<String>,
+    report_error: bool,
+}
+
+impl CollectorConfig {
+    pub fn with_namespace(mut self, namespace: Option<String>) -> Self {
+        self.namespace = namespace;
+
+        self
+    }
+
+    pub fn with_report_error(mut self, report_error: bool) -> Self {
+        self.report_error = report_error;
+
+        self
+    }
+}
+
 #[derive(Debug)]
 pub struct ProcessCollector {
-    namespace: String,
     #[cfg(target_os = "linux")]
     system: linux::System,
 }
 
 impl ProcessCollector {
-    pub fn new(namespace: Option<String>) -> std::io::Result<Self> {
+    pub fn new(config: CollectorConfig) -> Self {
         #[cfg(target_os = "linux")]
-        let system = linux::System::load(namespace.clone())?;
-        let namespace = match namespace {
-            Some(mut n) => {
-                n.push('_');
-                n
-            }
-            None => "".to_string(),
-        };
+        let system = linux::System::load(config.namespace.clone(), config.report_error);
 
-        Ok(ProcessCollector {
-            namespace,
+        ProcessCollector {
             #[cfg(target_os = "linux")]
             system,
-        })
+        }
     }
 }
 
 impl Collector for ProcessCollector {
-    fn encode(&self, mut encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
-        let start_time_from_epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| std::fmt::Error)?;
-        let start_time = ConstGauge::new(start_time_from_epoch.as_secs_f64());
-        let metric_name = format!("{}process_start_time", self.namespace);
-        let start_time_metric = encoder.encode_descriptor(
-            &metric_name,
-            "Start time of the process since unix epoch in seconds.",
-            Some(&Unit::Seconds),
-            start_time.metric_type(),
-        )?;
-        start_time.encode(start_time_metric)?;
-
+    fn encode(&self, encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
         #[cfg(target_os = "linux")]
         self.system.encode(encoder)?;
 
@@ -65,7 +57,7 @@ mod tests {
     #[test]
     fn register_start_time() {
         let mut registry = Registry::default();
-        let processor_collector = ProcessCollector::new(None).unwrap();
+        let processor_collector = ProcessCollector::new(CollectorConfig::default());
         registry.register_collector(Box::new(processor_collector));
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -84,7 +76,7 @@ mod tests {
     #[test]
     fn register_resident_memory() {
         let mut registry = Registry::default();
-        let processor_collector = ProcessCollector::new(None).unwrap();
+        let processor_collector = ProcessCollector::new(CollectorConfig::default());
         registry.register_collector(Box::new(processor_collector));
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -104,7 +96,7 @@ mod tests {
     #[test]
     fn register_virtual_memory() {
         let mut registry = Registry::default();
-        let processor_collector = ProcessCollector::new(None).unwrap();
+        let processor_collector = ProcessCollector::new(CollectorConfig::default());
         registry.register_collector(Box::new(processor_collector));
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -124,7 +116,7 @@ mod tests {
     #[test]
     fn register_virtual_memory_max() {
         let mut registry = Registry::default();
-        let processor_collector = ProcessCollector::new(None).unwrap();
+        let processor_collector = ProcessCollector::new(CollectorConfig::default());
         registry.register_collector(Box::new(processor_collector));
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -142,7 +134,7 @@ mod tests {
     #[test]
     fn register_open_fds() {
         let mut registry = Registry::default();
-        let processor_collector = ProcessCollector::new(None).unwrap();
+        let processor_collector = ProcessCollector::new(CollectorConfig::default());
         registry.register_collector(Box::new(processor_collector));
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -160,7 +152,7 @@ mod tests {
     #[test]
     fn register_max_fds() {
         let mut registry = Registry::default();
-        let processor_collector = ProcessCollector::new(None).unwrap();
+        let processor_collector = ProcessCollector::new(CollectorConfig::default());
         registry.register_collector(Box::new(processor_collector));
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -179,7 +171,7 @@ mod tests {
     #[test]
     fn register_cpu_seconds() {
         let mut registry = Registry::default();
-        let processor_collector = ProcessCollector::new(None).unwrap();
+        let processor_collector = ProcessCollector::new(CollectorConfig::default());
         registry.register_collector(Box::new(processor_collector));
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -200,7 +192,7 @@ mod tests {
     #[test]
     fn register_network_receive() {
         let mut registry = Registry::default();
-        let processor_collector = ProcessCollector::new(None).unwrap();
+        let processor_collector = ProcessCollector::new(CollectorConfig::default());
         registry.register_collector(Box::new(processor_collector));
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -219,7 +211,7 @@ mod tests {
     #[test]
     fn register_network_transmit() {
         let mut registry = Registry::default();
-        let processor_collector = ProcessCollector::new(None).unwrap();
+        let processor_collector = ProcessCollector::new(CollectorConfig::default());
         registry.register_collector(Box::new(processor_collector));
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -232,6 +224,59 @@ mod tests {
         assert!(
             encoded.contains(&network_transmit),
             "encoded does not contain expected network_transmit"
+        );
+    }
+
+    #[test]
+    fn include_namespace() {
+        let mut registry = Registry::default();
+        let namespace = "namespace";
+        let config = CollectorConfig::default().with_namespace(Some(namespace.to_string()));
+        let processor_collector = ProcessCollector::new(config);
+        registry.register_collector(Box::new(processor_collector));
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let network_transmit = format!("{}_process_network_transmit_bytes_total ", namespace);
+        let network_receive = format!("{}_process_network_receive_bytes_total ", namespace);
+        let max_fds = format!("{}_process_max_fds ", namespace);
+        let open_fds = format!("{}_process_open_fds_total ", namespace);
+        let virtual_memory_max = format!("{}_process_virtual_memory_max ", namespace);
+        let virtual_memory = format!("{}_process_virtual_memory_bytes ", namespace);
+        let resident_memory = format!("{}_process_resident_memory_bytes ", namespace);
+        let start_time = format!("{}_process_start_time_seconds ", namespace);
+
+        assert!(
+            encoded.contains(&network_transmit),
+            "encoded does not contain expected network_transmit with namespace attached"
+        );
+        assert!(
+            encoded.contains(&network_receive),
+            "encoded does not contain expected network_transmit with namespace attached"
+        );
+        assert!(
+            encoded.contains(&max_fds),
+            "encoded does not contain expected network_transmit with namespace attached"
+        );
+        assert!(
+            encoded.contains(&open_fds),
+            "encoded does not contain expected network_transmit with namespace attached"
+        );
+        assert!(
+            encoded.contains(&virtual_memory_max),
+            "encoded does not contain expected network_transmit with namespace attached"
+        );
+        assert!(
+            encoded.contains(&virtual_memory),
+            "encoded does not contain expected network_transmit with namespace attached"
+        );
+        assert!(
+            encoded.contains(&resident_memory),
+            "encoded does not contain expected network_transmit with namespace attached"
+        );
+        assert!(
+            encoded.contains(&start_time),
+            "encoded does not contain expected network_transmit with namespace attached"
         );
     }
 }
