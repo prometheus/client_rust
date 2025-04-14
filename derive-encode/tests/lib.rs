@@ -205,3 +205,9 @@ fn flatten() {
         + "# EOF\n";
     assert_eq!(expected, buffer);
 }
+
+#[test]
+fn build() {
+    let t = trybuild::TestCases::new();
+    t.pass("tests/build/redefine-prelude-symbols.rs")
+}
