@@ -209,5 +209,6 @@ fn flatten() {
 #[test]
 fn build() {
     let t = trybuild::TestCases::new();
-    t.pass("tests/build/redefine-prelude-symbols.rs")
+    t.pass("tests/build/redefine-prelude-symbols.rs");
+    t.pass("tests/build/keep-impl-generics.rs");
 }

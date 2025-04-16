@@ -70,8 +70,9 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
         syn::Data::Union(_) => panic!("Can not derive Encode for union."),
     };
 
+    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     let gen = quote! {
-        impl ::prometheus_client::encoding::EncodeLabelSet for #name {
+        impl #impl_generics ::prometheus_client::encoding::EncodeLabelSet for #name #ty_generics #where_clause {
             fn encode(&self, encoder: &mut ::prometheus_client::encoding::LabelSetEncoder) -> ::core::result::Result<(), ::core::fmt::Error> {
                 use ::prometheus_client::encoding::EncodeLabel;
                 use ::prometheus_client::encoding::EncodeLabelKey;
