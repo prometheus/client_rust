@@ -71,15 +71,15 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
     };
 
     let gen = quote! {
-        impl prometheus_client::encoding::EncodeLabelSet for #name {
-            fn encode(&self, encoder: &mut prometheus_client::encoding::LabelSetEncoder) -> std::result::Result<(), std::fmt::Error> {
-                use prometheus_client::encoding::EncodeLabel;
-                use prometheus_client::encoding::EncodeLabelKey;
-                use prometheus_client::encoding::EncodeLabelValue;
+        impl ::prometheus_client::encoding::EncodeLabelSet for #name {
+            fn encode(&self, encoder: &mut ::prometheus_client::encoding::LabelSetEncoder) -> ::core::result::Result<(), ::core::fmt::Error> {
+                use ::prometheus_client::encoding::EncodeLabel;
+                use ::prometheus_client::encoding::EncodeLabelKey;
+                use ::prometheus_client::encoding::EncodeLabelValue;
 
                 #body
 
-                Ok(())
+                ::core::result::Result::Ok(())
             }
         }
     };
@@ -118,13 +118,13 @@ pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
     };
 
     let gen = quote! {
-        impl prometheus_client::encoding::EncodeLabelValue for #name {
-            fn encode(&self, encoder: &mut prometheus_client::encoding::LabelValueEncoder) -> std::result::Result<(), std::fmt::Error> {
-                use std::fmt::Write;
+        impl ::prometheus_client::encoding::EncodeLabelValue for #name {
+            fn encode(&self, encoder: &mut ::prometheus_client::encoding::LabelValueEncoder) -> ::core::result::Result<(), ::core::fmt::Error> {
+                use ::core::fmt::Write;
 
                 #body
 
-                Ok(())
+                ::core::result::Result::Ok(())
             }
         }
     };

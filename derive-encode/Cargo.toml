@@ -18,6 +18,7 @@ syn = "2"
 
 [dev-dependencies]
 prometheus-client = { path = "../", features = ["protobuf"] }
+trybuild = "1"
 
 [lib]
 proc-macro = true
