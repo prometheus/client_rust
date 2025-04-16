@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `EncodeLabelSet::encode()` now accepts a mutable reference to its encoder parameter.
+- Emit better compilation error message when deriving marcos `EncodeLabelSet` and `EncodeLabelValue`.
+  See [PR 267].
 
 ### Fixed
 
