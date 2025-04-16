@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-// empty module has nothing and be used to redefine symbols
+// Empty module has nothing and can be used to redefine symbols.
 mod empty {}
 
 // redefine the prelude `::std`
