@@ -26,10 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed an issue where the derive marcos `EncodeLabelSet` and `EncodeLabelValue` didn't work
+  when the `struct` has generic parameters (like `'a`).
+  See [PR 265].
+
 - Fixed an issue where the derive macro `EncodeLabelSet` didn't work
   when the `struct` has generic parameters (like `'a`).
   See [PR 267].
 
+[PR 265]: https://github.com/prometheus/client_rust/pull/265
 [PR 267]: https://github.com/prometheus/client_rust/pull/266
 
 ## [0.23.1]
