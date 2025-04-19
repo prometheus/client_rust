@@ -8,7 +8,7 @@
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::DeriveInput;
 
 /// Derive `prometheus_client::encoding::EncodeLabelSet`.
@@ -60,18 +60,41 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
                 })
                 .collect(),
             syn::Fields::Unnamed(_) => {
-                panic!("Can not derive Encode for struct with unnamed fields.")
+                return syn::Error::new_spanned(
+                    name,
+                    "Can not derive `EncodeLabelSet` for struct with unnamed fields.",
+                )
+                .to_compile_error()
+                .to_token_stream()
+                .into();
             }
-            syn::Fields::Unit => panic!("Can not derive Encode for struct with unit field."),
+            syn::Fields::Unit => {
+                return syn::Error::new_spanned(
+                    name,
+                    "Can not derive `EncodeLabelSet` for unit struct.",
+                )
+                .to_compile_error()
+                .to_token_stream()
+                .into();
+            }
         },
         syn::Data::Enum(syn::DataEnum { .. }) => {
-            panic!("Can not derive Encode for enum.")
+            return syn::Error::new_spanned(name, "Can not derive `EncodeLabelSet` for enum.")
+                .to_compile_error()
+                .to_token_stream()
+                .into();
         }
-        syn::Data::Union(_) => panic!("Can not derive Encode for union."),
+        syn::Data::Union(_) => {
+            return syn::Error::new_spanned(name, "Can not derive `EncodeLabelSet` for union.")
+                .to_compile_error()
+                .to_token_stream()
+                .into()
+        }
     };
 
+    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     let gen = quote! {
-        impl ::prometheus_client::encoding::EncodeLabelSet for #name {
+        impl #impl_generics ::prometheus_client::encoding::EncodeLabelSet for #name #ty_generics #where_clause {
             fn encode(&self, encoder: &mut ::prometheus_client::encoding::LabelSetEncoder) -> ::core::result::Result<(), ::core::fmt::Error> {
                 use ::prometheus_client::encoding::EncodeLabel;
                 use ::prometheus_client::encoding::EncodeLabelKey;
@@ -95,7 +118,10 @@ pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
 
     let body = match ast.clone().data {
         syn::Data::Struct(_) => {
-            panic!("Can not derive EncodeLabel for struct.")
+            return syn::Error::new_spanned(name, "Can not derive `EncodeLabelValue` for struct.")
+                .to_compile_error()
+                .to_token_stream()
+                .into();
         }
         syn::Data::Enum(syn::DataEnum { variants, .. }) => {
             let match_arms: TokenStream2 = variants
@@ -114,7 +140,12 @@ pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
                 }
             }
         }
-        syn::Data::Union(_) => panic!("Can not derive Encode for union."),
+        syn::Data::Union(_) => {
+            return syn::Error::new_spanned(name, "Can not derive `EncodeLabelValue` for union.")
+                .to_compile_error()
+                .to_token_stream()
+                .into()
+        }
     };
 
     let gen = quote! {

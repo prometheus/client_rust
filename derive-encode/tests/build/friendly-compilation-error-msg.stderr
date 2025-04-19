@@ -1,0 +1,41 @@
+error: Can not derive `EncodeLabelSet` for struct with unnamed fields.
+ --> tests/build/friendly-compilation-error-msg.rs:8:12
+  |
+8 |     struct Unnamed(String);
+  |            ^^^^^^^
+
+error: Can not derive `EncodeLabelSet` for unit struct.
+  --> tests/build/friendly-compilation-error-msg.rs:11:12
+   |
+11 |     struct Unit;
+   |            ^^^^
+
+error: Can not derive `EncodeLabelSet` for enum.
+  --> tests/build/friendly-compilation-error-msg.rs:14:10
+   |
+14 |     enum Enum {
+   |          ^^^^
+
+error: Can not derive `EncodeLabelSet` for enum.
+  --> tests/build/friendly-compilation-error-msg.rs:20:10
+   |
+20 |     enum DataEnum {
+   |          ^^^^^^^^
+
+error: Can not derive `EncodeLabelSet` for union.
+  --> tests/build/friendly-compilation-error-msg.rs:27:11
+   |
+27 |     union Union {
+   |           ^^^^^
+
+error: Can not derive `EncodeLabelValue` for struct.
+  --> tests/build/friendly-compilation-error-msg.rs:37:12
+   |
+37 |     struct Struct {
+   |            ^^^^^^
+
+error: Can not derive `EncodeLabelValue` for union.
+  --> tests/build/friendly-compilation-error-msg.rs:44:11
+   |
+44 |     union Union {
+   |           ^^^^^
