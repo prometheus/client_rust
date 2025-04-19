@@ -1,27 +1,17 @@
+use proc_macro2::Span;
 use quote::ToTokens;
 use syn::spanned::Spanned;
-use proc_macro2::Span;
 
 // do not derive debug since this needs "extra-traits"
 // feature for crate `syn`, which slows compile time
 // too much, and is not needed as this struct is not
 // public.
+#[derive(Default)]
 pub struct Attribute {
     pub help: Option<syn::LitStr>,
     pub unit: Option<syn::LitStr>,
     pub rename: Option<syn::LitStr>,
     pub skip: bool,
-}
-
-impl Default for Attribute {
-    fn default() -> Self {
-        Attribute {
-            help: None,
-            unit: None,
-            rename: None,
-            skip: false,
-        }
-    }
 }
 
 impl Attribute {
@@ -39,10 +29,11 @@ impl Attribute {
             let mut acc = merged
                 .help
                 .unwrap_or_else(|| syn::LitStr::new("", doc.span()))
-                .value().trim()
+                .value()
+                .trim()
                 .to_string();
             acc.push(' ');
-            acc.push_str(&doc.value().trim());
+            acc.push_str(doc.value().trim());
             merged.help = Some(syn::LitStr::new(&acc, Span::call_site()));
         }
         if let Some(unit) = other.unit {
@@ -82,12 +73,12 @@ impl syn::parse::Parse for Attribute {
             syn::Meta::NameValue(meta) if meta.path.is_ident("doc") => {
                 if let syn::Expr::Lit(lit) = meta.value {
                     let lit_str = syn::parse2::<syn::LitStr>(lit.lit.to_token_stream())?;
-                    return Ok(Attribute::default().with_help(lit_str));
+                    Ok(Attribute::default().with_help(lit_str))
                 } else {
-                    return Err(syn::Error::new_spanned(
+                    Err(syn::Error::new_spanned(
                         meta.value,
                         "Expected a string literal for doc attribute",
-                    ));
+                    ))
                 }
             }
             syn::Meta::List(meta) if meta.path.is_ident("registrant") => {
@@ -135,12 +126,10 @@ impl syn::parse::Parse for Attribute {
                 })?;
                 Ok(attr)
             }
-            _ => {
-                return Err(syn::Error::new(
-                    span,
-                    r#"Unknown attribute, expected `#[doc(...)]` or `#[registrant(<key>[=value], ...)]`"#,
-                ))
-            }
+            _ => Err(syn::Error::new(
+                span,
+                r#"Unknown attribute, expected `#[doc(...)]` or `#[registrant(<key>[=value], ...)]`"#,
+            )),
         }
     }
 }

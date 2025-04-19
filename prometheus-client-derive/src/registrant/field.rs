@@ -1,6 +1,6 @@
-use quote::ToTokens;
-use crate::registrant::attribute;
 use super::attribute::Attribute;
+use crate::registrant::attribute;
+use quote::ToTokens;
 
 // do not derive debug since this needs "extra-traits"
 // feature for crate `syn`, which slows compile time
@@ -25,13 +25,10 @@ impl Field {
     }
 
     pub(super) fn help(&self) -> syn::LitStr {
-        self.attr.help.clone()
-            .unwrap_or_else(|| {
-                syn::LitStr::new(
-                    "",
-                    self.ident.span(),
-                )
-            })
+        self.attr
+            .help
+            .clone()
+            .unwrap_or_else(|| syn::LitStr::new("", self.ident.span()))
     }
 
     pub(super) fn unit(&self) -> Option<&syn::LitStr> {
@@ -47,28 +44,22 @@ impl TryFrom<syn::Field> for Field {
     type Error = syn::Error;
 
     fn try_from(field: syn::Field) -> Result<Self, Self::Error> {
-        let ident = field.ident.clone().expect("Fields::Named should have an identifier");
-        let name = syn::LitStr::new(
-            &ident.to_string(),
-            ident.span(),
-        );
+        let ident = field
+            .ident
+            .clone()
+            .expect("Fields::Named should have an identifier");
+        let name = syn::LitStr::new(&ident.to_string(), ident.span());
         let attr = field
             .attrs
             .into_iter()
             // ignore unknown attributes, which might be defined by another derive macros.
-            .filter(|attr| attr.path().is_ident("doc") || attr.path().is_ident("registrant") )
+            .filter(|attr| attr.path().is_ident("doc") || attr.path().is_ident("registrant"))
             .try_fold(vec![], |mut acc, attr| {
                 acc.push(syn::parse2::<Attribute>(attr.meta.into_token_stream())?);
                 Ok::<Vec<attribute::Attribute>, syn::Error>(acc)
             })?
             .into_iter()
-            .try_fold(Attribute::default(), |acc, attr| {
-                acc.merge(attr)
-            })?;
-        Ok(Field{
-            ident,
-            name,
-            attr,
-        })
+            .try_fold(Attribute::default(), |acc, attr| acc.merge(attr))?;
+        Ok(Field { ident, name, attr })
     }
 }
