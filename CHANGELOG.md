@@ -14,9 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Family::get_or_create_owned` can access a metric in a labeled family. This
    method avoids the risk of runtime deadlocks at the expense of creating an
    owned type. See [PR 244].
- 
+
+- Supported derive macro `Registrant` to register a metric set with a
+  `Registry`. See [PR 270].
+
 [PR 244]: https://github.com/prometheus/client_rust/pull/244
 [PR 257]: https://github.com/prometheus/client_rust/pull/257
+[PR 270]: https://github.com/prometheus/client_rust/pull/270
 
 ### Changed
 

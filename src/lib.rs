@@ -83,3 +83,6 @@ pub mod collector;
 pub mod encoding;
 pub mod metrics;
 pub mod registry;
+
+#[doc(inline)]
+pub use prometheus_client_derive::Registrant;
