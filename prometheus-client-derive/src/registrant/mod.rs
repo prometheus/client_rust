@@ -6,7 +6,6 @@ use quote::quote;
 
 pub fn registrant_impl(input: TokenStream2) -> Result<TokenStream2> {
     let ast = syn::parse2::<syn::DeriveInput>(input)?;
-    // dbg!(&ast);
     let name = ast.ident;
     let fields = match ast.data {
         syn::Data::Struct(body) => match body.fields {
