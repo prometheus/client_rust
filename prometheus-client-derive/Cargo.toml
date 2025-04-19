@@ -1,0 +1,23 @@
+[package]
+name = "prometheus-client-derive"
+version = "0.24.0"
+authors = ["Max Inden <mail@max-inden.de>"]
+edition = "2021"
+description = "Macros to derive auxiliary traits for the prometheus-client library."
+license = "Apache-2.0 OR MIT"
+keywords = ["derive", "prometheus", "metrics", "instrumentation", "monitoring"]
+repository = "https://github.com/prometheus/client_rust"
+homepage = "https://github.com/prometheus/client_rust"
+documentation = "https://docs.rs/prometheus-client"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
+
+[dev-dependencies]
+prometheus-client = { path = "../" }
+trybuild = { workspace = true }

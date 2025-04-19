@@ -389,3 +389,15 @@ pub trait Metric: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug 
 
 impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
 {}
+
+/// Something that can be registered
+pub trait Registrant {
+    // An alternative signature would be:
+    // ```
+    // fn register(registry: &mut Registry) -> Self;
+    // ```
+    // But this is not dyn compatible.
+
+    /// Register into the given registry.
+    fn register(&self, registry: &mut Registry);
+}
