@@ -23,17 +23,17 @@ impl Attribute {
     pub(super) fn merge(self, other: Self) -> syn::Result<Self> {
         let mut merged = self;
 
-        if let Some(doc) = other.help {
+        if let Some(help) = other.help {
             // trim leading and trailing whitespace
             // and add a space between the two doc strings
             let mut acc = merged
                 .help
-                .unwrap_or_else(|| syn::LitStr::new("", doc.span()))
+                .unwrap_or_else(|| syn::LitStr::new("", help.span()))
                 .value()
                 .trim()
                 .to_string();
             acc.push(' ');
-            acc.push_str(doc.value().trim());
+            acc.push_str(help.value().trim());
             merged.help = Some(syn::LitStr::new(&acc, Span::call_site()));
         }
         if let Some(unit) = other.unit {
