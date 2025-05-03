@@ -341,6 +341,33 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         self.metrics.write().clear()
     }
 
+    /// Returns the number of metrics in this family.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    /// assert_eq!(family.len(), 0);
+    ///
+    /// // Will create the metric with label `method="GET"` on first call and
+    /// // return a reference.
+    /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc();
+    /// assert_eq!(family.len(), 1);
+    ///
+    /// // Clear the family of all label sets.
+    /// family.clear();
+    /// assert_eq!(family.len(), 0);
+    /// ```
+    pub fn len(&self) -> usize {
+        self.metrics.read().len()
+    }
+
+    /// Returns `true` if the family contains no metrics.
+    pub fn is_empty(&self) -> bool {
+        self.metrics.read().is_empty()
+    }
+
     pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
         self.metrics.read()
     }
