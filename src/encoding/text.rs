@@ -45,6 +45,7 @@ use crate::registry::{Prefix, Registry, Unit};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
 
 /// Encode both the metrics registered with the provided [`Registry`] and the
 /// EOF marker into the provided [`Write`]r using the OpenMetrics text format.
@@ -182,10 +183,43 @@ where
     writer.write_str("# EOF\n")
 }
 
+/// Encode the metrics registered with the provided [`Registry`] into the
+/// provided [`Write`]r using the OpenMetrics text format (with timestamps included).
+pub fn encode_with_timestamps<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
+    registry.encode(
+        &mut DescriptorEncoder::new(writer)
+            .with_timestamp()
+            .map_err(|_| std::fmt::Error)?
+            .into(),
+    )?;
+    writer.write_str("# EOF\n")?;
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+struct UnixTimestamp(f64);
+
+impl UnixTimestamp {
+    fn now() -> Result<Self, SystemTimeError> {
+        let sys_time = SystemTime::now();
+        sys_time
+            .duration_since(UNIX_EPOCH)
+            .map(|d| Self(d.as_secs_f64()))
+    }
+
+    fn as_f64(&self) -> f64 {
+        self.0
+    }
+}
+
 pub(crate) struct DescriptorEncoder<'a> {
     writer: &'a mut dyn Write,
     prefix: Option<&'a Prefix>,
     labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
+    timestamp: Option<UnixTimestamp>,
 }
 
 impl std::fmt::Debug for DescriptorEncoder<'_> {
@@ -200,6 +234,7 @@ impl DescriptorEncoder<'_> {
             writer,
             prefix: Default::default(),
             labels: Default::default(),
+            timestamp: Default::default(),
         }
     }
 
@@ -212,6 +247,7 @@ impl DescriptorEncoder<'_> {
             prefix,
             labels,
             writer: self.writer,
+            timestamp: self.timestamp,
         }
     }
 
@@ -271,7 +307,13 @@ impl DescriptorEncoder<'_> {
             unit,
             const_labels: self.labels,
             family_labels: None,
+            timestamp: self.timestamp,
         })
+    }
+
+    fn with_timestamp(mut self) -> Result<Self, SystemTimeError> {
+        self.timestamp = Some(UnixTimestamp::now()?);
+        Ok(self)
     }
 }
 
@@ -291,6 +333,7 @@ pub(crate) struct MetricEncoder<'a> {
     unit: Option<&'a Unit>,
     const_labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
     family_labels: Option<&'a dyn super::EncodeLabelSet>,
+    timestamp: Option<UnixTimestamp>,
 }
 
 impl std::fmt::Debug for MetricEncoder<'_> {
@@ -301,13 +344,20 @@ impl std::fmt::Debug for MetricEncoder<'_> {
             l.encode(&mut encoder)?;
         }
 
-        f.debug_struct("Encoder")
+        let mut debug_struct = f.debug_struct("Encoder");
+
+        debug_struct
             .field("name", &self.name)
             .field("prefix", &self.prefix)
             .field("unit", &self.unit)
             .field("const_labels", &self.const_labels)
-            .field("labels", &labels.as_str())
-            .finish()
+            .field("labels", &labels.as_str());
+
+        if let Some(timestamp) = &self.timestamp {
+            debug_struct.field("timestamp", &timestamp.as_f64());
+        }
+
+        debug_struct.finish()
     }
 }
 
@@ -334,6 +384,8 @@ impl MetricEncoder<'_> {
             .into(),
         )?;
 
+        self.encode_timestamp()?;
+
         if let Some(exemplar) = exemplar {
             self.encode_exemplar(exemplar)?;
         }
@@ -357,6 +409,8 @@ impl MetricEncoder<'_> {
             }
             .into(),
         )?;
+
+        self.encode_timestamp()?;
 
         self.newline()?;
 
@@ -393,6 +447,7 @@ impl MetricEncoder<'_> {
             unit: self.unit,
             const_labels: self.const_labels,
             family_labels: Some(label_set),
+            timestamp: self.timestamp,
         })
     }
 
@@ -408,6 +463,7 @@ impl MetricEncoder<'_> {
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(sum))?;
+        self.encode_timestamp()?;
         self.newline()?;
 
         self.write_prefix_name_unit()?;
@@ -415,6 +471,7 @@ impl MetricEncoder<'_> {
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(count))?;
+        self.encode_timestamp()?;
         self.newline()?;
 
         let mut cummulative = 0;
@@ -433,6 +490,8 @@ impl MetricEncoder<'_> {
             self.writer.write_str(" ")?;
             self.writer
                 .write_str(itoa::Buffer::new().format(cummulative))?;
+
+            self.encode_timestamp()?;
 
             if let Some(exemplar) = exemplars.and_then(|e| e.get(&i)) {
                 self.encode_exemplar(exemplar)?
@@ -460,12 +519,14 @@ impl MetricEncoder<'_> {
             }
             .into(),
         )?;
+        self.encode_timestamp()?;
         Ok(())
     }
 
     fn newline(&mut self) -> Result<(), std::fmt::Error> {
         self.writer.write_str("\n")
     }
+
     fn write_prefix_name_unit(&mut self) -> Result<(), std::fmt::Error> {
         if let Some(prefix) = self.prefix {
             self.writer.write_str(prefix.as_str())?;
@@ -549,6 +610,16 @@ impl MetricEncoder<'_> {
         self.writer.write_str("}")?;
 
         Ok(())
+    }
+
+    fn encode_timestamp(&mut self) -> Result<(), std::fmt::Error> {
+        if let Some(timestamp) = &self.timestamp {
+            self.writer.write_str(" ")?;
+            self.writer
+                .write_str(dtoa::Buffer::new().format(timestamp.as_f64()))
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -749,8 +820,12 @@ mod tests {
         let counter_u32 = Counter::<u32, AtomicU32>::default();
         registry.register("u32_counter", "Counter::<u32, AtomicU32>", counter_u32);
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -770,6 +845,11 @@ mod tests {
             + "my_counter_seconds_total 0\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -801,6 +881,11 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -818,8 +903,12 @@ mod tests {
         registry.register("i32_gauge", "Gauge::<i32, AtomicU32>", gauge_i32);
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -838,8 +927,12 @@ mod tests {
             .inc();
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -861,7 +954,6 @@ mod tests {
             .inc();
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
 
         let expected = "# HELP my_prefix_my_counter_family My counter family.\n"
@@ -870,6 +962,11 @@ mod tests {
             + "my_prefix_my_counter_family_total{my_key=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -890,6 +987,11 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -900,8 +1002,12 @@ mod tests {
         histogram.observe(1.0);
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -920,8 +1026,12 @@ mod tests {
             .observe(1.0);
 
         let mut encoded = String::new();
-
         encode(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -978,6 +1088,11 @@ mod tests {
             + "my_histogram_bucket{le=\"+Inf\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
@@ -1054,6 +1169,11 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
+
+        parse_with_python_client(encoded);
     }
 
     #[test]
@@ -1111,6 +1231,11 @@ mod tests {
             + "prefix_1_prefix_1_2_sub_sub_level_total 42\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+
+        let mut encoded = String::new();
+        encode_with_timestamps(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
     }
