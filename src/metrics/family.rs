@@ -341,6 +341,33 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         self.metrics.write().clear()
     }
 
+    /// Retains only the label sets specified by the predicate.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    ///
+    /// // Will create the metric with label `method="GET"` on first call and
+    /// // return a reference.
+    /// family.get_or_create(&vec![("method".to_owned(), "GET".to_owned())]).inc_by(10);
+    /// family.get_or_create(&vec![("method".to_owned(), "DELETE".to_owned())]).inc();
+    /// family.get_or_create(&vec![("method".to_owned(), "POST".to_owned())]).inc();
+    ///
+    /// // Retain only label sets where the counter is less than 10, or method="POST"
+    /// // This will leave the method="POST" and method="DELETE" label sets.
+    /// family.retain(|labels, counter| {
+    ///     counter.get() < 5 || labels.contains(&("method".to_owned(), "POST".to_owned()))
+    /// });
+    /// ```
+    pub fn retain<F>(&self, f: F)
+    where
+        F: FnMut(&S, &mut M) -> bool,
+    {
+        self.metrics.write().retain(f)
+    }
+
     pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
         self.metrics.read()
     }
