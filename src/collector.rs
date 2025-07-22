@@ -39,3 +39,9 @@ pub trait Collector: std::fmt::Debug + Send + Sync + 'static {
     /// Once the [`Collector`] is registered, this method is called on each scrape.
     fn encode(&self, encoder: DescriptorEncoder) -> Result<(), std::fmt::Error>;
 }
+
+impl<T: Collector> Collector for std::sync::Arc<T> {
+    fn encode(&self, encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
+        self.as_ref().encode(encoder)
+    }
+}
