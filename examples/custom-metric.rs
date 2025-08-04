@@ -41,5 +41,5 @@ fn main() {
     let mut encoded = String::new();
     encode(&mut encoded, &registry).unwrap();
 
-    println!("Scrape output:\n{:?}", encoded);
+    println!("Scrape output:\n{encoded:?}");
 }

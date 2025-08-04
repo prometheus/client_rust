@@ -1218,7 +1218,7 @@ mod tests {
     fn parse_with_python_client(input: String) {
         pyo3::prepare_freethreaded_python();
 
-        println!("{:?}", input);
+        println!("{input:?}");
         Python::with_gil(|py| {
             let parser = PyModule::from_code_bound(
                 py,
