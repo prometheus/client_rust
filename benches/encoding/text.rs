@@ -54,12 +54,12 @@ pub fn text(c: &mut Criterion) {
             });
 
             registry.register(
-                format!("my_counter_{}", i),
+                format!("my_counter_{i}"),
                 "My counter",
                 counter_family.clone(),
             );
             registry.register(
-                format!("my_histogram_{}", i),
+                format!("my_histogram_{i}"),
                 "My histogram",
                 histogram_family.clone(),
             );
