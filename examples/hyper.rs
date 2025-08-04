@@ -76,7 +76,7 @@ pub fn make_handler(
         Box::pin(async move {
             let mut buf = String::new();
             encode(&mut buf, &reg.clone())
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+                .map_err(std::io::Error::other)
                 .map(|_| {
                     let body = full(Bytes::from(buf));
                     Response::builder()

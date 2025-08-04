@@ -47,12 +47,12 @@ pub fn proto(c: &mut Criterion) {
                 });
 
             registry.register(
-                format!("my_counter{}", i),
+                format!("my_counter{i}"),
                 "My counter",
                 counter_family.clone(),
             );
             registry.register(
-                format!("my_histogram{}", i),
+                format!("my_histogram{i}"),
                 "My histogram",
                 histogram_family.clone(),
             );
@@ -60,7 +60,7 @@ pub fn proto(c: &mut Criterion) {
             for j in 0_u32..100 {
                 counter_family
                     .get_or_create(&CounterLabels {
-                        path: format!("/path/{}", i),
+                        path: format!("/path/{i}"),
                         method: Method::Get,
                         some_number: j.into(),
                     })
