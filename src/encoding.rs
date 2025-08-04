@@ -415,6 +415,7 @@ impl EncodeLabelKey for Cow<'_, str> {
 
 impl<T> EncodeLabelKey for Box<T>
 where
+    T: ?Sized,
     for<'a> &'a T: EncodeLabelKey,
 {
     fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
@@ -424,6 +425,7 @@ where
 
 impl<T> EncodeLabelKey for Arc<T>
 where
+    T: ?Sized,
     for<'a> &'a T: EncodeLabelKey,
 {
     fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
@@ -433,6 +435,7 @@ where
 
 impl<T> EncodeLabelKey for Rc<T>
 where
+    T: ?Sized,
     for<'a> &'a T: EncodeLabelKey,
 {
     fn encode(&self, encoder: &mut LabelKeyEncoder) -> Result<(), std::fmt::Error> {
@@ -510,6 +513,7 @@ impl EncodeLabelValue for Cow<'_, str> {
 
 impl<T> EncodeLabelValue for Box<T>
 where
+    T: ?Sized,
     for<'a> &'a T: EncodeLabelValue,
 {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
@@ -519,6 +523,7 @@ where
 
 impl<T> EncodeLabelValue for Arc<T>
 where
+    T: ?Sized,
     for<'a> &'a T: EncodeLabelValue,
 {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
@@ -528,6 +533,7 @@ where
 
 impl<T> EncodeLabelValue for Rc<T>
 where
+    T: ?Sized,
     for<'a> &'a T: EncodeLabelValue,
 {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
