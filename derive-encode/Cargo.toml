@@ -12,13 +12,13 @@ documentation = "https://docs.rs/prometheus-client-derive-text-encode"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-proc-macro2 = "1"
-quote = "1"
-syn = "2"
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
 
 [dev-dependencies]
 prometheus-client = { path = "../", features = ["protobuf"] }
-trybuild = "1"
+trybuild = { workspace = true }
 
 [lib]
 proc-macro = true
