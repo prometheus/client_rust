@@ -16,12 +16,14 @@ use std::sync::atomic::AtomicU32;
 #[cfg(target_has_atomic = "64")]
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 /// An OpenMetrics exemplar.
 #[derive(Debug)]
 pub struct Exemplar<S, V> {
     pub(crate) label_set: S,
     pub(crate) value: V,
+    pub(crate) time: SystemTime,
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +123,7 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
         inner.exemplar = label_set.map(|label_set| Exemplar {
             label_set,
             value: v.clone(),
+            time: SystemTime::now(),
         });
 
         inner.counter.inc_by(v)
@@ -256,6 +259,7 @@ impl<S> HistogramWithExemplars<S> {
                 Exemplar {
                     label_set,
                     value: v,
+                    time: SystemTime::now(),
                 },
             );
         }

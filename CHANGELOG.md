@@ -17,10 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `impl<T: Collector> Collector for std::sync::Arc<T>`.
    See [PR 273].
- 
+
+- Exemplar timestamps, which are required for `convert_classic_histograms_to_nhcb: true`
+  in Prometheus scraping. See [PR 276].
+
 [PR 244]: https://github.com/prometheus/client_rust/pull/244
 [PR 257]: https://github.com/prometheus/client_rust/pull/257
 [PR 273]: https://github.com/prometheus/client_rust/pull/273
+[PR 276]: https://github.com/prometheus/client_rust/pull/276
 
 ### Changed
 

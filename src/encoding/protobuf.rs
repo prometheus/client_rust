@@ -311,7 +311,7 @@ impl<S: EncodeLabelSet, V: EncodeExemplarValue> TryFrom<&Exemplar<S, V>>
 
         Ok(openmetrics_data_model::Exemplar {
             value,
-            timestamp: Default::default(),
+            timestamp: Some(exemplar.time.into()),
             label: labels,
         })
     }
@@ -442,6 +442,8 @@ impl std::fmt::Write for LabelValueEncoder<'_> {
 
 #[cfg(test)]
 mod tests {
+    use prost_types::Timestamp;
+
     use super::*;
     use crate::metrics::counter::Counter;
     use crate::metrics::exemplar::{CounterWithExemplar, HistogramWithExemplars};
@@ -454,6 +456,7 @@ mod tests {
     use std::collections::HashSet;
     use std::sync::atomic::AtomicI64;
     use std::sync::atomic::AtomicU64;
+    use std::time::SystemTime;
 
     #[test]
     fn encode_counter_int() {
@@ -531,6 +534,9 @@ mod tests {
 
     #[test]
     fn encode_counter_with_exemplar() {
+        let now = SystemTime::now();
+        let now_ts: Timestamp = now.into();
+
         let mut registry = Registry::default();
 
         let counter_with_exemplar: CounterWithExemplar<Vec<(String, f64)>, f64> =
@@ -542,6 +548,14 @@ mod tests {
         );
 
         counter_with_exemplar.inc_by(1.0, Some(vec![("user_id".to_string(), 42.0)]));
+
+        counter_with_exemplar
+            .inner
+            .write()
+            .exemplar
+            .as_mut()
+            .unwrap()
+            .time = now;
 
         let metric_set = encode(&registry).unwrap();
 
@@ -562,6 +576,8 @@ mod tests {
 
                 let exemplar = value.exemplar.as_ref().unwrap();
                 assert_eq!(1.0, exemplar.value);
+
+                assert_eq!(&now_ts, exemplar.timestamp.as_ref().unwrap());
 
                 let expected_label = {
                     openmetrics_data_model::Label {
@@ -784,10 +800,22 @@ mod tests {
 
     #[test]
     fn encode_histogram_with_exemplars() {
+        let now = SystemTime::now();
+        let now_ts: Timestamp = now.into();
+
         let mut registry = Registry::default();
         let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0, Some(vec![("user_id".to_string(), 42u64)]));
+
+        histogram
+            .inner
+            .write()
+            .exemplars
+            .get_mut(&0)
+            .as_mut()
+            .unwrap()
+            .time = now;
 
         let metric_set = encode(&registry).unwrap();
 
@@ -804,6 +832,8 @@ mod tests {
             openmetrics_data_model::metric_point::Value::HistogramValue(value) => {
                 let exemplar = value.buckets.first().unwrap().exemplar.as_ref().unwrap();
                 assert_eq!(1.0, exemplar.value);
+
+                assert_eq!(&now_ts, exemplar.timestamp.as_ref().unwrap());
 
                 let expected_label = {
                     openmetrics_data_model::Label {

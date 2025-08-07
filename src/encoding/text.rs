@@ -37,7 +37,7 @@
 //! assert_eq!(expected_msg, buffer);
 //! ```
 
-use crate::encoding::{EncodeExemplarValue, EncodeLabelSet, NoLabelSet};
+use crate::encoding::{EncodeExemplarTime, EncodeExemplarValue, EncodeLabelSet, NoLabelSet};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -460,6 +460,13 @@ impl MetricEncoder<'_> {
             }
             .into(),
         )?;
+        self.writer.write_char(' ')?;
+        exemplar.time.encode(
+            ExemplarValueEncoder {
+                writer: self.writer,
+            }
+            .into(),
+        )?;
         Ok(())
     }
 
@@ -737,6 +744,7 @@ mod tests {
     use std::borrow::Cow;
     use std::fmt::Error;
     use std::sync::atomic::{AtomicI32, AtomicU32};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn encode_counter() {
@@ -776,6 +784,8 @@ mod tests {
 
     #[test]
     fn encode_counter_with_exemplar() {
+        let now = SystemTime::now();
+
         let mut registry = Registry::default();
 
         let counter_with_exemplar: CounterWithExemplar<Vec<(String, u64)>> =
@@ -789,6 +799,14 @@ mod tests {
 
         counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), 42)]));
 
+        counter_with_exemplar
+            .inner
+            .write()
+            .exemplar
+            .as_mut()
+            .unwrap()
+            .time = now;
+
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
 
@@ -796,7 +814,9 @@ mod tests {
             .to_owned()
             + "# TYPE my_counter_with_exemplar_seconds counter\n"
             + "# UNIT my_counter_with_exemplar_seconds seconds\n"
-            + "my_counter_with_exemplar_seconds_total 1 # {user_id=\"42\"} 1.0\n"
+            + "my_counter_with_exemplar_seconds_total 1 # {user_id=\"42\"} 1.0 "
+            + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
+            + "\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
@@ -953,10 +973,21 @@ mod tests {
 
     #[test]
     fn encode_histogram_with_exemplars() {
+        let now = SystemTime::now();
+
         let mut registry = Registry::default();
         let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my_histogram", "My histogram", histogram.clone());
         histogram.observe(1.0, Some([("user_id".to_string(), 42u64)]));
+
+        histogram
+            .inner
+            .write()
+            .exemplars
+            .get_mut(&0)
+            .as_mut()
+            .unwrap()
+            .time = now;
 
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -965,7 +996,9 @@ mod tests {
             + "# TYPE my_histogram histogram\n"
             + "my_histogram_sum 1.0\n"
             + "my_histogram_count 1\n"
-            + "my_histogram_bucket{le=\"1.0\"} 1 # {user_id=\"42\"} 1.0\n"
+            + "my_histogram_bucket{le=\"1.0\"} 1 # {user_id=\"42\"} 1.0 "
+            + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
+            + "\n"
             + "my_histogram_bucket{le=\"2.0\"} 1\n"
             + "my_histogram_bucket{le=\"4.0\"} 1\n"
             + "my_histogram_bucket{le=\"8.0\"} 1\n"
