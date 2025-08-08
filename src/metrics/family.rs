@@ -263,7 +263,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     /// NB: This method can cause deadlocks if multiple metrics within this family are read at
     /// once. Use [`Family::get_or_create_owned()`] if you would like to avoid this by cloning the
     /// metric `M`.
-    pub fn get_or_create(&self, label_set: &S) -> MappedRwLockReadGuard<M> {
+    pub fn get_or_create(&self, label_set: &S) -> MappedRwLockReadGuard<'_, M> {
         if let Some(metric) = self.get(label_set) {
             return metric;
         }
@@ -296,7 +296,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
     ///     metric.inc();
     /// };
     /// ```
-    pub fn get(&self, label_set: &S) -> Option<MappedRwLockReadGuard<M>> {
+    pub fn get(&self, label_set: &S) -> Option<MappedRwLockReadGuard<'_, M>> {
         RwLockReadGuard::try_map(self.metrics.read(), |metrics| metrics.get(label_set)).ok()
     }
 
@@ -341,7 +341,7 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         self.metrics.write().clear()
     }
 
-    pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<S, M>> {
+    pub(crate) fn read(&self) -> RwLockReadGuard<'_, HashMap<S, M>> {
         self.metrics.read()
     }
 }
