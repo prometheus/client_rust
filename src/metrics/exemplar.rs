@@ -128,7 +128,7 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
 
     /// Get the current value of the [`CounterWithExemplar`] as well as its
     /// [`Exemplar`] if any.
-    pub fn get(&self) -> (N, MappedRwLockReadGuard<Option<Exemplar<S, N>>>) {
+    pub fn get(&self) -> (N, MappedRwLockReadGuard<'_, Option<Exemplar<S, N>>>) {
         let inner = self.inner.read();
         let value = inner.counter.get();
         let exemplar = RwLockReadGuard::map(inner, |inner| &inner.exemplar);
@@ -143,7 +143,7 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
     /// The caller of this function has to uphold the property of an Open
     /// Metrics counter namely that the value is monotonically increasing, i.e.
     /// either stays the same or increases.
-    pub fn inner(&self) -> MappedRwLockReadGuard<A> {
+    pub fn inner(&self) -> MappedRwLockReadGuard<'_, A> {
         RwLockReadGuard::map(self.inner.read(), |inner| inner.counter.inner())
     }
 }
@@ -261,7 +261,7 @@ impl<S> HistogramWithExemplars<S> {
         }
     }
 
-    pub(crate) fn inner(&self) -> RwLockReadGuard<HistogramWithExemplarsInner<S>> {
+    pub(crate) fn inner(&self) -> RwLockReadGuard<'_, HistogramWithExemplarsInner<S>> {
         self.inner.read()
     }
 }

@@ -195,7 +195,7 @@ impl std::fmt::Debug for DescriptorEncoder<'_> {
 }
 
 impl DescriptorEncoder<'_> {
-    pub(crate) fn new(writer: &mut dyn Write) -> DescriptorEncoder {
+    pub(crate) fn new(writer: &mut dyn Write) -> DescriptorEncoder<'_> {
         DescriptorEncoder {
             writer,
             prefix: Default::default(),
@@ -643,7 +643,7 @@ impl<'a> LabelSetEncoder<'a> {
         }
     }
 
-    pub fn encode_label(&mut self) -> LabelEncoder {
+    pub fn encode_label(&mut self) -> LabelEncoder<'_> {
         let first = self.first;
         self.first = false;
         LabelEncoder {
@@ -667,7 +667,7 @@ impl std::fmt::Debug for LabelEncoder<'_> {
 }
 
 impl LabelEncoder<'_> {
-    pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder, std::fmt::Error> {
+    pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder<'_>, std::fmt::Error> {
         if !self.first {
             self.writer.write_str(",")?;
         }
