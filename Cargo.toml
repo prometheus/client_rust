@@ -49,6 +49,10 @@ name = "baseline"
 harness = false
 
 [[bench]]
+name = "exemplars"
+harness = false
+
+[[bench]]
 name = "family"
 harness = false
 
