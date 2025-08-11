@@ -72,7 +72,7 @@ pub(crate) struct DescriptorEncoder<'a> {
 impl DescriptorEncoder<'_> {
     pub(crate) fn new(
         metric_families: &mut Vec<openmetrics_data_model::MetricFamily>,
-    ) -> DescriptorEncoder {
+    ) -> DescriptorEncoder<'_> {
         DescriptorEncoder {
             metric_families,
             prefix: Default::default(),
@@ -232,7 +232,7 @@ impl MetricEncoder<'_> {
     pub fn encode_family<S: EncodeLabelSet>(
         &mut self,
         label_set: &S,
-    ) -> Result<MetricEncoder, std::fmt::Error> {
+    ) -> Result<MetricEncoder<'_>, std::fmt::Error> {
         let mut labels = self.labels.clone();
         label_set.encode(
             &mut LabelSetEncoder {
@@ -382,7 +382,7 @@ pub(crate) struct LabelSetEncoder<'a> {
 }
 
 impl LabelSetEncoder<'_> {
-    pub fn encode_label(&mut self) -> LabelEncoder {
+    pub fn encode_label(&mut self) -> LabelEncoder<'_> {
         LabelEncoder {
             labels: self.labels,
         }
@@ -395,7 +395,7 @@ pub(crate) struct LabelEncoder<'a> {
 }
 
 impl LabelEncoder<'_> {
-    pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder, std::fmt::Error> {
+    pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder<'_>, std::fmt::Error> {
         self.labels.push(openmetrics_data_model::Label::default());
 
         Ok(LabelKeyEncoder {
