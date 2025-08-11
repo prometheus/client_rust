@@ -460,13 +460,15 @@ impl MetricEncoder<'_> {
             }
             .into(),
         )?;
-        self.writer.write_char(' ')?;
-        exemplar.time.encode(
-            ExemplarValueEncoder {
-                writer: self.writer,
-            }
-            .into(),
-        )?;
+        if let Some(timestamp) = exemplar.timestamp {
+            self.writer.write_char(' ')?;
+            timestamp.encode(
+                ExemplarValueEncoder {
+                    writer: self.writer,
+                }
+                .into(),
+            )?;
+        }
         Ok(())
     }
 
@@ -797,15 +799,7 @@ mod tests {
             counter_with_exemplar.clone(),
         );
 
-        counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), 42)]));
-
-        counter_with_exemplar
-            .inner
-            .write()
-            .exemplar
-            .as_mut()
-            .unwrap()
-            .time = now;
+        counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), 42)]), None);
 
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
@@ -814,7 +808,22 @@ mod tests {
             .to_owned()
             + "# TYPE my_counter_with_exemplar_seconds counter\n"
             + "# UNIT my_counter_with_exemplar_seconds seconds\n"
-            + "my_counter_with_exemplar_seconds_total 1 # {user_id=\"42\"} 1.0 "
+            + "my_counter_with_exemplar_seconds_total 1 # {user_id=\"42\"} 1.0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        parse_with_python_client(encoded);
+
+        counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), 99)]), Some(now));
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_counter_with_exemplar_seconds My counter with exemplar.\n"
+            .to_owned()
+            + "# TYPE my_counter_with_exemplar_seconds counter\n"
+            + "# UNIT my_counter_with_exemplar_seconds seconds\n"
+            + "my_counter_with_exemplar_seconds_total 2 # {user_id=\"99\"} 1.0 "
             + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
             + "\n"
             + "# EOF\n";
@@ -978,37 +987,30 @@ mod tests {
         let mut registry = Registry::default();
         let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my_histogram", "My histogram", histogram.clone());
-        histogram.observe(1.0, Some([("user_id".to_string(), 42u64)]));
 
-        histogram
-            .inner
-            .write()
-            .exemplars
-            .get_mut(&0)
-            .as_mut()
-            .unwrap()
-            .time = now;
+        histogram.observe(1.0, Some([("user_id".to_string(), 42u64)]), Some(now));
+        histogram.observe(2.0, Some([("user_id".to_string(), 99u64)]), None);
 
         let mut encoded = String::new();
         encode(&mut encoded, &registry).unwrap();
 
         let expected = "# HELP my_histogram My histogram.\n".to_owned()
             + "# TYPE my_histogram histogram\n"
-            + "my_histogram_sum 1.0\n"
-            + "my_histogram_count 1\n"
+            + "my_histogram_sum 3.0\n"
+            + "my_histogram_count 2\n"
             + "my_histogram_bucket{le=\"1.0\"} 1 # {user_id=\"42\"} 1.0 "
             + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
             + "\n"
-            + "my_histogram_bucket{le=\"2.0\"} 1\n"
-            + "my_histogram_bucket{le=\"4.0\"} 1\n"
-            + "my_histogram_bucket{le=\"8.0\"} 1\n"
-            + "my_histogram_bucket{le=\"16.0\"} 1\n"
-            + "my_histogram_bucket{le=\"32.0\"} 1\n"
-            + "my_histogram_bucket{le=\"64.0\"} 1\n"
-            + "my_histogram_bucket{le=\"128.0\"} 1\n"
-            + "my_histogram_bucket{le=\"256.0\"} 1\n"
-            + "my_histogram_bucket{le=\"512.0\"} 1\n"
-            + "my_histogram_bucket{le=\"+Inf\"} 1\n"
+            + "my_histogram_bucket{le=\"2.0\"} 2 # {user_id=\"99\"} 2.0\n"
+            + "my_histogram_bucket{le=\"4.0\"} 2\n"
+            + "my_histogram_bucket{le=\"8.0\"} 2\n"
+            + "my_histogram_bucket{le=\"16.0\"} 2\n"
+            + "my_histogram_bucket{le=\"32.0\"} 2\n"
+            + "my_histogram_bucket{le=\"64.0\"} 2\n"
+            + "my_histogram_bucket{le=\"128.0\"} 2\n"
+            + "my_histogram_bucket{le=\"256.0\"} 2\n"
+            + "my_histogram_bucket{le=\"512.0\"} 2\n"
+            + "my_histogram_bucket{le=\"+Inf\"} 2\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
 

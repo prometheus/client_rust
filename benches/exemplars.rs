@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use criterion::{criterion_group, criterion_main, Criterion};
 use prometheus_client::metrics::exemplar::HistogramWithExemplars;
 use prometheus_client::metrics::histogram::Histogram;
@@ -19,7 +21,7 @@ pub fn exemplars(c: &mut Criterion) {
         let histogram = HistogramWithExemplars::<Exemplar>::new(BUCKETS.iter().copied());
 
         b.iter(|| {
-            histogram.observe(1.0, None);
+            histogram.observe(1.0, None, None);
         });
     });
 
@@ -28,7 +30,7 @@ pub fn exemplars(c: &mut Criterion) {
         let exemplar = vec![("TraceID".to_owned(), "deadfeed".to_owned())];
 
         b.iter(|| {
-            histogram.observe(1.0, Some(exemplar.clone()));
+            histogram.observe(1.0, Some(exemplar.clone()), Some(SystemTime::now()));
         });
     });
 }
