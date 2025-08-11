@@ -43,20 +43,20 @@ pub fn family(c: &mut Criterion) {
     });
 
     c.bench_function("counter family with custom type label set", |b| {
-        #[derive(Clone, Hash, PartialEq, Eq)]
+        #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
         struct Labels {
             method: Method,
             status: Status,
         }
 
-        #[derive(Clone, Hash, PartialEq, Eq)]
+        #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
         enum Method {
             Get,
             #[allow(dead_code)]
             Put,
         }
 
-        #[derive(Clone, Hash, PartialEq, Eq)]
+        #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
         enum Status {
             Two,
             #[allow(dead_code)]
