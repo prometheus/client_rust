@@ -1,0 +1,5 @@
+error: expected string literal
+ --> tests/build/04-unit.rs:9:25
+  |
+9 |     #[registrant(unit = bytes)]
+  |                         ^^^^^
