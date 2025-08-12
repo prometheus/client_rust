@@ -49,6 +49,17 @@ pub trait EncodeMetric {
     // One can not use [`TypedMetric`] directly, as associated constants are not
     // object safe and thus can not be used with dynamic dispatching.
     fn metric_type(&self) -> MetricType;
+
+    /// Check if the metric is empty.
+    ///
+    /// An empty metric is a metric that has no data to encode, and thus should not have any
+    /// descriptor in the final output.
+    ///
+    /// By default, this returns `false`, ensuring the metric and its description is always
+    /// encoded.
+    fn is_empty(&self) -> bool {
+        false
+    }
 }
 
 impl EncodeMetric for Box<dyn EncodeMetric> {
