@@ -16,12 +16,14 @@ use std::sync::atomic::AtomicU32;
 #[cfg(target_has_atomic = "64")]
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 /// An OpenMetrics exemplar.
 #[derive(Debug)]
 pub struct Exemplar<S, V> {
     pub(crate) label_set: S,
     pub(crate) value: V,
+    pub(crate) timestamp: Option<SystemTime>,
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -33,7 +35,7 @@ pub struct Exemplar<S, V> {
 /// ```
 /// # use prometheus_client::metrics::exemplar::CounterWithExemplar;
 /// let counter_with_exemplar = CounterWithExemplar::<Vec<(String, String)>>::default();
-/// counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), "42".to_string())]));
+/// counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), "42".to_string())]), None);
 /// let _value: (u64, _) = counter_with_exemplar.get();
 /// ```
 /// You can also use exemplars with families. Just wrap the exemplar in a Family.
@@ -63,6 +65,7 @@ pub struct Exemplar<S, V> {
 ///         Some(TraceLabel {
 ///             trace_id: "3a2f90c9f80b894f".to_owned(),
 ///         }),
+///         None,
 ///     );
 /// ```
 #[cfg(target_has_atomic = "64")]
@@ -115,12 +118,13 @@ impl<S, N: Clone, A: counter::Atomic<N>> CounterWithExemplar<S, N, A> {
 
     /// Increase the [`CounterWithExemplar`] by `v`, updating the [`Exemplar`]
     /// if a label set is provided, returning the previous value.
-    pub fn inc_by(&self, v: N, label_set: Option<S>) -> N {
+    pub fn inc_by(&self, v: N, label_set: Option<S>, timestamp: Option<SystemTime>) -> N {
         let mut inner = self.inner.write();
 
         inner.exemplar = label_set.map(|label_set| Exemplar {
             label_set,
             value: v.clone(),
+            timestamp,
         });
 
         inner.counter.inc_by(v)
@@ -175,7 +179,7 @@ where
 /// # use prometheus_client::metrics::exemplar::HistogramWithExemplars;
 /// # use prometheus_client::metrics::histogram::exponential_buckets;
 /// let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
-/// histogram.observe(4.2, Some(vec![("user_id".to_string(), "42".to_string())]));
+/// histogram.observe(4.2, Some(vec![("user_id".to_string(), "42".to_string())]), None);
 /// ```
 /// You can also use exemplars with families. Just wrap the exemplar in a Family.
 /// ```
@@ -207,6 +211,7 @@ where
 ///         Some(TraceLabel {
 ///             trace_id: "3a2f90c9f80b894f".to_owned(),
 ///         }),
+///         None,
 ///     );
 /// ```
 #[derive(Debug)]
@@ -247,7 +252,7 @@ impl<S> HistogramWithExemplars<S> {
 
     /// Observe the given value, optionally providing a label set and thus
     /// setting the [`Exemplar`] value.
-    pub fn observe(&self, v: f64, label_set: Option<S>) {
+    pub fn observe(&self, v: f64, label_set: Option<S>, timestamp: Option<SystemTime>) {
         let mut inner = self.inner.write();
         let bucket = inner.histogram.observe_and_bucket(v);
         if let (Some(bucket), Some(label_set)) = (bucket, label_set) {
@@ -256,6 +261,7 @@ impl<S> HistogramWithExemplars<S> {
                 Exemplar {
                     label_set,
                     value: v,
+                    timestamp,
                 },
             );
         }

@@ -311,7 +311,7 @@ impl<S: EncodeLabelSet, V: EncodeExemplarValue> TryFrom<&Exemplar<S, V>>
 
         Ok(openmetrics_data_model::Exemplar {
             value,
-            timestamp: Default::default(),
+            timestamp: exemplar.timestamp.map(Into::into),
             label: labels,
         })
     }
@@ -442,6 +442,8 @@ impl std::fmt::Write for LabelValueEncoder<'_> {
 
 #[cfg(test)]
 mod tests {
+    use prost_types::Timestamp;
+
     use super::*;
     use crate::metrics::counter::Counter;
     use crate::metrics::exemplar::{CounterWithExemplar, HistogramWithExemplars};
@@ -454,6 +456,7 @@ mod tests {
     use std::collections::HashSet;
     use std::sync::atomic::AtomicI64;
     use std::sync::atomic::AtomicU64;
+    use std::time::SystemTime;
 
     #[test]
     fn encode_counter_int() {
@@ -531,6 +534,9 @@ mod tests {
 
     #[test]
     fn encode_counter_with_exemplar() {
+        let now = SystemTime::now();
+        let now_ts: Timestamp = now.into();
+
         let mut registry = Registry::default();
 
         let counter_with_exemplar: CounterWithExemplar<Vec<(String, f64)>, f64> =
@@ -541,7 +547,7 @@ mod tests {
             counter_with_exemplar.clone(),
         );
 
-        counter_with_exemplar.inc_by(1.0, Some(vec![("user_id".to_string(), 42.0)]));
+        counter_with_exemplar.inc_by(1.0, Some(vec![("user_id".to_string(), 42.0)]), None);
 
         let metric_set = encode(&registry).unwrap();
 
@@ -563,10 +569,36 @@ mod tests {
                 let exemplar = value.exemplar.as_ref().unwrap();
                 assert_eq!(1.0, exemplar.value);
 
+                assert!(exemplar.timestamp.is_none());
+
                 let expected_label = {
                     openmetrics_data_model::Label {
                         name: "user_id".to_string(),
                         value: "42.0".to_string(),
+                    }
+                };
+                assert_eq!(vec![expected_label], exemplar.label);
+            }
+            _ => panic!("wrong value type"),
+        }
+
+        counter_with_exemplar.inc_by(1.0, Some(vec![("user_id".to_string(), 99.0)]), Some(now));
+
+        match extract_metric_point_value(&encode(&registry).unwrap()) {
+            openmetrics_data_model::metric_point::Value::CounterValue(value) => {
+                // The counter should be encoded  as `DoubleValue`
+                let expected = openmetrics_data_model::counter_value::Total::DoubleValue(2.0);
+                assert_eq!(Some(expected), value.total);
+
+                let exemplar = value.exemplar.as_ref().unwrap();
+                assert_eq!(1.0, exemplar.value);
+
+                assert_eq!(&now_ts, exemplar.timestamp.as_ref().unwrap());
+
+                let expected_label = {
+                    openmetrics_data_model::Label {
+                        name: "user_id".to_string(),
+                        value: "99.0".to_string(),
                     }
                 };
                 assert_eq!(vec![expected_label], exemplar.label);
@@ -784,10 +816,14 @@ mod tests {
 
     #[test]
     fn encode_histogram_with_exemplars() {
+        let now = SystemTime::now();
+        let now_ts: Timestamp = now.into();
+
         let mut registry = Registry::default();
         let histogram = HistogramWithExemplars::new(exponential_buckets(1.0, 2.0, 10));
         registry.register("my_histogram", "My histogram", histogram.clone());
-        histogram.observe(1.0, Some(vec![("user_id".to_string(), 42u64)]));
+
+        histogram.observe(1.0, Some(vec![("user_id".to_string(), 42u64)]), None);
 
         let metric_set = encode(&registry).unwrap();
 
@@ -805,10 +841,32 @@ mod tests {
                 let exemplar = value.buckets.first().unwrap().exemplar.as_ref().unwrap();
                 assert_eq!(1.0, exemplar.value);
 
+                assert!(exemplar.timestamp.is_none());
+
                 let expected_label = {
                     openmetrics_data_model::Label {
                         name: "user_id".to_string(),
                         value: "42".to_string(),
+                    }
+                };
+                assert_eq!(vec![expected_label], exemplar.label);
+            }
+            _ => panic!("wrong value type"),
+        }
+
+        histogram.observe(2.0, Some(vec![("user_id".to_string(), 99u64)]), Some(now));
+
+        match extract_metric_point_value(&encode(&registry).unwrap()) {
+            openmetrics_data_model::metric_point::Value::HistogramValue(value) => {
+                let exemplar = value.buckets.get(1).unwrap().exemplar.as_ref().unwrap();
+                assert_eq!(2.0, exemplar.value);
+
+                assert_eq!(&now_ts, exemplar.timestamp.as_ref().unwrap());
+
+                let expected_label = {
+                    openmetrics_data_model::Label {
+                        name: "user_id".to_string(),
+                        value: "99".to_string(),
                     }
                 };
                 assert_eq!(vec![expected_label], exemplar.label);

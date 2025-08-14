@@ -11,6 +11,7 @@ use std::fmt::Write;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "protobuf")]
 #[cfg_attr(docsrs, doc(cfg(feature = "protobuf")))]
@@ -757,6 +758,18 @@ impl EncodeExemplarValue for f32 {
 impl EncodeExemplarValue for u32 {
     fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode(*self as f64)
+    }
+}
+
+/// An encodable exemplar time.
+pub trait EncodeExemplarTime {
+    /// Encode the time in the OpenMetrics text encoding.
+    fn encode(&self, encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error>;
+}
+
+impl EncodeExemplarTime for SystemTime {
+    fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
+        encoder.encode(self.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
     }
 }
 
