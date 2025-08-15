@@ -13,13 +13,13 @@ use prometheus_client_derive_encode::{EncodeLabelSet, EncodeLabelValue};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
+#[derive(Clone, Debug, Ord, PartialOrd, PartialEq, Eq, EncodeLabelValue)]
 pub enum Method {
     Get,
     Post,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+#[derive(Clone, Debug, Ord, PartialOrd, PartialEq, Eq, EncodeLabelSet)]
 pub struct MethodLabels {
     pub method: Method,
 }
