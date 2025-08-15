@@ -5,7 +5,13 @@ authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2021"
 description = "Open Metrics client library allowing users to natively instrument applications."
 license = "Apache-2.0 OR MIT"
-keywords = ["openmetrics", "prometheus", "metrics", "instrumentation", "monitoring"]
+keywords = [
+  "openmetrics",
+  "prometheus",
+  "metrics",
+  "instrumentation",
+  "monitoring",
+]
 repository = "https://github.com/prometheus/client_rust"
 homepage = "https://github.com/prometheus/client_rust"
 documentation = "https://docs.rs/prometheus-client"
@@ -16,6 +22,7 @@ protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
 
 [workspace]
 members = ["derive-encode"]
+exclude = ["process-collector"]
 
 [dependencies]
 dtoa = "1.0"
@@ -36,7 +43,12 @@ quickcheck = "1"
 rand = "0.8.4"
 tide = "0.16"
 actix-web = "4"
-tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "signal"] }
+tokio = { version = "1", features = [
+  "rt-multi-thread",
+  "net",
+  "macros",
+  "signal",
+] }
 hyper = { version = "1.3.1", features = ["server", "http1"] }
 hyper-util = { version = "0.1.3", features = ["tokio"] }
 http-body-util = "0.1.1"
