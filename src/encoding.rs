@@ -607,6 +607,21 @@ impl EncodeGaugeValue for u64 {
     }
 }
 
+impl EncodeGaugeValue for isize {
+    fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
+        // Is infallible for 32-bit or 64-bit platforms
+        encoder.encode_i64(i64::try_from(*self).map_err(|_err| std::fmt::Error)?)
+    }
+}
+
+impl EncodeGaugeValue for usize {
+    fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
+        // For 32-bit platforms this is infallible, for 64-bit platforms the argument is the same
+        // as the one for u64 values
+        encoder.encode_i64(i64::try_from(*self).map_err(|_err| std::fmt::Error)?)
+    }
+}
+
 impl EncodeGaugeValue for f64 {
     fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_f64(*self)
@@ -672,6 +687,13 @@ pub trait EncodeCounterValue {
 impl EncodeCounterValue for u64 {
     fn encode(&self, encoder: &mut CounterValueEncoder) -> Result<(), std::fmt::Error> {
         encoder.encode_u64(*self)
+    }
+}
+
+impl EncodeCounterValue for usize {
+    fn encode(&self, encoder: &mut CounterValueEncoder) -> Result<(), std::fmt::Error> {
+        // Is infallible for 32-bit and 64-bit platforms
+        encoder.encode_u64(u64::try_from(*self).map_err(|_err| std::fmt::Error)?)
     }
 }
 
