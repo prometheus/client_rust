@@ -601,13 +601,9 @@ impl EncodeGaugeValue for i64 {
 impl EncodeGaugeValue for u64 {
     fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
         // Between forcing end users to do endless as i64 for things that are
-        // clearly u64 and having one error case for rarely used protobuf when
-        // a gauge is set to u64::MAX, the latter seems like the right choice.
-        if *self == u64::MAX {
-            return Err(std::fmt::Error);
-        }
-
-        encoder.encode_i64(*self as i64)
+        // clearly valid i64 and having one error case for rarely used protobuf when
+        // a gauge is set to >i64::MAX, the latter seems like the right choice.
+        encoder.encode_i64(i64::try_from(*self).map_err(|_err| std::fmt::Error)?)
     }
 }
 
@@ -619,13 +615,13 @@ impl EncodeGaugeValue for f64 {
 
 impl EncodeGaugeValue for i32 {
     fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_i64(*self as i64)
+        encoder.encode_i64(i64::from(*self))
     }
 }
 
 impl EncodeGaugeValue for f32 {
     fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_f64(*self as f64)
+        encoder.encode_f64(f64::from(*self))
     }
 }
 
@@ -687,13 +683,13 @@ impl EncodeCounterValue for f64 {
 
 impl EncodeCounterValue for u32 {
     fn encode(&self, encoder: &mut CounterValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_u64(*self as u64)
+        encoder.encode_u64(u64::from(*self))
     }
 }
 
 impl EncodeCounterValue for f32 {
     fn encode(&self, encoder: &mut CounterValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode_f64(*self as f64)
+        encoder.encode_f64(f64::from(*self))
     }
 }
 
@@ -751,13 +747,13 @@ impl EncodeExemplarValue for u64 {
 
 impl EncodeExemplarValue for f32 {
     fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode(*self as f64)
+        encoder.encode(f64::from(*self))
     }
 }
 
 impl EncodeExemplarValue for u32 {
     fn encode(&self, mut encoder: ExemplarValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.encode(*self as f64)
+        encoder.encode(f64::from(*self))
     }
 }
 

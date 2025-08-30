@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.1]
+
+### Fixed
+
+- `EncodeGaugeValue`, `EncodeCounterValue` and `EncodeExemplarValue` now use
+  fewer `as` casts in their implementation. This caught an issue where
+  `EncodeGaugeValue` would not error when encoding some `u64`s that don't fit
+  in a `i64`. See [PR 281].
+
+[PR 281]: https://github.com/prometheus/client_rust/pull/281
+
 ## [0.24.0]
 
 ### Added
