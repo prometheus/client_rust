@@ -13,7 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `EncodeGaugeValue` would not error when encoding some `u64`s that don't fit
   in a `i64`. See [PR 281].
 
+- `EncodeGaugeValue` is implemented for `usize` and `isize`, and
+  `EncodeCounterValue` is implemented for `usize`. See [PR 282].
+
 [PR 281]: https://github.com/prometheus/client_rust/pull/281
+[PR 282]: https://github.com/prometheus/client_rust/pull/282
 
 ## [0.24.0]
 
