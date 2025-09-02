@@ -962,7 +962,7 @@ mod tests {
             Family::new_with_constructor(|| Histogram::new(exponential_buckets(1.0, 2.0, 10)));
         registry.register("my_histogram", "My histogram", family.clone());
 
-        #[derive(Eq, PartialEq, Hash, Debug, Clone)]
+        #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone)]
         struct EmptyLabels {}
 
         impl EncodeLabelSet for EmptyLabels {
@@ -1152,7 +1152,7 @@ mod tests {
 
     #[test]
     fn label_sets_can_be_composed() {
-        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+        #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
         struct Color(&'static str);
         impl EncodeLabelSet for Color {
             fn encode(
@@ -1167,7 +1167,7 @@ mod tests {
             }
         }
 
-        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+        #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
         struct Size(&'static str);
         impl EncodeLabelSet for Size {
             fn encode(
@@ -1277,5 +1277,54 @@ def parse(input):
                 .map_err(|e| e.to_string())
                 .unwrap();
         })
+    }
+
+    #[test]
+    fn metrics_are_sorted_in_registration_order() {
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        let another_counter: Counter = Counter::default();
+        registry.register("my_counter", "My counter", counter);
+        registry.register("another_counter", "Another counter", another_counter);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_counter My counter.\n".to_owned()
+            + "# TYPE my_counter counter\n"
+            + "my_counter_total 0\n"
+            + "# HELP another_counter Another counter.\n"
+            + "# TYPE another_counter counter\n"
+            + "another_counter_total 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn metric_family_is_sorted_lexicographically() {
+        let mut registry = Registry::default();
+        let gauge = Family::<Vec<(String, String)>, Gauge>::default();
+        registry.register("my_gauge", "My gauge", gauge.clone());
+
+        gauge
+            .get_or_create(&vec![("label".to_string(), "0".to_string())])
+            .set(0);
+        gauge
+            .get_or_create(&vec![("label".to_string(), "2".to_string())])
+            .set(2);
+        gauge
+            .get_or_create(&vec![("label".to_string(), "1".to_string())])
+            .set(1);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_gauge My gauge.\n".to_owned()
+            + "# TYPE my_gauge gauge\n"
+            + "my_gauge{label=\"0\"} 0\n"
+            + "my_gauge{label=\"1\"} 1\n"
+            + "my_gauge{label=\"2\"} 2\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
     }
 }
