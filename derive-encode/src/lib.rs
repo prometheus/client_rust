@@ -22,38 +22,67 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
             syn::Fields::Named(syn::FieldsNamed { named, .. }) => named
                 .into_iter()
                 .map(|f| {
-                    let attribute = f
-                        .attrs
-                        .iter()
-                        .find(|a| a.path().is_ident("prometheus"))
-                        .map(|a| a.parse_args::<syn::Ident>().unwrap().to_string());
-                    let flatten = match attribute.as_deref() {
-                        Some("flatten") => true,
-                        Some(other) => {
-                            panic!("Provided attribute '{other}', but only 'flatten' is supported")
-                        }
-                        None => false,
-                    };
                     let ident = f.ident.unwrap();
+                    let ident_string = KEYWORD_IDENTIFIERS
+                        .iter()
+                        .find(|pair| ident == pair.1)
+                        .map(|pair| pair.0.to_string())
+                        .unwrap_or_else(|| ident.to_string());
+
+                    let mut flatten = false;
+                    let mut skip_encoding_if_fn: Option<syn::Path> = None;
+
+                    for attr in f.attrs.iter().filter(|a| a.path().is_ident("prometheus")) {
+                        let result = attr.parse_nested_meta(|meta| {
+                            if meta.path.is_ident("flatten") {
+                                flatten = true;
+                                return Ok(());
+                            }
+
+                            if meta.path.is_ident("skip_encoding_if") {
+                                let lit: syn::LitStr = meta.value()?.parse()?;
+                                match lit.parse::<syn::Path>() {
+                                    Ok(path) => {
+                                        skip_encoding_if_fn = Some(path);
+                                        Ok(())
+                                    }
+                                    Err(err) => Err(err),
+                                }?;
+                                return Ok(());
+                            }
+
+                            Err(meta.error("unsupported #[prometheus(..)] attribute"))
+                        });
+
+                        if let Err(err) = result {
+                            return err.to_compile_error();
+                        }
+                    }
+
                     if flatten {
                         quote! {
-                             EncodeLabelSet::encode(&self.#ident, encoder)?;
+                            prometheus_client::encoding::EncodeLabelSet::encode(&self.#ident, encoder)?;
+                        }
+                    } else if let Some(skip_fn) = skip_encoding_if_fn {
+                        quote! {
+                            if !(#skip_fn(&self.#ident)) {
+                                let mut label_encoder = encoder.encode_label();
+                                let mut label_key_encoder = label_encoder.encode_label_key()?;
+                                prometheus_client::encoding::EncodeLabelKey::encode(&#ident_string, &mut label_key_encoder)?;
+
+                                let mut label_value_encoder = label_key_encoder.encode_label_value()?;
+                                prometheus_client::encoding::EncodeLabelValue::encode(&self.#ident, &mut label_value_encoder)?;
+                                label_value_encoder.finish()?;
+                            }
                         }
                     } else {
-                        let ident_string = KEYWORD_IDENTIFIERS
-                            .iter()
-                            .find(|pair| ident == pair.1)
-                            .map(|pair| pair.0.to_string())
-                            .unwrap_or_else(|| ident.to_string());
-
                         quote! {
                             let mut label_encoder = encoder.encode_label();
                             let mut label_key_encoder = label_encoder.encode_label_key()?;
-                            EncodeLabelKey::encode(&#ident_string, &mut label_key_encoder)?;
+                            prometheus_client::encoding::EncodeLabelKey::encode(&#ident_string, &mut label_key_encoder)?;
 
                             let mut label_value_encoder = label_key_encoder.encode_label_value()?;
-                            EncodeLabelValue::encode(&self.#ident, &mut label_value_encoder)?;
-
+                            prometheus_client::encoding::EncodeLabelValue::encode(&self.#ident, &mut label_value_encoder)?;
                             label_value_encoder.finish()?;
                         }
                     }
@@ -64,22 +93,25 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
             }
             syn::Fields::Unit => panic!("Can not derive Encode for struct with unit field."),
         },
-        syn::Data::Enum(syn::DataEnum { .. }) => {
+        syn::Data::Enum(_) => {
             panic!("Can not derive Encode for enum.")
         }
         syn::Data::Union(_) => panic!("Can not derive Encode for union."),
     };
 
     let gen = quote! {
-        impl ::prometheus_client::encoding::EncodeLabelSet for #name {
-            fn encode(&self, encoder: &mut ::prometheus_client::encoding::LabelSetEncoder) -> ::core::result::Result<(), ::core::fmt::Error> {
-                use ::prometheus_client::encoding::EncodeLabel;
-                use ::prometheus_client::encoding::EncodeLabelKey;
-                use ::prometheus_client::encoding::EncodeLabelValue;
+        impl prometheus_client::encoding::EncodeLabelSet for #name {
+            fn encode(
+                &self,
+                encoder: &mut prometheus_client::encoding::LabelSetEncoder,
+            ) -> std::result::Result<(), std::fmt::Error> {
+                use prometheus_client::encoding::EncodeLabel;
+                use prometheus_client::encoding::EncodeLabelKey;
+                use prometheus_client::encoding::EncodeLabelValue;
 
                 #body
 
-                ::core::result::Result::Ok(())
+                Ok(())
             }
         }
     };
