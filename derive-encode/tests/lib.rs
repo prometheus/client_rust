@@ -207,6 +207,61 @@ fn flatten() {
 }
 
 #[test]
+fn skip_encoding_if() {
+    fn skip_empty_string(s: &String) -> bool {
+        s.is_empty()
+    }
+
+    fn skip_zero(n: &u64) -> bool {
+        *n == 0
+    }
+
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    struct Labels {
+        method: String,
+        #[prometheus(skip_encoding_if = "skip_empty_string")]
+        path: String,
+        #[prometheus(skip_encoding_if = "skip_zero")]
+        status_code: u64,
+        user_id: u64,
+    }
+
+    let mut registry = Registry::default();
+    let family = Family::<Labels, Counter>::default();
+    registry.register("my_counter", "This is my counter", family.clone());
+
+    family
+        .get_or_create(&Labels {
+            method: "GET".to_string(),
+            path: "".to_string(), // This should be skipped
+            status_code: 0,       // This should be skipped
+            user_id: 123,
+        })
+        .inc();
+
+    family
+        .get_or_create(&Labels {
+            method: "POST".to_string(),
+            path: "/api/users".to_string(), // This should not be skipped
+            status_code: 200,               // This should not be skipped
+            user_id: 456,
+        })
+        .inc();
+
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+
+    assert!(buffer.contains("# HELP my_counter This is my counter."));
+    assert!(buffer.contains("# TYPE my_counter counter"));
+    assert!(buffer.contains("my_counter_total{method=\"GET\",user_id=\"123\"} 1"));
+    assert!(buffer.contains("my_counter_total{method=\"POST\",path=\"/api/users\",status_code=\"200\",user_id=\"456\"} 1"));
+    assert!(buffer.contains("# EOF"));
+
+    assert!(!buffer.contains("path=\"\""));
+    assert!(!buffer.contains("status_code=\"0\""));
+}
+
+#[test]
 fn build() {
     let t = trybuild::TestCases::new();
     t.pass("tests/build/redefine-prelude-symbols.rs")
