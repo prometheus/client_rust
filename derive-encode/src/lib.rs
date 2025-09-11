@@ -61,17 +61,17 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
 
                     if flatten {
                         quote! {
-                            prometheus_client::encoding::EncodeLabelSet::encode(&self.#ident, encoder)?;
+                            EncodeLabelSet::encode(&self.#ident, encoder)?;
                         }
                     } else if let Some(skip_fn) = skip_encoding_if_fn {
                         quote! {
                             if !(#skip_fn(&self.#ident)) {
                                 let mut label_encoder = encoder.encode_label();
                                 let mut label_key_encoder = label_encoder.encode_label_key()?;
-                                prometheus_client::encoding::EncodeLabelKey::encode(&#ident_string, &mut label_key_encoder)?;
+                                EncodeLabelKey::encode(&#ident_string, &mut label_key_encoder)?;
 
                                 let mut label_value_encoder = label_key_encoder.encode_label_value()?;
-                                prometheus_client::encoding::EncodeLabelValue::encode(&self.#ident, &mut label_value_encoder)?;
+                                EncodeLabelValue::encode(&self.#ident, &mut label_value_encoder)?;
                                 label_value_encoder.finish()?;
                             }
                         }
@@ -79,10 +79,10 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
                         quote! {
                             let mut label_encoder = encoder.encode_label();
                             let mut label_key_encoder = label_encoder.encode_label_key()?;
-                            prometheus_client::encoding::EncodeLabelKey::encode(&#ident_string, &mut label_key_encoder)?;
+                            EncodeLabelKey::encode(&#ident_string, &mut label_key_encoder)?;
 
                             let mut label_value_encoder = label_key_encoder.encode_label_value()?;
-                            prometheus_client::encoding::EncodeLabelValue::encode(&self.#ident, &mut label_value_encoder)?;
+                            EncodeLabelValue::encode(&self.#ident, &mut label_value_encoder)?;
                             label_value_encoder.finish()?;
                         }
                     }
@@ -100,18 +100,18 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
     };
 
     let gen = quote! {
-        impl prometheus_client::encoding::EncodeLabelSet for #name {
+        impl ::prometheus_client::encoding::EncodeLabelSet for #name {
             fn encode(
                 &self,
                 encoder: &mut prometheus_client::encoding::LabelSetEncoder,
             ) -> std::result::Result<(), std::fmt::Error> {
-                use prometheus_client::encoding::EncodeLabel;
-                use prometheus_client::encoding::EncodeLabelKey;
-                use prometheus_client::encoding::EncodeLabelValue;
+                use ::prometheus_client::encoding::EncodeLabel;
+                use ::prometheus_client::encoding::EncodeLabelKey;
+                use ::prometheus_client::encoding::EncodeLabelValue;
 
                 #body
 
-                Ok(())
+                ::core::result::Result::Ok(())
             }
         }
     };
