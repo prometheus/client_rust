@@ -287,7 +287,7 @@ impl Registry {
     }
 
     pub(crate) fn encode(&self, encoder: &mut DescriptorEncoder) -> Result<(), std::fmt::Error> {
-        for (descriptor, metric) in self.metrics.iter() {
+        for (descriptor, metric) in self.metrics.iter().filter(|(_, m)| !m.is_empty()) {
             let mut descriptor_encoder =
                 encoder.with_prefix_and_labels(self.prefix.as_ref(), &self.labels);
             let metric_encoder = descriptor_encoder.encode_descriptor(

@@ -1278,4 +1278,41 @@ def parse(input):
                 .unwrap();
         })
     }
+
+    #[test]
+    fn encode_omit_empty() {
+        let mut registry = Registry::default();
+        let counter1: Family<Vec<(&'static str, &'static str)>, Counter> = Default::default();
+        let counter2: Family<Vec<(&'static str, &'static str)>, Counter> = Default::default();
+        let counter3: Family<Vec<(&'static str, &'static str)>, Counter> = Default::default();
+
+        registry.register("counter1", "First counter", counter1.clone());
+        registry.register("counter2", "Second counter", counter2.clone());
+        registry.register("counter3", "Third counter", counter3.clone());
+
+        counter1.get_or_create(&vec![("label", "value")]).inc();
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP counter1 First counter.\n".to_owned()
+            + "# TYPE counter1 counter\n"
+            + "counter1_total{label=\"value\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        counter2.get_or_create(&vec![("label", "value")]).inc();
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP counter1 First counter.\n".to_owned()
+            + "# TYPE counter1 counter\n"
+            + "counter1_total{label=\"value\"} 1\n"
+            + "# HELP counter2 Second counter.\n"
+            + "# TYPE counter2 counter\n"
+            + "counter2_total{label=\"value\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+    }
 }
