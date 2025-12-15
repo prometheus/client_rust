@@ -1251,21 +1251,21 @@ mod tests {
     }
 
     fn parse_with_python_client(input: String) {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
 
         println!("{input:?}");
-        Python::with_gil(|py| {
-            let parser = PyModule::from_code_bound(
+        Python::attach(|py| {
+            let parser = PyModule::from_code(
                 py,
-                r#"
+                c"
 from prometheus_client.openmetrics.parser import text_string_to_metric_families
 
 def parse(input):
     families = text_string_to_metric_families(input)
     list(families)
-"#,
-                "parser.py",
-                "parser",
+",
+                c"parser.py",
+                c"parser",
             )
             .map_err(|e| e.to_string())
             .unwrap();
