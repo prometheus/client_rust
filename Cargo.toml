@@ -14,6 +14,13 @@ documentation = "https://docs.rs/prometheus-client"
 default = []
 protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
 
+# This feature provides additional APIs for testing downstream code using
+# `prometheus-client`.
+#
+# Note: Interfaces gated by this feature flag are not subject to stability
+# guarantees and may be changed or removed in patch releases.
+test-util = []
+
 [workspace]
 members = ["derive-encode"]
 

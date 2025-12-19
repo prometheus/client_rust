@@ -77,6 +77,12 @@
 //! ```
 //! See [examples] directory for more.
 //!
+//! # Features
+//!
+//! The `test-util` gates additional APIs, such as accessors, to facilitate integration and unit
+//! testing of metrics. Note that APIs gated by this feature flag are not subject to stability
+//! guarantees and may be changed or removed in patch releases.
+//!
 //! [examples]: https://github.com/prometheus/client_rust/tree/master/examples
 
 pub mod collector;

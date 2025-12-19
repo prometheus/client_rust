@@ -13,9 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `EncodeGaugeValue` would not error when encoding some `u64`s that don't fit
   in a `i64`. See [PR 281].
 - Filter out empty metric families, to match the go client. See [PR 279].
+- `Histogram` now exposes `count()` and `sum()` methods when the `test-util`
+  feature is enabled. See [PR 242].
 
 [PR 279]: https://github.com/prometheus/client_rust/pull/279
 [PR 281]: https://github.com/prometheus/client_rust/pull/281
+[PR 242]: https://github.com/prometheus/client_rust/pull/242
 
 ## [0.24.0]
 
