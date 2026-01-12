@@ -228,15 +228,15 @@ impl Registry {
     /// let subsystem_a_counter_2: Counter = Counter::default();
     ///
     /// let subsystem_a_registry = registry.sub_registry_with_prefix("subsystem_a");
-    /// registry.register("counter_1", "", subsystem_a_counter_1.clone());
-    /// registry.register("counter_2", "", subsystem_a_counter_2.clone());
+    /// subsystem_a_registry.register("counter_1", "", subsystem_a_counter_1.clone());
+    /// subsystem_a_registry.register("counter_2", "", subsystem_a_counter_2.clone());
     ///
     /// let subsystem_b_counter_1: Counter = Counter::default();
     /// let subsystem_b_counter_2: Counter = Counter::default();
     ///
-    /// let subsystem_a_registry = registry.sub_registry_with_prefix("subsystem_b");
-    /// registry.register("counter_1", "", subsystem_b_counter_1.clone());
-    /// registry.register("counter_2", "", subsystem_b_counter_2.clone());
+    /// let subsystem_b_registry = registry.sub_registry_with_prefix("subsystem_b");
+    /// subsystem_b_registry.register("counter_1", "", subsystem_b_counter_1.clone());
+    /// subsystem_b_registry.register("counter_2", "", subsystem_b_counter_2.clone());
     /// ```
     ///
     /// See [`Registry::sub_registry_with_label`] for the same functionality,
