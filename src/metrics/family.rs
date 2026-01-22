@@ -341,6 +341,27 @@ impl<S: Clone + std::hash::Hash + Eq, M, C: MetricConstructor<M>> Family<S, M, C
         self.metrics.write().clear()
     }
 
+    /// Returns `true` if the given label set exists within the metric family.
+    ///
+    /// ```
+    /// # use prometheus_client::metrics::counter::{Atomic, Counter};
+    /// # use prometheus_client::metrics::family::Family;
+    /// #
+    /// let family = Family::<Vec<(String, String)>, Counter>::default();
+    /// let get = vec![("method".to_owned(), "GET".to_owned())];
+    /// let post = vec![("method".to_owned(), "POST".to_owned())];
+    ///
+    /// // Create the metric with labels `method="GET"`.
+    /// family.get_or_create(&get).inc();
+    ///
+    /// assert!(family.contains(&get), "a `method=\"GET\"`-labeled metric exists");
+    /// assert!(!family.contains(&post), "a `method=\"POST\"`-labeled metric does NOT exist");
+    /// ```
+    #[cfg(any(test, feature = "test-util"))]
+    pub fn contains(&self, label_set: &S) -> bool {
+        self.metrics.read().get(label_set).is_some()
+    }
+
     pub(crate) fn read(&self) -> RwLockReadGuard<'_, HashMap<S, M>> {
         self.metrics.read()
     }
