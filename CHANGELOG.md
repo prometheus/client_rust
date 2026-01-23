@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Filter out empty metric families, to match the go client. See [PR 279].
 - `Histogram` now exposes `count()` and `sum()` methods when the `test-util`
   feature is enabled. See [PR 242].
-- `Family` now exposes a `contains()` method when when the `test-util` feature
+- `Family` now exposes a `contains()` method when the `test-util` feature
   is enabled. See [PR 245].
 
 [PR 279]: https://github.com/prometheus/client_rust/pull/279
