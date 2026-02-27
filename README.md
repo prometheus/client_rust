@@ -3,6 +3,7 @@
 [![Test Status](https://github.com/prometheus/client_rust/actions/workflows/rust.yml/badge.svg?event=push)](https://github.com/prometheus/client_rust/actions)
 [![Crate](https://img.shields.io/crates/v/prometheus-client.svg)](https://crates.io/crates/prometheus-client)
 [![API](https://docs.rs/prometheus-client/badge.svg)](https://docs.rs/prometheus-client)
+[![libs.tech recommends](https://libs.tech/project/323438715/badge.svg)](https://libs.tech/project/323438715/client_rust)
 
 [Rust](https://github.com/rust-lang/) client library implementation of the [Open
 Metrics specification](https://github.com/OpenObservability/OpenMetrics). Allows
