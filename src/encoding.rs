@@ -98,6 +98,16 @@ impl<'a> From<protobuf::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
     }
 }
 
+/// Select the pattern of metric serialization
+#[derive(Debug, PartialEq, Eq, Default, Clone, Copy)]
+pub enum OutputFormat {
+    /// Used for the Prometheus format which does not add the suffix to the metric names.
+    Prometheus,
+    /// Used for the OpenMetrics format which adds the suffix for the metric names.
+    #[default]
+    OpenMetrics,
+}
+
 impl DescriptorEncoder<'_> {
     pub(crate) fn with_prefix_and_labels<'s>(
         &'s mut self,
@@ -120,12 +130,16 @@ impl DescriptorEncoder<'_> {
         help: &str,
         unit: Option<&'s Unit>,
         metric_type: MetricType,
+        output_format: OutputFormat,
     ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         for_both_mut!(
             self,
             DescriptorEncoderInner,
             e,
-            Ok(e.encode_descriptor(name, help, unit, metric_type)?.into())
+            Ok(
+                e.encode_descriptor(name, help, unit, metric_type, output_format)?
+                    .into()
+            )
         )
     }
 }
@@ -203,12 +217,21 @@ impl MetricEncoder<'_> {
         &'s mut self,
         label_set: &'s S,
     ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
+        let output_format = self.output_format();
         for_both_mut!(
             self,
             MetricEncoderInner,
             e,
-            e.encode_family(label_set).map(Into::into)
+            e.encode_family(label_set, output_format).map(Into::into)
         )
+    }
+
+    /// Returns the `OutputFormat` selected for the encoder.
+    pub fn output_format(&self) -> OutputFormat {
+        match &self.0 {
+            MetricEncoderInner::Text(metric_encoder) => metric_encoder.output_format,
+            MetricEncoderInner::Protobuf(_) => Default::default(),
+        }
     }
 }
 

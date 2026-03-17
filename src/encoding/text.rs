@@ -37,7 +37,9 @@
 //! assert_eq!(expected_msg, buffer);
 //! ```
 
-use crate::encoding::{EncodeExemplarTime, EncodeExemplarValue, EncodeLabelSet, NoLabelSet};
+use crate::encoding::{
+    EncodeExemplarTime, EncodeExemplarValue, EncodeLabelSet, NoLabelSet, OutputFormat,
+};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -88,7 +90,19 @@ pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Er
 where
     W: Write,
 {
-    encode_registry(writer, registry)?;
+    encode_output_format(writer, registry, OutputFormat::OpenMetrics)
+}
+
+/// Similar to `encode` but allows to select the output format.
+pub fn encode_output_format<W>(
+    writer: &mut W,
+    registry: &Registry,
+    output_format: OutputFormat,
+) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
+    encode_registry_output_format(writer, registry, output_format)?;
     encode_eof(writer)
 }
 
@@ -142,7 +156,19 @@ pub fn encode_registry<W>(writer: &mut W, registry: &Registry) -> Result<(), std
 where
     W: Write,
 {
-    registry.encode(&mut DescriptorEncoder::new(writer).into())
+    encode_registry_output_format(writer, registry, OutputFormat::OpenMetrics)
+}
+
+/// Similar to `encode_registry` but allows to select the output format.
+pub fn encode_registry_output_format<W>(
+    writer: &mut W,
+    registry: &Registry,
+    output_format: OutputFormat,
+) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
+    registry.encode(&mut DescriptorEncoder::new(writer).into(), output_format)
 }
 
 /// Encode the EOF marker into the provided [`Write`]r using the OpenMetrics
@@ -194,6 +220,31 @@ impl std::fmt::Debug for DescriptorEncoder<'_> {
     }
 }
 
+#[inline]
+fn write_prefix_name_unit(
+    writer: &mut dyn Write,
+    prefix: Option<&Prefix>,
+    name: &str,
+    unit: Option<&Unit>,
+    suffix: Option<&str>,
+) -> Result<(), std::fmt::Error> {
+    if let Some(prefix) = prefix {
+        writer.write_str(prefix.as_str())?;
+        writer.write_str("_")?;
+    }
+    writer.write_str(name)?;
+    if let Some(unit) = unit {
+        writer.write_str("_")?;
+        writer.write_str(unit.as_str())?;
+    }
+    if let Some(suffix) = suffix {
+        writer.write_str("_")?;
+        writer.write_str(suffix)?;
+    }
+
+    Ok(())
+}
+
 impl DescriptorEncoder<'_> {
     pub(crate) fn new(writer: &mut dyn Write) -> DescriptorEncoder<'_> {
         DescriptorEncoder {
@@ -221,44 +272,24 @@ impl DescriptorEncoder<'_> {
         help: &str,
         unit: Option<&'s Unit>,
         metric_type: MetricType,
+        output_format: OutputFormat,
     ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         self.writer.write_str("# HELP ")?;
-        if let Some(prefix) = self.prefix {
-            self.writer.write_str(prefix.as_str())?;
-            self.writer.write_str("_")?;
-        }
-        self.writer.write_str(name)?;
-        if let Some(unit) = unit {
-            self.writer.write_str("_")?;
-            self.writer.write_str(unit.as_str())?;
-        }
+        write_prefix_name_unit(&mut self.writer, self.prefix, name, unit, None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(help)?;
         self.writer.write_str("\n")?;
 
         self.writer.write_str("# TYPE ")?;
-        if let Some(prefix) = self.prefix {
-            self.writer.write_str(prefix.as_str())?;
-            self.writer.write_str("_")?;
-        }
-        self.writer.write_str(name)?;
-        if let Some(unit) = unit {
-            self.writer.write_str("_")?;
-            self.writer.write_str(unit.as_str())?;
-        }
+        write_prefix_name_unit(&mut self.writer, self.prefix, name, unit, None)?;
+
         self.writer.write_str(" ")?;
         self.writer.write_str(metric_type.as_str())?;
         self.writer.write_str("\n")?;
 
         if let Some(unit) = unit {
             self.writer.write_str("# UNIT ")?;
-            if let Some(prefix) = self.prefix {
-                self.writer.write_str(prefix.as_str())?;
-                self.writer.write_str("_")?;
-            }
-            self.writer.write_str(name)?;
-            self.writer.write_str("_")?;
-            self.writer.write_str(unit.as_str())?;
+            write_prefix_name_unit(&mut self.writer, self.prefix, name, Some(unit), None)?;
             self.writer.write_str(" ")?;
             self.writer.write_str(unit.as_str())?;
             self.writer.write_str("\n")?;
@@ -271,6 +302,7 @@ impl DescriptorEncoder<'_> {
             unit,
             const_labels: self.labels,
             family_labels: None,
+            output_format,
         })
     }
 }
@@ -291,6 +323,7 @@ pub(crate) struct MetricEncoder<'a> {
     unit: Option<&'a Unit>,
     const_labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
     family_labels: Option<&'a dyn super::EncodeLabelSet>,
+    pub(super) output_format: OutputFormat,
 }
 
 impl std::fmt::Debug for MetricEncoder<'_> {
@@ -321,9 +354,15 @@ impl MetricEncoder<'_> {
         v: &CounterValue,
         exemplar: Option<&Exemplar<S, ExemplarValue>>,
     ) -> Result<(), std::fmt::Error> {
-        self.write_prefix_name_unit()?;
-
-        self.write_suffix("total")?;
+        write_prefix_name_unit(
+            &mut self.writer,
+            self.prefix,
+            self.name,
+            self.unit,
+            self.output_format
+                .eq(&OutputFormat::OpenMetrics)
+                .then_some("total"),
+        )?;
 
         self.encode_labels::<NoLabelSet>(None)?;
 
@@ -347,7 +386,7 @@ impl MetricEncoder<'_> {
         &mut self,
         v: &GaugeValue,
     ) -> Result<(), std::fmt::Error> {
-        self.write_prefix_name_unit()?;
+        write_prefix_name_unit(&mut self.writer, self.prefix, self.name, self.unit, None)?;
 
         self.encode_labels::<NoLabelSet>(None)?;
 
@@ -364,9 +403,15 @@ impl MetricEncoder<'_> {
     }
 
     pub fn encode_info<S: EncodeLabelSet>(&mut self, label_set: &S) -> Result<(), std::fmt::Error> {
-        self.write_prefix_name_unit()?;
-
-        self.write_suffix("info")?;
+        write_prefix_name_unit(
+            &mut self.writer,
+            self.prefix,
+            self.name,
+            self.unit,
+            self.output_format
+                .eq(&OutputFormat::OpenMetrics)
+                .then_some("info"),
+        )?;
 
         self.encode_labels(Some(label_set))?;
 
@@ -383,6 +428,7 @@ impl MetricEncoder<'_> {
     pub fn encode_family<'s, S: EncodeLabelSet>(
         &'s mut self,
         label_set: &'s S,
+        output_format: OutputFormat,
     ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         debug_assert!(self.family_labels.is_none());
 
@@ -393,6 +439,7 @@ impl MetricEncoder<'_> {
             unit: self.unit,
             const_labels: self.const_labels,
             family_labels: Some(label_set),
+            output_format,
         })
     }
 
@@ -403,15 +450,25 @@ impl MetricEncoder<'_> {
         buckets: &[(f64, u64)],
         exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
     ) -> Result<(), std::fmt::Error> {
-        self.write_prefix_name_unit()?;
-        self.write_suffix("sum")?;
+        write_prefix_name_unit(
+            &mut self.writer,
+            self.prefix,
+            self.name,
+            self.unit,
+            Some("sum"),
+        )?;
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(dtoa::Buffer::new().format(sum))?;
         self.newline()?;
 
-        self.write_prefix_name_unit()?;
-        self.write_suffix("count")?;
+        write_prefix_name_unit(
+            &mut self.writer,
+            self.prefix,
+            self.name,
+            self.unit,
+            Some("count"),
+        )?;
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(count))?;
@@ -421,8 +478,13 @@ impl MetricEncoder<'_> {
         for (i, (upper_bound, count)) in buckets.iter().enumerate() {
             cummulative += count;
 
-            self.write_prefix_name_unit()?;
-            self.write_suffix("bucket")?;
+            write_prefix_name_unit(
+                &mut self.writer,
+                self.prefix,
+                self.name,
+                self.unit,
+                Some("bucket"),
+            )?;
 
             if *upper_bound == f64::MAX {
                 self.encode_labels(Some(&[("le", "+Inf")]))?;
@@ -474,26 +536,6 @@ impl MetricEncoder<'_> {
 
     fn newline(&mut self) -> Result<(), std::fmt::Error> {
         self.writer.write_str("\n")
-    }
-    fn write_prefix_name_unit(&mut self) -> Result<(), std::fmt::Error> {
-        if let Some(prefix) = self.prefix {
-            self.writer.write_str(prefix.as_str())?;
-            self.writer.write_str("_")?;
-        }
-        self.writer.write_str(self.name)?;
-        if let Some(unit) = self.unit {
-            self.writer.write_str("_")?;
-            self.writer.write_str(unit.as_str())?;
-        }
-
-        Ok(())
-    }
-
-    fn write_suffix(&mut self, suffix: &'static str) -> Result<(), std::fmt::Error> {
-        self.writer.write_str("_")?;
-        self.writer.write_str(suffix)?;
-
-        Ok(())
     }
 
     // TODO: Consider caching the encoded labels for Histograms as they stay the
@@ -782,6 +824,16 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        encoded = String::new();
+        encode_output_format(&mut encoded, &registry, OutputFormat::Prometheus).unwrap();
+
+        let expected = "# HELP my_counter_seconds My counter.\n".to_owned()
+            + "# TYPE my_counter_seconds counter\n"
+            + "# UNIT my_counter_seconds seconds\n"
+            + "my_counter_seconds 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
     }
 
     #[test]
@@ -817,13 +869,13 @@ mod tests {
         counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), 99)]), Some(now));
 
         let mut encoded = String::new();
-        encode(&mut encoded, &registry).unwrap();
+        encode_output_format(&mut encoded, &registry, OutputFormat::Prometheus).unwrap();
 
         let expected = "# HELP my_counter_with_exemplar_seconds My counter with exemplar.\n"
             .to_owned()
             + "# TYPE my_counter_with_exemplar_seconds counter\n"
             + "# UNIT my_counter_with_exemplar_seconds seconds\n"
-            + "my_counter_with_exemplar_seconds_total 2 # {user_id=\"99\"} 1.0 "
+            + "my_counter_with_exemplar_seconds 2 # {user_id=\"99\"} 1.0 "
             + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
             + "\n"
             + "# EOF\n";
@@ -901,6 +953,15 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        encoded = String::new();
+        encode_output_format(&mut encoded, &registry, OutputFormat::Prometheus).unwrap();
+
+        let expected = "# HELP my_prefix_my_counter_family My counter family.\n".to_owned()
+            + "# TYPE my_prefix_my_counter_family counter\n"
+            + "my_prefix_my_counter_family{my_key=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
     }
 
     #[test]
@@ -919,6 +980,14 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        encoded = String::new();
+        encode_output_format(&mut encoded, &registry, OutputFormat::Prometheus).unwrap();
+        let expected = "# HELP my_info_metric My info metric.\n".to_owned()
+            + "# TYPE my_info_metric info\n"
+            + "my_info_metric{os=\"GNU/linux\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
     }
 
     #[test]
@@ -1015,6 +1084,29 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        encoded = String::new();
+        encode_output_format(&mut encoded, &registry, OutputFormat::Prometheus).unwrap();
+
+        let expected = "# HELP my_histogram My histogram.\n".to_owned()
+            + "# TYPE my_histogram histogram\n"
+            + "my_histogram_sum 3.0\n"
+            + "my_histogram_count 2\n"
+            + "my_histogram_bucket{le=\"1.0\"} 1 # {user_id=\"42\"} 1.0 "
+            + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
+            + "\n"
+            + "my_histogram_bucket{le=\"2.0\"} 2 # {user_id=\"99\"} 2.0\n"
+            + "my_histogram_bucket{le=\"4.0\"} 2\n"
+            + "my_histogram_bucket{le=\"8.0\"} 2\n"
+            + "my_histogram_bucket{le=\"16.0\"} 2\n"
+            + "my_histogram_bucket{le=\"32.0\"} 2\n"
+            + "my_histogram_bucket{le=\"64.0\"} 2\n"
+            + "my_histogram_bucket{le=\"128.0\"} 2\n"
+            + "my_histogram_bucket{le=\"256.0\"} 2\n"
+            + "my_histogram_bucket{le=\"512.0\"} 2\n"
+            + "my_histogram_bucket{le=\"+Inf\"} 2\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
     }
 
     #[test]
@@ -1089,6 +1181,33 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        encoded = String::new();
+        encode_output_format(&mut encoded, &registry, OutputFormat::Prometheus).unwrap();
+
+        let expected = "# HELP my_top_level_metric some help.\n".to_owned()
+            + "# TYPE my_top_level_metric counter\n"
+            + "my_top_level_metric 0\n"
+            + "# HELP prefix_1_my_prefix_1_metric some help.\n"
+            + "# TYPE prefix_1_my_prefix_1_metric counter\n"
+            + "prefix_1_my_prefix_1_metric 0\n"
+            + "# HELP prefix_1_prefix_1_1_my_prefix_1_1_metric some help.\n"
+            + "# TYPE prefix_1_prefix_1_1_my_prefix_1_1_metric counter\n"
+            + "prefix_1_prefix_1_1_my_prefix_1_1_metric 0\n"
+            + "# HELP prefix_1_my_prefix_1_2_metric some help.\n"
+            + "# TYPE prefix_1_my_prefix_1_2_metric counter\n"
+            + "prefix_1_my_prefix_1_2_metric{registry=\"1_2\"} 0\n"
+            + "# HELP prefix_1_my_prefix_1_3_metric some help.\n"
+            + "# TYPE prefix_1_my_prefix_1_3_metric counter\n"
+            + "prefix_1_my_prefix_1_3_metric{label_1_3_1=\"value_1_3_1\",label_1_3_2=\"value_1_3_2\"} 0\n"
+            + "# HELP prefix_1_prefix_1_3_1_my_prefix_1_3_1_metric some help.\n"
+            + "# TYPE prefix_1_prefix_1_3_1_my_prefix_1_3_1_metric counter\n"
+            + "prefix_1_prefix_1_3_1_my_prefix_1_3_1_metric{label_1_3_1=\"value_1_3_1\",label_1_3_2=\"value_1_3_2\"} 0\n"
+            + "# HELP prefix_3_my_prefix_3_metric some help.\n"
+            + "# TYPE prefix_3_my_prefix_3_metric counter\n"
+            + "prefix_3_my_prefix_3_metric 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
     }
 
     #[test]
@@ -1110,6 +1229,7 @@ mod tests {
             fn encode(
                 &self,
                 mut encoder: crate::encoding::DescriptorEncoder,
+                output_format: OutputFormat,
             ) -> Result<(), std::fmt::Error> {
                 let counter = crate::metrics::counter::ConstCounter::new(42u64);
                 let metric_encoder = encoder.encode_descriptor(
@@ -1117,6 +1237,7 @@ mod tests {
                     "some help",
                     None,
                     counter.metric_type(),
+                    output_format,
                 )?;
                 counter.encode(metric_encoder)?;
                 Ok(())
@@ -1148,6 +1269,21 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        encoded = String::new();
+        encode_output_format(&mut encoded, &registry, OutputFormat::Prometheus).unwrap();
+
+        let expected = "# HELP top_level some help\n".to_owned()
+            + "# TYPE top_level counter\n"
+            + "top_level 42\n"
+            + "# HELP prefix_1_sub_level some help\n"
+            + "# TYPE prefix_1_sub_level counter\n"
+            + "prefix_1_sub_level 42\n"
+            + "# HELP prefix_1_prefix_1_2_sub_sub_level some help\n"
+            + "# TYPE prefix_1_prefix_1_2_sub_sub_level counter\n"
+            + "prefix_1_prefix_1_2_sub_sub_level 42\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
     }
 
     #[test]
@@ -1202,6 +1338,15 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+
+        encoded = String::new();
+        encode_output_format(&mut encoded, &registry, OutputFormat::Prometheus).unwrap();
+
+        let expected = "# HELP items Example metric.\n\
+                        # TYPE items counter\n\
+                        items{color=\"red\",size=\"large\"} 1\n\
+                        # EOF\n";
+        assert_eq!(expected, encoded);
     }
 
     #[test]
@@ -1304,15 +1449,15 @@ def parse(input):
         counter2.get_or_create(&vec![("label", "value")]).inc();
 
         let mut encoded = String::new();
-        encode(&mut encoded, &registry).unwrap();
+        encode_output_format(&mut encoded, &registry, OutputFormat::Prometheus).unwrap();
 
         let expected = "# HELP counter1 First counter.\n".to_owned()
             + "# TYPE counter1 counter\n"
-            + "counter1_total{label=\"value\"} 1\n"
+            + "counter1{label=\"value\"} 1\n"
             + "# HELP counter2 Second counter.\n"
             + "# TYPE counter2 counter\n"
-            + "counter2_total{label=\"value\"} 1\n"
+            + "counter2{label=\"value\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
     }
-}
+} 

@@ -32,6 +32,7 @@ pub mod openmetrics_data_model {
 
 use std::{borrow::Cow, collections::HashMap};
 
+use crate::encoding::OutputFormat;
 use crate::metrics::MetricType;
 use crate::registry::{Registry, Unit};
 use crate::{metrics::exemplar::Exemplar, registry::Prefix};
@@ -43,7 +44,7 @@ use super::{EncodeCounterValue, EncodeExemplarValue, EncodeGaugeValue, EncodeLab
 pub fn encode(registry: &Registry) -> Result<openmetrics_data_model::MetricSet, std::fmt::Error> {
     let mut metric_set = openmetrics_data_model::MetricSet::default();
     let mut descriptor_encoder = DescriptorEncoder::new(&mut metric_set.metric_families).into();
-    registry.encode(&mut descriptor_encoder)?;
+    registry.encode(&mut descriptor_encoder, OutputFormat::OpenMetrics)?;
     Ok(metric_set)
 }
 
@@ -98,6 +99,7 @@ impl DescriptorEncoder<'_> {
         help: &str,
         unit: Option<&Unit>,
         metric_type: MetricType,
+        _output_format: OutputFormat,
     ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
         let family = openmetrics_data_model::MetricFamily {
             name: {
@@ -232,6 +234,7 @@ impl MetricEncoder<'_> {
     pub fn encode_family<S: EncodeLabelSet>(
         &mut self,
         label_set: &S,
+        _output_format: OutputFormat,
     ) -> Result<MetricEncoder<'_>, std::fmt::Error> {
         let mut labels = self.labels.clone();
         label_set.encode(
