@@ -6,6 +6,9 @@ The `build.rs` script in this library depends upon the
 [Protocol Buffers compiler][protoc]. Be sure that `protoc` is installed and
 available within your `PATH`.
 
+If you enable the off-by-default `protobuf-protox` feature, the build uses
+`protox` instead and does not require `protoc`.
+
 [protoc]: https://docs.rs/prost-build/latest/prost_build/#sourcing-protoc
 
 ## Python Dependencies
