@@ -13,6 +13,7 @@ documentation = "https://docs.rs/prometheus-client"
 [features]
 default = []
 protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
+protobuf-protox = ["protobuf", "dep:protox"]
 
 # This feature provides additional APIs for testing downstream code using
 # `prometheus-client`.
@@ -50,6 +51,7 @@ http-body-util = "0.1.1"
 
 [build-dependencies]
 prost-build = { version = "0.14", optional = true }
+protox = { version = "0.9.1", optional = true }
 
 [[bench]]
 name = "baseline"
