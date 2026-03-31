@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use crate::collector::Collector;
-use crate::encoding::{DescriptorEncoder, EncodeMetric};
+use crate::encoding::{DescriptorEncoder, EncodeMetric, OutputFormat};
 
 /// A metric registry.
 ///
@@ -286,7 +286,11 @@ impl Registry {
             .expect("sub_registries not to be empty.")
     }
 
-    pub(crate) fn encode(&self, encoder: &mut DescriptorEncoder) -> Result<(), std::fmt::Error> {
+    pub(crate) fn encode(
+        &self,
+        encoder: &mut DescriptorEncoder,
+        output_format: OutputFormat,
+    ) -> Result<(), std::fmt::Error> {
         for (descriptor, metric) in self.metrics.iter().filter(|(_, m)| !m.is_empty()) {
             let mut descriptor_encoder =
                 encoder.with_prefix_and_labels(self.prefix.as_ref(), &self.labels);
@@ -295,6 +299,7 @@ impl Registry {
                 &descriptor.help,
                 descriptor.unit.as_ref(),
                 EncodeMetric::metric_type(metric.as_ref()),
+                output_format,
             )?;
             metric.encode(metric_encoder)?;
         }
@@ -302,11 +307,11 @@ impl Registry {
         for collector in self.collectors.iter() {
             let descriptor_encoder =
                 encoder.with_prefix_and_labels(self.prefix.as_ref(), &self.labels);
-            collector.encode(descriptor_encoder)?;
+            collector.encode(descriptor_encoder, output_format)?;
         }
 
         for registry in self.sub_registries.iter() {
-            registry.encode(encoder)?;
+            registry.encode(encoder, output_format)?;
         }
 
         Ok(())
