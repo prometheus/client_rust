@@ -81,6 +81,18 @@ impl Histogram {
         self.observe_and_bucket(v);
     }
 
+    /// Returns the current sum of all observations.
+    #[cfg(any(test, feature = "test-util"))]
+    pub fn sum(&self) -> f64 {
+        self.inner.read().sum
+    }
+
+    /// Returns the current number of observations.
+    #[cfg(any(test, feature = "test-util"))]
+    pub fn count(&self) -> u64 {
+        self.inner.read().count
+    }
+
     /// Observes the given value, returning the index of the first bucket the
     /// value is added to.
     ///
@@ -211,5 +223,54 @@ mod tests {
 
         let res = exponential_buckets_range(0.0, 32.0, 6).collect::<Vec<_>>();
         assert!(res.is_empty());
+    }
+
+    /// Checks that [`Histogram::count()`] works properly.
+    #[test]
+    fn count() {
+        let histogram = Histogram::new([1.0_f64, 2.0, 3.0, 4.0, 5.0]);
+        assert_eq!(
+            histogram.count(),
+            0,
+            "histogram has zero observations when instantiated"
+        );
+
+        histogram.observe(1.0);
+        assert_eq!(histogram.count(), 1, "histogram has one observation");
+
+        histogram.observe(2.5);
+        assert_eq!(histogram.count(), 2, "histogram has two observations");
+
+        histogram.observe(6.0);
+        assert_eq!(histogram.count(), 3, "histogram has three observations");
+    }
+
+    /// Checks that [`Histogram::sum()`] works properly.
+    #[test]
+    fn sum() {
+        const BUCKETS: [f64; 3] = [10.0, 100.0, 1000.0];
+        let histogram = Histogram::new(BUCKETS);
+        assert_eq!(
+            histogram.sum(),
+            0.0,
+            "histogram sum is zero when instantiated"
+        );
+
+        histogram.observe(3.0); // 3 + 4 + 15 + 101 = 123
+        histogram.observe(4.0);
+        histogram.observe(15.0);
+        histogram.observe(101.0);
+        assert_eq!(
+            histogram.sum(),
+            123.0,
+            "histogram sum records accurate sum of observations"
+        );
+
+        histogram.observe(1111.0);
+        assert_eq!(
+            histogram.sum(),
+            1234.0,
+            "histogram sum records accurate sum of observations"
+        );
     }
 }

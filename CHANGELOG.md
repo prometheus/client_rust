@@ -6,16 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.24.1]
 
+### Added
+
+- `EncodeGaugeValue` is implemented for `usize` and `isize`, and
+  `EncodeCounterValue` is implemented for `usize`. See [PR 282].
+
 ### Fixed
 
 - `EncodeGaugeValue`, `EncodeCounterValue` and `EncodeExemplarValue` now use
   fewer `as` casts in their implementation. This caught an issue where
   `EncodeGaugeValue` would not error when encoding some `u64`s that don't fit
   in a `i64`. See [PR 281].
+- Filter out empty metric families, to match the go client. See [PR 279].
+- `Histogram` now exposes `count()` and `sum()` methods when the `test-util`
+  feature is enabled. See [PR 242].
+- `Family` now exposes a `contains()` method when the `test-util` feature
+  is enabled. See [PR 245].
+- `Family` now exposes `len()` and `is_empty()` methods when the
+  `test-util` feature is enabled. See [PR 246].
 
-- `EncodeGaugeValue` is implemented for `usize` and `isize`, and
-  `EncodeCounterValue` is implemented for `usize`. See [PR 282].
-
+[PR 279]: https://github.com/prometheus/client_rust/pull/279
+[PR 281]: https://github.com/prometheus/client_rust/pull/281
+[PR 242]: https://github.com/prometheus/client_rust/pull/242
+[PR 245]: https://github.com/prometheus/client_rust/pull/245
+[PR 246]: https://github.com/prometheus/client_rust/pull/246
 [PR 281]: https://github.com/prometheus/client_rust/pull/281
 [PR 282]: https://github.com/prometheus/client_rust/pull/282
 

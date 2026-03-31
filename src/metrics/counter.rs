@@ -265,7 +265,7 @@ mod tests {
                 // Map infinite, subnormal and NaN to 0.0.
                 .map(|f| if f.is_normal() { f } else { 0.0 })
                 .collect();
-            let sum = fs.iter().sum();
+            let sum: f64 = fs.iter().sum();
             let counter = Counter::<f64, AtomicU64>::default();
             for f in fs {
                 counter.inc_by(f);

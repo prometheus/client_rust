@@ -1251,21 +1251,21 @@ mod tests {
     }
 
     fn parse_with_python_client(input: String) {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
 
         println!("{input:?}");
-        Python::with_gil(|py| {
-            let parser = PyModule::from_code_bound(
+        Python::attach(|py| {
+            let parser = PyModule::from_code(
                 py,
-                r#"
+                c"
 from prometheus_client.openmetrics.parser import text_string_to_metric_families
 
 def parse(input):
     families = text_string_to_metric_families(input)
     list(families)
-"#,
-                "parser.py",
-                "parser",
+",
+                c"parser.py",
+                c"parser",
             )
             .map_err(|e| e.to_string())
             .unwrap();
@@ -1277,5 +1277,42 @@ def parse(input):
                 .map_err(|e| e.to_string())
                 .unwrap();
         })
+    }
+
+    #[test]
+    fn encode_omit_empty() {
+        let mut registry = Registry::default();
+        let counter1: Family<Vec<(&'static str, &'static str)>, Counter> = Default::default();
+        let counter2: Family<Vec<(&'static str, &'static str)>, Counter> = Default::default();
+        let counter3: Family<Vec<(&'static str, &'static str)>, Counter> = Default::default();
+
+        registry.register("counter1", "First counter", counter1.clone());
+        registry.register("counter2", "Second counter", counter2.clone());
+        registry.register("counter3", "Third counter", counter3.clone());
+
+        counter1.get_or_create(&vec![("label", "value")]).inc();
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP counter1 First counter.\n".to_owned()
+            + "# TYPE counter1 counter\n"
+            + "counter1_total{label=\"value\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+
+        counter2.get_or_create(&vec![("label", "value")]).inc();
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP counter1 First counter.\n".to_owned()
+            + "# TYPE counter1 counter\n"
+            + "counter1_total{label=\"value\"} 1\n"
+            + "# HELP counter2 Second counter.\n"
+            + "# TYPE counter2 counter\n"
+            + "counter2_total{label=\"value\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
     }
 }
