@@ -611,10 +611,7 @@ impl EncodeGaugeValue for i64 {
 
 impl EncodeGaugeValue for u64 {
     fn encode(&self, encoder: &mut GaugeValueEncoder) -> Result<(), std::fmt::Error> {
-        // Between forcing end users to do endless as i64 for things that are
-        // clearly valid i64 and having one error case for rarely used protobuf when
-        // a gauge is set to >i64::MAX, the latter seems like the right choice.
-        encoder.encode_i64(i64::try_from(*self).map_err(|_err| std::fmt::Error)?)
+        encoder.encode_u64(*self)
     }
 }
 
@@ -665,6 +662,10 @@ enum GaugeValueEncoderInner<'a> {
 impl GaugeValueEncoder<'_> {
     fn encode_u32(&mut self, v: u32) -> Result<(), std::fmt::Error> {
         for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_u32(v))
+    }
+
+    fn encode_u64(&mut self, v: u64) -> Result<(), std::fmt::Error> {
+        for_both_mut!(self, GaugeValueEncoderInner, e, e.encode_u64(v))
     }
 
     fn encode_i64(&mut self, v: i64) -> Result<(), std::fmt::Error> {

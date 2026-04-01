@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(feature = "protobuf")]
 fn compile_protos() -> Result<(), Box<dyn Error>> {
-    let protos = ["src/encoding/proto/openmetrics_data_model.proto"];
+    let protos = ["src/encoding/proto/metrics.proto"];
     let includes = ["src/encoding/proto/"];
 
     #[cfg(feature = "protobuf-protox")]
@@ -17,6 +17,13 @@ fn compile_protos() -> Result<(), Box<dyn Error>> {
 
     #[cfg(not(feature = "protobuf-protox"))]
     prost_build::compile_protos(&protos, &includes)?;
+
+    for path in &protos {
+        println!("cargo:rerun-if-changed={}", path);
+    }
+    for path in &includes {
+        println!("cargo:rerun-if-changed={}", path);
+    }
 
     Ok(())
 }
