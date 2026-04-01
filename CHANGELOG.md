@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0]
+
+### Added
+
+- Added an off-by-default `protobuf-protox` feature to build protobuf support
+  without requiring an external `protoc` binary.
+
+### Changed
+
+- Updated `prost`, `prost-build`, and `prost-types` dependencies to `v0.14`.
+- The `protobuf` feature now generates and encodes Prometheus
+  `io.prometheus.client` protobuf messages from `metrics.proto` rather than the
+  OpenMetrics protobuf data model. This is a breaking change for users of the `protobuf` feature.
+  See [Issue](https://github.com/prometheus/OpenMetrics/issues/296) for more context.
+
 ## [0.24.1]
 
 ### Added
