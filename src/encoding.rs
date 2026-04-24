@@ -71,6 +71,24 @@ impl EncodeMetric for Box<dyn EncodeMetric> {
     fn metric_type(&self) -> MetricType {
         self.deref().metric_type()
     }
+
+    fn is_empty(&self) -> bool {
+        self.deref().is_empty()
+    }
+}
+
+impl<T: EncodeMetric + ?Sized> EncodeMetric for Arc<T> {
+    fn encode(&self, encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
+        self.deref().encode(encoder)
+    }
+
+    fn metric_type(&self) -> MetricType {
+        self.deref().metric_type()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.deref().is_empty()
+    }
 }
 
 /// Encoder for a Metric Descriptor.
