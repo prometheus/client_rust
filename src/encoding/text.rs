@@ -37,7 +37,9 @@
 //! assert_eq!(expected_msg, buffer);
 //! ```
 
-use crate::encoding::{EncodeExemplarTime, EncodeExemplarValue, EncodeLabelSet, NoLabelSet};
+use crate::encoding::{
+    EncodeExemplarTime, EncodeExemplarValue, EncodeLabelSet, EncodeMetric, NoLabelSet,
+};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -182,6 +184,118 @@ where
     writer.write_str("# EOF\n")
 }
 
+/// Encode one OpenMetrics text descriptor without encoding samples or an EOF
+/// marker.
+///
+/// This is useful for custom registries that need to cache descriptors and
+/// encode samples independently. The `help` text is written verbatim. Unlike
+/// [`Registry::register`](crate::registry::Registry::register), this function
+/// does not append a full stop.
+///
+/// # Examples
+///
+/// ```
+/// # use prometheus_client::encoding::text::encode_descriptor;
+/// # use prometheus_client::metrics::MetricType;
+/// let mut buffer = String::new();
+///
+/// encode_descriptor(
+///     &mut buffer,
+///     "requests",
+///     "Total requests.",
+///     None,
+///     MetricType::Counter,
+/// )?;
+///
+/// assert_eq!(
+///     "# HELP requests Total requests.\n# TYPE requests counter\n",
+///     buffer,
+/// );
+/// # Ok::<(), std::fmt::Error>(())
+/// ```
+pub fn encode_descriptor<W>(
+    writer: &mut W,
+    name: &str,
+    help: &str,
+    unit: Option<&Unit>,
+    metric_type: MetricType,
+) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+{
+    write_descriptor(writer, None, name, help, unit, metric_type)
+}
+
+/// Encode one metric's samples without encoding a descriptor or an EOF marker.
+///
+/// `const_labels` are added to every sample emitted by `metric`. They are
+/// encoded before labels supplied by wrapper metrics such as
+/// [`Family`](crate::metrics::family::Family). Pass an empty slice when there
+/// are no const labels.
+///
+/// This lower-level helper is intended for custom registries that group and
+/// order descriptors themselves, but still want metric-specific formatting such
+/// as counter `_total` suffixes, histogram sample names and exemplar encoding
+/// to stay in `prometheus-client`.
+///
+/// # Examples
+///
+/// ```
+/// # use prometheus_client::encoding::text::{encode_descriptor, encode_eof, encode_metric};
+/// # use prometheus_client::metrics::counter::{Atomic as _, Counter};
+/// # use prometheus_client::metrics::MetricType;
+/// # use std::borrow::Cow;
+/// let requests: Counter = Counter::default();
+/// requests.inc();
+///
+/// let const_labels = [(Cow::Borrowed("service"), Cow::Borrowed("api"))];
+/// let mut buffer = String::new();
+///
+/// encode_descriptor(
+///     &mut buffer,
+///     "requests",
+///     "Total requests.",
+///     None,
+///     MetricType::Counter,
+/// )?;
+/// encode_metric(&mut buffer, "requests", None, &const_labels, &requests)?;
+/// encode_eof(&mut buffer)?;
+///
+/// assert_eq!(
+///     buffer,
+///     concat!(
+///         "# HELP requests Total requests.\n",
+///         "# TYPE requests counter\n",
+///         "requests_total{service=\"api\"} 1\n",
+///         "# EOF\n",
+///     ),
+/// );
+/// # Ok::<(), std::fmt::Error>(())
+/// ```
+pub fn encode_metric<W, M>(
+    writer: &mut W,
+    name: &str,
+    unit: Option<&Unit>,
+    const_labels: &[(Cow<'static, str>, Cow<'static, str>)],
+    metric: &M,
+) -> Result<(), std::fmt::Error>
+where
+    W: Write,
+    M: EncodeMetric + ?Sized,
+{
+    metric.encode(
+        MetricEncoder {
+            writer,
+            prefix: None,
+            name,
+            unit,
+            const_labels,
+            family_labels: None,
+        }
+        .into(),
+    )
+}
+
 pub(crate) struct DescriptorEncoder<'a> {
     writer: &'a mut dyn Write,
     prefix: Option<&'a Prefix>,
@@ -222,47 +336,7 @@ impl DescriptorEncoder<'_> {
         unit: Option<&'s Unit>,
         metric_type: MetricType,
     ) -> Result<MetricEncoder<'s>, std::fmt::Error> {
-        self.writer.write_str("# HELP ")?;
-        if let Some(prefix) = self.prefix {
-            self.writer.write_str(prefix.as_str())?;
-            self.writer.write_str("_")?;
-        }
-        self.writer.write_str(name)?;
-        if let Some(unit) = unit {
-            self.writer.write_str("_")?;
-            self.writer.write_str(unit.as_str())?;
-        }
-        self.writer.write_str(" ")?;
-        self.writer.write_str(help)?;
-        self.writer.write_str("\n")?;
-
-        self.writer.write_str("# TYPE ")?;
-        if let Some(prefix) = self.prefix {
-            self.writer.write_str(prefix.as_str())?;
-            self.writer.write_str("_")?;
-        }
-        self.writer.write_str(name)?;
-        if let Some(unit) = unit {
-            self.writer.write_str("_")?;
-            self.writer.write_str(unit.as_str())?;
-        }
-        self.writer.write_str(" ")?;
-        self.writer.write_str(metric_type.as_str())?;
-        self.writer.write_str("\n")?;
-
-        if let Some(unit) = unit {
-            self.writer.write_str("# UNIT ")?;
-            if let Some(prefix) = self.prefix {
-                self.writer.write_str(prefix.as_str())?;
-                self.writer.write_str("_")?;
-            }
-            self.writer.write_str(name)?;
-            self.writer.write_str("_")?;
-            self.writer.write_str(unit.as_str())?;
-            self.writer.write_str(" ")?;
-            self.writer.write_str(unit.as_str())?;
-            self.writer.write_str("\n")?;
-        }
+        write_descriptor(self.writer, self.prefix, name, help, unit, metric_type)?;
 
         Ok(MetricEncoder {
             writer: self.writer,
@@ -273,6 +347,59 @@ impl DescriptorEncoder<'_> {
             family_labels: None,
         })
     }
+}
+
+// Shared descriptor writer for the public descriptor-only helper and the
+// registry/collector path that also needs a `MetricEncoder` for samples.
+fn write_descriptor(
+    writer: &mut dyn Write,
+    prefix: Option<&Prefix>,
+    name: &str,
+    help: &str,
+    unit: Option<&Unit>,
+    metric_type: MetricType,
+) -> Result<(), std::fmt::Error> {
+    writer.write_str("# HELP ")?;
+    write_name(writer, prefix, name, unit)?;
+    writer.write_str(" ")?;
+    writer.write_str(help)?;
+    writer.write_str("\n")?;
+
+    writer.write_str("# TYPE ")?;
+    write_name(writer, prefix, name, unit)?;
+    writer.write_str(" ")?;
+    writer.write_str(metric_type.as_str())?;
+    writer.write_str("\n")?;
+
+    if let Some(unit) = unit {
+        writer.write_str("# UNIT ")?;
+        write_name(writer, prefix, name, Some(unit))?;
+        writer.write_str(" ")?;
+        writer.write_str(unit.as_str())?;
+        writer.write_str("\n")?;
+    }
+
+    Ok(())
+}
+
+// Write the OpenMetrics family name, including the optional registry prefix
+// and unit suffix used consistently by HELP, TYPE, UNIT and sample lines.
+fn write_name(
+    writer: &mut dyn Write,
+    prefix: Option<&Prefix>,
+    name: &str,
+    unit: Option<&Unit>,
+) -> Result<(), std::fmt::Error> {
+    if let Some(prefix) = prefix {
+        writer.write_str(prefix.as_str())?;
+        writer.write_str("_")?;
+    }
+    writer.write_str(name)?;
+    if let Some(unit) = unit {
+        writer.write_str("_")?;
+        writer.write_str(unit.as_str())?;
+    }
+    Ok(())
 }
 
 /// Helper type for [`EncodeMetric`](super::EncodeMetric), see
@@ -741,11 +868,12 @@ mod tests {
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{exponential_buckets, Histogram};
     use crate::metrics::info::Info;
-    use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
+    use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar, MetricType};
     use pyo3::{prelude::*, types::PyModule};
     use std::borrow::Cow;
     use std::fmt::Error;
     use std::sync::atomic::{AtomicI32, AtomicU32};
+    use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -1202,6 +1330,109 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_descriptor_and_metric_samples_can_be_composed() {
+        let counter: Counter = Counter::default();
+        counter.inc();
+
+        let const_labels = [(Cow::Borrowed("service"), Cow::Borrowed("api"))];
+        let mut encoded = String::new();
+
+        encode_descriptor(
+            &mut encoded,
+            "requests",
+            "Total requests.",
+            Some(&Unit::Seconds),
+            MetricType::Counter,
+        )
+        .unwrap();
+        encode_metric(
+            &mut encoded,
+            "requests",
+            Some(&Unit::Seconds),
+            &const_labels,
+            &counter,
+        )
+        .unwrap();
+        encode_eof(&mut encoded).unwrap();
+
+        assert_eq!(
+            encoded,
+            concat!(
+                "# HELP requests_seconds Total requests.\n",
+                "# TYPE requests_seconds counter\n",
+                "# UNIT requests_seconds seconds\n",
+                "requests_seconds_total{service=\"api\"} 1\n",
+                "# EOF\n",
+            ),
+        );
+    }
+
+    #[test]
+    fn encode_metric_composes_const_and_family_labels() {
+        let family = Family::<Vec<(&'static str, &'static str)>, Counter>::default();
+        family.get_or_create(&vec![("method", "GET")]).inc();
+
+        let const_labels = [(Cow::Borrowed("service"), Cow::Borrowed("api"))];
+        let mut encoded = String::new();
+
+        encode_metric(&mut encoded, "requests", None, &const_labels, &family).unwrap();
+
+        assert_eq!(
+            "requests_total{service=\"api\",method=\"GET\"} 1\n",
+            encoded,
+        );
+    }
+
+    #[test]
+    fn encode_metric_composes_const_and_histogram_labels() {
+        let histogram = Histogram::new([1.0]);
+        histogram.observe(0.5);
+
+        let const_labels = [(Cow::Borrowed("service"), Cow::Borrowed("api"))];
+        let mut encoded = String::new();
+
+        encode_metric(
+            &mut encoded,
+            "request_duration",
+            None,
+            &const_labels,
+            &histogram,
+        )
+        .unwrap();
+
+        assert_eq!(
+            encoded,
+            concat!(
+                "request_duration_sum{service=\"api\"} 0.5\n",
+                "request_duration_count{service=\"api\"} 1\n",
+                "request_duration_bucket{service=\"api\",le=\"1.0\"} 1\n",
+                "request_duration_bucket{service=\"api\",le=\"+Inf\"} 1\n",
+            ),
+        );
+    }
+
+    #[test]
+    fn encode_metric_omits_empty_family_samples() {
+        let family = Family::<Vec<(&'static str, &'static str)>, Counter>::default();
+        let mut encoded = String::new();
+
+        encode_metric(&mut encoded, "requests", None, &[], &family).unwrap();
+
+        assert_eq!("", encoded);
+    }
+
+    #[test]
+    fn encode_metric_accepts_arc_metric() {
+        let counter: Arc<Counter> = Arc::new(Counter::default());
+        counter.inc();
+
+        let mut encoded = String::new();
+        encode_metric(&mut encoded, "requests", None, &[], &counter).unwrap();
+
+        assert_eq!("requests_total 1\n", encoded);
     }
 
     #[test]
