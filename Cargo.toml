@@ -13,6 +13,7 @@ documentation = "https://docs.rs/prometheus-client"
 [features]
 default = []
 protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
+legacy_protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
 protobuf-protox = ["protobuf", "dep:protox"]
 
 # This feature provides additional APIs for testing downstream code using
