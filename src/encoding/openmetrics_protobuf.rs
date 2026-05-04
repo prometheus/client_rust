@@ -445,6 +445,7 @@ impl std::fmt::Write for LabelValueEncoder<'_> {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use prost_types::Timestamp;
 

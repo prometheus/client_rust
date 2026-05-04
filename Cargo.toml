@@ -12,9 +12,10 @@ documentation = "https://docs.rs/prometheus-client"
 
 [features]
 default = []
-protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
-legacy_protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
-protobuf-protox = ["protobuf", "dep:protox"]
+prometheus_protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
+openmetrics_protobuf = ["dep:prost", "dep:prost-types", "dep:prost-build"]
+protobuf = ["openmetrics_protobuf"]
+protobuf-protox = ["dep:protox"]
 
 # This feature provides additional APIs for testing downstream code using
 # `prometheus-client`.
@@ -76,7 +77,7 @@ required-features = []
 name = "proto"
 path = "benches/encoding/proto.rs"
 harness = false
-required-features = ["protobuf"]
+required-features = ["prometheus_protobuf"]
 
 # Passing arguments to the docsrs builder in order to properly document cfg's.
 # More information: https://docs.rs/about/builds#cross-compiling

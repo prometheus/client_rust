@@ -14,11 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Updated `prost`, `prost-build`, and `prost-types` dependencies to `v0.14`.
-- The `protobuf` feature now generates and encodes Prometheus
+- The `prometheus_protobuf` feature generates and encodes Prometheus
   `io.prometheus.client` protobuf messages from `metrics.proto` rather than the
-  OpenMetrics protobuf data model. This is a breaking change for users of the `protobuf` feature.
+  OpenMetrics protobuf data model.
   See [Issue](https://github.com/prometheus/OpenMetrics/issues/296) for more context.
-  The `legacy_protobuf` feature retains the old, deprecated, OpenMetrics protobuf support which will
+  The `protobuf` and `openmetrics_protobuf` features retain the old, deprecated, OpenMetrics protobuf support which will
   be removed in a future release.
 
 ## [0.24.1]

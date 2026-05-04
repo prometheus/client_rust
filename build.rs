@@ -1,20 +1,20 @@
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(any(feature = "protobuf", feature = "legacy_protobuf"))]
+    #[cfg(any(feature = "prometheus_protobuf", feature = "openmetrics_protobuf"))]
     compile_protos()?;
 
     Ok(())
 }
 
 #[allow(clippy::vec_init_then_push)] // False positive due to feature flags
-#[cfg(any(feature = "protobuf", feature = "legacy_protobuf"))]
+#[cfg(any(feature = "prometheus_protobuf", feature = "openmetrics_protobuf"))]
 fn compile_protos() -> Result<(), Box<dyn Error>> {
     let mut protos = Vec::new();
 
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     protos.push("src/encoding/proto/metrics.proto");
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     protos.push("src/encoding/proto/openmetrics_data_model.proto");
 
     let includes = ["src/encoding/proto/"];

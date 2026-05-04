@@ -1,7 +1,7 @@
 //! Prometheus protobuf implementation.
 //!
 //! ```
-//! # use prometheus_client::encoding::protobuf::encode;
+//! # use prometheus_client::encoding::prometheus_protobuf::encode;
 //! # use prometheus_client::metrics::counter::Counter;
 //! # use prometheus_client::registry::Registry;
 //! #

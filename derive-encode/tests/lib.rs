@@ -47,8 +47,8 @@ fn basic_flow() {
 
 mod protobuf {
     use crate::{Labels, Method};
-    use prometheus_client::encoding::protobuf::encode;
-    use prometheus_client::encoding::protobuf::prometheus_data_model;
+    use prometheus_client::encoding::prometheus_protobuf::encode;
+    use prometheus_client::encoding::prometheus_protobuf::prometheus_data_model;
     use prometheus_client::metrics::counter::Counter;
     use prometheus_client::metrics::family::Family;
     use prometheus_client::registry::Registry;

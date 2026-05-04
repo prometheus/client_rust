@@ -1,5 +1,7 @@
 //! Exposition format implementations.
 
+#![allow(deprecated)]
+
 pub use prometheus_client_derive_encode::*;
 
 use crate::metrics::exemplar::Exemplar;
@@ -13,26 +15,31 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[cfg(feature = "legacy_protobuf")]
-#[cfg_attr(docsrs, doc(cfg(feature = "legacy_protobuf")))]
+#[cfg(feature = "openmetrics_protobuf")]
+#[cfg_attr(docsrs, doc(cfg(feature = "openmetrics_protobuf")))]
+#[cfg_attr(
+    not(test),
+    deprecated(
+        note = "OpenMetrics protobuf support is deprecated. Use prometheus_protobuf instead."
+    )
+)]
 pub mod openmetrics_protobuf;
-#[cfg(feature = "protobuf")]
-#[cfg_attr(docsrs, doc(cfg(feature = "protobuf")))]
+#[cfg(feature = "prometheus_protobuf")]
+#[cfg_attr(docsrs, doc(cfg(feature = "prometheus_protobuf")))]
 pub mod prometheus_protobuf;
 pub mod text;
 
-#[cfg(all(feature = "legacy_protobuf", not(feature = "protobuf")))]
+#[cfg(feature = "openmetrics_protobuf")]
+#[deprecated(note = "Use openmetrics_protobuf instead.")]
 pub use openmetrics_protobuf as protobuf;
-#[cfg(feature = "protobuf")]
-pub use prometheus_protobuf as protobuf;
 
 macro_rules! for_both_mut {
     ($self:expr, $inner:ident, $pattern:pat, $fn:expr) => {
         match &mut $self.0 {
             $inner::Text($pattern) => $fn,
-            #[cfg(feature = "legacy_protobuf")]
+            #[cfg(feature = "openmetrics_protobuf")]
             $inner::Protobuf($pattern) => $fn,
-            #[cfg(feature = "protobuf")]
+            #[cfg(feature = "prometheus_protobuf")]
             $inner::PrometheusProtobuf($pattern) => $fn,
         }
     };
@@ -42,9 +49,9 @@ macro_rules! for_both {
     ($self:expr, $inner:ident, $pattern:pat, $fn:expr) => {
         match $self.0 {
             $inner::Text($pattern) => $fn,
-            #[cfg(feature = "legacy_protobuf")]
+            #[cfg(feature = "openmetrics_protobuf")]
             $inner::Protobuf($pattern) => $fn,
-            #[cfg(feature = "protobuf")]
+            #[cfg(feature = "prometheus_protobuf")]
             $inner::PrometheusProtobuf($pattern) => $fn,
         }
     };
@@ -93,10 +100,10 @@ pub struct DescriptorEncoder<'a>(DescriptorEncoderInner<'a>);
 enum DescriptorEncoderInner<'a> {
     Text(text::DescriptorEncoder<'a>),
 
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::DescriptorEncoder<'a>),
 
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     PrometheusProtobuf(prometheus_protobuf::DescriptorEncoder<'a>),
 }
 
@@ -106,14 +113,14 @@ impl<'a> From<text::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
     }
 }
 
-#[cfg(feature = "legacy_protobuf")]
+#[cfg(feature = "openmetrics_protobuf")]
 impl<'a> From<openmetrics_protobuf::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
     fn from(e: openmetrics_protobuf::DescriptorEncoder<'a>) -> Self {
         Self(DescriptorEncoderInner::Protobuf(e))
     }
 }
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "prometheus_protobuf")]
 impl<'a> From<prometheus_protobuf::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
     fn from(e: prometheus_protobuf::DescriptorEncoder<'a>) -> Self {
         Self(DescriptorEncoderInner::PrometheusProtobuf(e))
@@ -160,10 +167,10 @@ pub struct MetricEncoder<'a>(MetricEncoderInner<'a>);
 enum MetricEncoderInner<'a> {
     Text(text::MetricEncoder<'a>),
 
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::MetricEncoder<'a>),
 
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     PrometheusProtobuf(prometheus_protobuf::MetricEncoder<'a>),
 }
 
@@ -173,14 +180,14 @@ impl<'a> From<text::MetricEncoder<'a>> for MetricEncoder<'a> {
     }
 }
 
-#[cfg(feature = "legacy_protobuf")]
+#[cfg(feature = "openmetrics_protobuf")]
 impl<'a> From<openmetrics_protobuf::MetricEncoder<'a>> for MetricEncoder<'a> {
     fn from(e: openmetrics_protobuf::MetricEncoder<'a>) -> Self {
         Self(MetricEncoderInner::Protobuf(e))
     }
 }
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "prometheus_protobuf")]
 impl<'a> From<prometheus_protobuf::MetricEncoder<'a>> for MetricEncoder<'a> {
     fn from(e: prometheus_protobuf::MetricEncoder<'a>) -> Self {
         Self(MetricEncoderInner::PrometheusProtobuf(e))
@@ -257,9 +264,9 @@ pub struct LabelSetEncoder<'a>(LabelSetEncoderInner<'a>);
 #[derive(Debug)]
 enum LabelSetEncoderInner<'a> {
     Text(text::LabelSetEncoder<'a>),
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::LabelSetEncoder<'a>),
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     PrometheusProtobuf(prometheus_protobuf::LabelSetEncoder<'a>),
 }
 
@@ -269,14 +276,14 @@ impl<'a> From<text::LabelSetEncoder<'a>> for LabelSetEncoder<'a> {
     }
 }
 
-#[cfg(feature = "legacy_protobuf")]
+#[cfg(feature = "openmetrics_protobuf")]
 impl<'a> From<openmetrics_protobuf::LabelSetEncoder<'a>> for LabelSetEncoder<'a> {
     fn from(e: openmetrics_protobuf::LabelSetEncoder<'a>) -> Self {
         Self(LabelSetEncoderInner::Protobuf(e))
     }
 }
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "prometheus_protobuf")]
 impl<'a> From<prometheus_protobuf::LabelSetEncoder<'a>> for LabelSetEncoder<'a> {
     fn from(e: prometheus_protobuf::LabelSetEncoder<'a>) -> Self {
         Self(LabelSetEncoderInner::PrometheusProtobuf(e))
@@ -355,9 +362,9 @@ pub struct LabelEncoder<'a>(LabelEncoderInner<'a>);
 #[derive(Debug)]
 enum LabelEncoderInner<'a> {
     Text(text::LabelEncoder<'a>),
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::LabelEncoder<'a>),
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     PrometheusProtobuf(prometheus_protobuf::LabelEncoder<'a>),
 }
 
@@ -367,14 +374,14 @@ impl<'a> From<text::LabelEncoder<'a>> for LabelEncoder<'a> {
     }
 }
 
-#[cfg(feature = "legacy_protobuf")]
+#[cfg(feature = "openmetrics_protobuf")]
 impl<'a> From<openmetrics_protobuf::LabelEncoder<'a>> for LabelEncoder<'a> {
     fn from(e: openmetrics_protobuf::LabelEncoder<'a>) -> Self {
         Self(LabelEncoderInner::Protobuf(e))
     }
 }
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "prometheus_protobuf")]
 impl<'a> From<prometheus_protobuf::LabelEncoder<'a>> for LabelEncoder<'a> {
     fn from(e: prometheus_protobuf::LabelEncoder<'a>) -> Self {
         Self(LabelEncoderInner::PrometheusProtobuf(e))
@@ -421,9 +428,9 @@ pub struct LabelKeyEncoder<'a>(LabelKeyEncoderInner<'a>);
 #[derive(Debug)]
 enum LabelKeyEncoderInner<'a> {
     Text(text::LabelKeyEncoder<'a>),
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::LabelKeyEncoder<'a>),
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     PrometheusProtobuf(prometheus_protobuf::LabelKeyEncoder<'a>),
 }
 
@@ -433,14 +440,14 @@ impl<'a> From<text::LabelKeyEncoder<'a>> for LabelKeyEncoder<'a> {
     }
 }
 
-#[cfg(feature = "legacy_protobuf")]
+#[cfg(feature = "openmetrics_protobuf")]
 impl<'a> From<openmetrics_protobuf::LabelKeyEncoder<'a>> for LabelKeyEncoder<'a> {
     fn from(e: openmetrics_protobuf::LabelKeyEncoder<'a>) -> Self {
         Self(LabelKeyEncoderInner::Protobuf(e))
     }
 }
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "prometheus_protobuf")]
 impl<'a> From<prometheus_protobuf::LabelKeyEncoder<'a>> for LabelKeyEncoder<'a> {
     fn from(e: prometheus_protobuf::LabelKeyEncoder<'a>) -> Self {
         Self(LabelKeyEncoderInner::PrometheusProtobuf(e))
@@ -527,9 +534,9 @@ pub struct LabelValueEncoder<'a>(LabelValueEncoderInner<'a>);
 #[derive(Debug)]
 enum LabelValueEncoderInner<'a> {
     Text(text::LabelValueEncoder<'a>),
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::LabelValueEncoder<'a>),
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     PrometheusProtobuf(prometheus_protobuf::LabelValueEncoder<'a>),
 }
 
@@ -539,14 +546,14 @@ impl<'a> From<text::LabelValueEncoder<'a>> for LabelValueEncoder<'a> {
     }
 }
 
-#[cfg(feature = "legacy_protobuf")]
+#[cfg(feature = "openmetrics_protobuf")]
 impl<'a> From<openmetrics_protobuf::LabelValueEncoder<'a>> for LabelValueEncoder<'a> {
     fn from(e: openmetrics_protobuf::LabelValueEncoder<'a>) -> Self {
         LabelValueEncoder(LabelValueEncoderInner::Protobuf(e))
     }
 }
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "prometheus_protobuf")]
 impl<'a> From<prometheus_protobuf::LabelValueEncoder<'a>> for LabelValueEncoder<'a> {
     fn from(e: prometheus_protobuf::LabelValueEncoder<'a>) -> Self {
         LabelValueEncoder(LabelValueEncoderInner::PrometheusProtobuf(e))
@@ -723,9 +730,9 @@ pub struct GaugeValueEncoder<'a>(GaugeValueEncoderInner<'a>);
 #[derive(Debug)]
 enum GaugeValueEncoderInner<'a> {
     Text(text::GaugeValueEncoder<'a>),
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::GaugeValueEncoder<'a>),
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     PrometheusProtobuf(prometheus_protobuf::GaugeValueEncoder<'a>),
 }
 
@@ -753,14 +760,14 @@ impl<'a> From<text::GaugeValueEncoder<'a>> for GaugeValueEncoder<'a> {
     }
 }
 
-#[cfg(feature = "legacy_protobuf")]
+#[cfg(feature = "openmetrics_protobuf")]
 impl<'a> From<openmetrics_protobuf::GaugeValueEncoder<'a>> for GaugeValueEncoder<'a> {
     fn from(e: openmetrics_protobuf::GaugeValueEncoder<'a>) -> Self {
         GaugeValueEncoder(GaugeValueEncoderInner::Protobuf(e))
     }
 }
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "prometheus_protobuf")]
 impl<'a> From<prometheus_protobuf::GaugeValueEncoder<'a>> for GaugeValueEncoder<'a> {
     fn from(e: prometheus_protobuf::GaugeValueEncoder<'a>) -> Self {
         GaugeValueEncoder(GaugeValueEncoderInner::PrometheusProtobuf(e))
@@ -811,9 +818,9 @@ pub struct CounterValueEncoder<'a>(CounterValueEncoderInner<'a>);
 #[derive(Debug)]
 enum CounterValueEncoderInner<'a> {
     Text(text::CounterValueEncoder<'a>),
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::CounterValueEncoder<'a>),
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     PrometheusProtobuf(prometheus_protobuf::CounterValueEncoder<'a>),
 }
 
@@ -823,14 +830,14 @@ impl<'a> From<text::CounterValueEncoder<'a>> for CounterValueEncoder<'a> {
     }
 }
 
-#[cfg(feature = "legacy_protobuf")]
+#[cfg(feature = "openmetrics_protobuf")]
 impl<'a> From<openmetrics_protobuf::CounterValueEncoder<'a>> for CounterValueEncoder<'a> {
     fn from(e: openmetrics_protobuf::CounterValueEncoder<'a>) -> Self {
         CounterValueEncoder(CounterValueEncoderInner::Protobuf(e))
     }
 }
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "prometheus_protobuf")]
 impl<'a> From<prometheus_protobuf::CounterValueEncoder<'a>> for CounterValueEncoder<'a> {
     fn from(e: prometheus_protobuf::CounterValueEncoder<'a>) -> Self {
         CounterValueEncoder(CounterValueEncoderInner::PrometheusProtobuf(e))
@@ -896,9 +903,9 @@ pub struct ExemplarValueEncoder<'a>(ExemplarValueEncoderInner<'a>);
 #[derive(Debug)]
 enum ExemplarValueEncoderInner<'a> {
     Text(text::ExemplarValueEncoder<'a>),
-    #[cfg(feature = "legacy_protobuf")]
+    #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::ExemplarValueEncoder<'a>),
-    #[cfg(feature = "protobuf")]
+    #[cfg(feature = "prometheus_protobuf")]
     PrometheusProtobuf(prometheus_protobuf::ExemplarValueEncoder<'a>),
 }
 
@@ -908,14 +915,14 @@ impl<'a> From<text::ExemplarValueEncoder<'a>> for ExemplarValueEncoder<'a> {
     }
 }
 
-#[cfg(feature = "legacy_protobuf")]
+#[cfg(feature = "openmetrics_protobuf")]
 impl<'a> From<openmetrics_protobuf::ExemplarValueEncoder<'a>> for ExemplarValueEncoder<'a> {
     fn from(e: openmetrics_protobuf::ExemplarValueEncoder<'a>) -> Self {
         ExemplarValueEncoder(ExemplarValueEncoderInner::Protobuf(e))
     }
 }
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "prometheus_protobuf")]
 impl<'a> From<prometheus_protobuf::ExemplarValueEncoder<'a>> for ExemplarValueEncoder<'a> {
     fn from(e: prometheus_protobuf::ExemplarValueEncoder<'a>) -> Self {
         ExemplarValueEncoder(ExemplarValueEncoderInner::PrometheusProtobuf(e))
