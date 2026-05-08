@@ -36,7 +36,9 @@ use crate::metrics::MetricType;
 use crate::registry::{Registry, Unit};
 use crate::{metrics::exemplar::Exemplar, registry::Prefix};
 
-use super::{EncodeCounterValue, EncodeExemplarValue, EncodeGaugeValue, EncodeLabelSet};
+use super::{
+    EncodeCounterValue, EncodeExemplarValue, EncodeGaugeValue, EncodeLabelSet, NativeHistogram,
+};
 
 /// Encode the metrics registered with the provided [`Registry`] into MetricSet
 /// using the OpenMetrics protobuf format.
@@ -288,6 +290,21 @@ impl MetricEncoder<'_> {
 
         Ok(())
     }
+
+    pub fn encode_histogram_with_native<S: EncodeLabelSet>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        buckets: &[(f64, u64)],
+        exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
+        _native: NativeHistogram<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        if buckets.is_empty() {
+            return Err(std::fmt::Error);
+        }
+
+        self.encode_histogram(sum, count, buckets, exemplars)
+    }
 }
 
 impl<S: EncodeLabelSet, V: EncodeExemplarValue> TryFrom<&Exemplar<S, V>>
@@ -454,7 +471,7 @@ mod tests {
     use crate::metrics::exemplar::{CounterWithExemplar, HistogramWithExemplars};
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
-    use crate::metrics::histogram::{exponential_buckets, Histogram};
+    use crate::metrics::histogram::{exponential_buckets, Histogram, NativeHistogramConfig};
     use crate::metrics::info::Info;
     use crate::registry::Unit;
     use std::borrow::Cow;
@@ -817,6 +834,16 @@ mod tests {
             }
             _ => panic!("wrong value type"),
         }
+    }
+
+    #[test]
+    fn encode_native_only_histogram_errors() {
+        let mut registry = Registry::default();
+        let histogram = Histogram::new_native(NativeHistogramConfig::with_schema(0));
+        registry.register("my_histogram", "My histogram", histogram.clone());
+        histogram.observe(1.0);
+
+        assert!(encode(&registry).is_err());
     }
 
     #[test]

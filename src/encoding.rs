@@ -33,6 +33,32 @@ pub mod text;
 #[deprecated(note = "Use openmetrics_protobuf instead.")]
 pub use openmetrics_protobuf as protobuf;
 
+/// Native histogram fields shared by encoders.
+#[derive(Clone, Copy, Debug)]
+pub struct NativeHistogram<'a> {
+    /// Native histogram schema.
+    pub schema: i32,
+    /// Breadth of the zero bucket.
+    pub zero_threshold: f64,
+    /// Count in the zero bucket.
+    pub zero_count: u64,
+    /// Negative sparse buckets.
+    pub negative: NativeHistogramBuckets<'a>,
+    /// Positive sparse buckets.
+    pub positive: NativeHistogramBuckets<'a>,
+    /// Native histogram creation timestamp.
+    pub created: Option<SystemTime>,
+}
+
+/// Sparse bucket span and delta encoding for one side of a native histogram.
+#[derive(Clone, Copy, Debug)]
+pub struct NativeHistogramBuckets<'a> {
+    /// Bucket spans.
+    pub spans: &'a [(i32, u32)],
+    /// Bucket count deltas.
+    pub deltas: &'a [i64],
+}
+
 macro_rules! for_both_mut {
     ($self:expr, $inner:ident, $pattern:pat, $fn:expr) => {
         match &mut $self.0 {
@@ -234,6 +260,26 @@ impl MetricEncoder<'_> {
             MetricEncoderInner,
             e,
             e.encode_histogram(sum, count, buckets, exemplars)
+        )
+    }
+
+    /// Encode a histogram that may have native buckets.
+    ///
+    /// Encoders without native histogram support encode the classic buckets when
+    /// present and reject native-only histograms.
+    pub fn encode_histogram_with_native<S: EncodeLabelSet>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        buckets: &[(f64, u64)],
+        exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
+        native: NativeHistogram<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        for_both_mut!(
+            self,
+            MetricEncoderInner,
+            e,
+            e.encode_histogram_with_native(sum, count, buckets, exemplars, native)
         )
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "prometheus-client"
-version = "0.25.0"
+version = "0.26.0"
 authors = ["Max Inden <mail@max-inden.de>"]
 edition = "2021"
 description = "Open Metrics client library allowing users to natively instrument applications."
@@ -65,6 +65,10 @@ harness = false
 
 [[bench]]
 name = "family"
+harness = false
+
+[[bench]]
+name = "histogram"
 harness = false
 
 [[bench]]
