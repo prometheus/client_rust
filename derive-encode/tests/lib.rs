@@ -47,8 +47,8 @@ fn basic_flow() {
 
 mod protobuf {
     use crate::{Labels, Method};
-    use prometheus_client::encoding::protobuf::encode;
-    use prometheus_client::encoding::protobuf::openmetrics_data_model;
+    use prometheus_client::encoding::prometheus_protobuf::encode;
+    use prometheus_client::encoding::prometheus_protobuf::prometheus_data_model;
     use prometheus_client::metrics::counter::Counter;
     use prometheus_client::metrics::family::Family;
     use prometheus_client::registry::Registry;
@@ -67,17 +67,15 @@ mod protobuf {
             })
             .inc();
 
-        // Encode all metrics in the registry in the OpenMetrics protobuf format.
-        let mut metric_set = encode(&registry).unwrap();
-        let mut family: openmetrics_data_model::MetricFamily =
-            metric_set.metric_families.pop().unwrap();
-        let metric: openmetrics_data_model::Metric = family.metrics.pop().unwrap();
+        let mut metric_families = encode(&registry).unwrap();
+        let mut family: prometheus_data_model::MetricFamily = metric_families.pop().unwrap();
+        let metric: prometheus_data_model::Metric = family.metric.pop().unwrap();
 
-        let method = &metric.labels[0];
+        let method = &metric.label[0];
         assert_eq!("method", method.name);
         assert_eq!("Get", method.value);
 
-        let path = &metric.labels[1];
+        let path = &metric.label[1];
         assert_eq!("path", path.name);
         assert_eq!("/metrics", path.value);
     }
@@ -96,13 +94,11 @@ mod protobuf {
             })
             .inc();
 
-        // Encode all metrics in the registry in the OpenMetrics protobuf format.
-        let mut metric_set = encode(&registry).unwrap();
-        let mut family: openmetrics_data_model::MetricFamily =
-            metric_set.metric_families.pop().unwrap();
-        let metric: openmetrics_data_model::Metric = family.metrics.pop().unwrap();
+        let mut metric_families = encode(&registry).unwrap();
+        let mut family: prometheus_data_model::MetricFamily = metric_families.pop().unwrap();
+        let metric: prometheus_data_model::Metric = family.metric.pop().unwrap();
 
-        let label = &metric.labels[0];
+        let label = &metric.label[0];
         assert_eq!("method", label.name);
         assert_eq!("Get", label.value);
     }

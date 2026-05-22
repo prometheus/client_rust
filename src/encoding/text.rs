@@ -602,6 +602,12 @@ impl GaugeValueEncoder<'_> {
         Ok(())
     }
 
+    pub fn encode_u64(&mut self, v: u64) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(" ")?;
+        self.writer.write_str(itoa::Buffer::new().format(v))?;
+        Ok(())
+    }
+
     pub fn encode_i64(&mut self, v: i64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
         self.writer.write_str(itoa::Buffer::new().format(v))?;

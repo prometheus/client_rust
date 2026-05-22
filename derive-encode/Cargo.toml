@@ -17,7 +17,7 @@ quote = "1"
 syn = "2"
 
 [dev-dependencies]
-prometheus-client = { path = "../", features = ["protobuf"] }
+prometheus-client = { path = "../", features = ["prometheus_protobuf"] }
 trybuild = "1"
 
 [lib]

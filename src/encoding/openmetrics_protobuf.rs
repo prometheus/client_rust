@@ -1,7 +1,7 @@
 //! Open Metrics protobuf implementation.
 //!
 //! ```
-//! # use prometheus_client::encoding::protobuf::encode;
+//! # use prometheus_client::encoding::openmetrics_protobuf::encode;
 //! # use prometheus_client::metrics::counter::Counter;
 //! # use prometheus_client::registry::Registry;
 //! #
@@ -327,6 +327,10 @@ impl GaugeValueEncoder<'_> {
         self.encode_i64(v as i64)
     }
 
+    pub fn encode_u64(&mut self, v: u64) -> Result<(), std::fmt::Error> {
+        self.encode_i64(i64::try_from(v).map_err(|_err| std::fmt::Error)?)
+    }
+
     pub fn encode_i64(&mut self, v: i64) -> Result<(), std::fmt::Error> {
         *self.value = openmetrics_data_model::gauge_value::Value::IntValue(v);
         Ok(())
@@ -441,6 +445,7 @@ impl std::fmt::Write for LabelValueEncoder<'_> {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use prost_types::Timestamp;
 
