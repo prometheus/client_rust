@@ -3,11 +3,14 @@
 //! See [`Histogram`] for details.
 
 use crate::encoding::{
-    EncodeMetric, MetricEncoder, NativeHistogram, NativeHistogramBuckets, NoLabelSet,
+    EncodeLabelSet, EncodeMetric, MetricEncoder, NativeHistogram, NativeHistogramBuckets,
+    NoLabelSet,
 };
+use crate::metrics::exemplar::Exemplar;
 
 use super::{MetricType, TypedMetric};
 use parking_lot::Mutex;
+use std::collections::HashMap;
 use std::iter::{self, once};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -17,6 +20,9 @@ pub const NATIVE_HISTOGRAM_ZERO_THRESHOLD_ZERO: f64 = -1.0;
 
 /// Default bucket factor for native histograms.
 pub const DEFAULT_NATIVE_HISTOGRAM_BUCKET_FACTOR: f64 = 1.1;
+
+/// Default zero threshold for native histograms.
+pub const DEFAULT_NATIVE_HISTOGRAM_ZERO_THRESHOLD: f64 = 2.938735877055719e-39;
 
 const SCHEMA_MIN: i8 = -4;
 const SCHEMA_MAX: i8 = 8;
@@ -100,7 +106,7 @@ impl NativeHistogramConfig {
 
         Self {
             schema,
-            zero_threshold: 2f64.powi(-128),
+            zero_threshold: DEFAULT_NATIVE_HISTOGRAM_ZERO_THRESHOLD,
             max_buckets: 0,
             min_reset_duration: None,
             max_zero_threshold: 0.0,
@@ -115,10 +121,18 @@ impl NativeHistogramConfig {
     }
 
     /// Set a custom zero threshold.
+    ///
+    /// A value of `0.0` keeps the default threshold. A negative value configures
+    /// a zero-width zero bucket.
     pub fn zero_threshold(mut self, zero_threshold: f64) -> Self {
         assert!(zero_threshold.is_finite());
-        assert!(zero_threshold >= 0.0 || zero_threshold == NATIVE_HISTOGRAM_ZERO_THRESHOLD_ZERO);
-        self.zero_threshold = zero_threshold;
+        self.zero_threshold = if zero_threshold > 0.0 {
+            zero_threshold
+        } else if zero_threshold == 0.0 {
+            DEFAULT_NATIVE_HISTOGRAM_ZERO_THRESHOLD
+        } else {
+            NATIVE_HISTOGRAM_ZERO_THRESHOLD_ZERO
+        };
         self
     }
 
@@ -285,7 +299,7 @@ impl NativeHistogramState {
         }
 
         Ok(NativeHistogramSnapshot {
-            schema: self.schema as i32,
+            schema: i32::from(self.schema),
             zero_threshold: exported_zero_threshold,
             zero_count: self.zero_count,
             negative,
@@ -303,11 +317,6 @@ impl Histogram {
     /// let histogram = Histogram::new([10.0, 100.0, 1_000.0]);
     /// ```
     pub fn new(buckets: impl IntoIterator<Item = f64>) -> Self {
-        Self::new_classic(buckets)
-    }
-
-    /// Create a new classic [`Histogram`].
-    pub fn new_classic(buckets: impl IntoIterator<Item = f64>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 sum: Default::default(),
@@ -347,7 +356,7 @@ impl Histogram {
         buckets: impl IntoIterator<Item = f64>,
         native: NativeHistogramConfig,
     ) -> Self {
-        let histogram = Self::new_classic(buckets);
+        let histogram = Self::new(buckets);
         histogram.inner.lock().native = Some(NativeHistogramState::new(native));
         histogram
     }
@@ -399,14 +408,6 @@ impl Histogram {
         bucket
     }
 
-    pub(crate) fn get(&self) -> (f64, u64, Vec<(f64, u64)>) {
-        let inner = self.inner.lock();
-        let sum = inner.sum;
-        let count = inner.count;
-        let buckets = inner.buckets.clone();
-        (sum, count, buckets)
-    }
-
     fn snapshot(&self) -> Result<HistogramSnapshot, std::fmt::Error> {
         let mut inner = self.inner.lock();
         reset_if_scheduled(&mut inner);
@@ -422,6 +423,39 @@ impl Histogram {
             buckets: inner.buckets.clone(),
             native,
         })
+    }
+
+    pub(crate) fn encode_with_exemplars<S: EncodeLabelSet>(
+        &self,
+        encoder: &mut MetricEncoder,
+        exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
+    ) -> Result<(), std::fmt::Error> {
+        let snapshot = self.snapshot()?;
+        match snapshot.native {
+            Some(native) => encoder.encode_histogram_with_native(
+                snapshot.sum,
+                snapshot.count,
+                &snapshot.buckets,
+                exemplars,
+                NativeHistogram {
+                    schema: native.schema,
+                    zero_threshold: native.zero_threshold,
+                    zero_count: native.zero_count,
+                    negative: NativeHistogramBuckets {
+                        spans: &native.negative.spans,
+                        deltas: &native.negative.deltas,
+                    },
+                    positive: NativeHistogramBuckets {
+                        spans: &native.positive.spans,
+                        deltas: &native.positive.deltas,
+                    },
+                    created: Some(native.created),
+                },
+            ),
+            None => {
+                encoder.encode_histogram(snapshot.sum, snapshot.count, &snapshot.buckets, exemplars)
+            }
+        }
     }
 }
 
@@ -471,35 +505,7 @@ pub fn linear_buckets(start: f64, width: f64, length: u16) -> impl Iterator<Item
 
 impl EncodeMetric for Histogram {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
-        let snapshot = self.snapshot()?;
-        match snapshot.native {
-            Some(native) => encoder.encode_histogram_with_native::<NoLabelSet>(
-                snapshot.sum,
-                snapshot.count,
-                &snapshot.buckets,
-                None,
-                NativeHistogram {
-                    schema: native.schema,
-                    zero_threshold: native.zero_threshold,
-                    zero_count: native.zero_count,
-                    negative: NativeHistogramBuckets {
-                        spans: &native.negative.spans,
-                        deltas: &native.negative.deltas,
-                    },
-                    positive: NativeHistogramBuckets {
-                        spans: &native.positive.spans,
-                        deltas: &native.positive.deltas,
-                    },
-                    created: Some(native.created),
-                },
-            ),
-            None => encoder.encode_histogram::<NoLabelSet>(
-                snapshot.sum,
-                snapshot.count,
-                &snapshot.buckets,
-                None,
-            ),
-        }
+        self.encode_with_exemplars::<NoLabelSet>(&mut encoder, None)
     }
 
     fn metric_type(&self) -> MetricType {
@@ -576,19 +582,17 @@ fn increment_bucket(buckets: &mut NativeBuckets, index: i32) {
 
 fn pick_schema(bucket_factor: f64) -> i8 {
     let floor = bucket_factor.log2().log2().floor();
-    if floor <= -(SCHEMA_MAX as f64) {
+    if floor <= -f64::from(SCHEMA_MAX) {
         return SCHEMA_MAX;
     }
 
-    if floor >= -(SCHEMA_MIN as f64) {
+    if floor >= -f64::from(SCHEMA_MIN) {
         return SCHEMA_MIN;
     }
 
-    -(floor as i8)
-}
-
-fn native_histogram_bounds() -> &'static [&'static [f64]; 9] {
-    &NATIVE_HISTOGRAM_BOUNDS
+    (SCHEMA_MIN..=SCHEMA_MAX)
+        .find(|schema| f64::from(*schema) == -floor)
+        .expect("schema is in range")
 }
 
 // copied from https://github.com/prometheus/client_golang/blob/f23aad527b9740eda20fe5db147e6cd621c2c1bc/prometheus/histogram.go#L46
@@ -1123,16 +1127,19 @@ fn bucket_index(schema: i8, v: f64, is_infinite: bool) -> i32 {
     let v = if is_infinite { f64::MAX } else { v };
     let (frac, exp) = frexp(v);
     let mut index = if schema > 0 {
-        let bounds = &native_histogram_bounds()[schema as usize];
-        let bucket = bounds.partition_point(|bound| *bound < frac) as i32;
-        bucket + (exp - 1) * bounds.len() as i32
+        let bounds = NATIVE_HISTOGRAM_BOUNDS
+            [usize::try_from(schema).expect("positive schema can be indexed")];
+        let bucket =
+            i32::try_from(bounds.partition_point(|bound| *bound < frac)).expect("bounds fit i32");
+        bucket + (exp - 1) * i32::try_from(bounds.len()).expect("bounds length fits i32")
     } else {
         let mut key = exp;
         if frac == 0.5 {
             key -= 1;
         }
-        let offset = (1_i32 << (-(schema as i32) as u32)) - 1;
-        (key + offset) >> (-(schema as i32) as u32)
+        let shift = u32::try_from(-i32::from(schema)).expect("non-positive schema shift");
+        let offset = (1_i32 << shift) - 1;
+        (key + offset) >> shift
     };
 
     if is_infinite {
@@ -1150,11 +1157,11 @@ fn frexp(v: f64) -> (f64, i32) {
     }
 
     let bits = v.to_bits();
-    let exponent = ((bits >> 52) & 0x7ff) as i32;
+    let exponent = i32::try_from((bits >> 52) & 0x7ff).expect("f64 exponent fits i32");
     let mantissa = bits & ((1_u64 << 52) - 1);
 
     if exponent == 0 {
-        let p = 63 - mantissa.leading_zeros() as i32;
+        let p = 63 - i32::try_from(mantissa.leading_zeros()).expect("leading zeros fit i32");
         let frac = mantissa as f64 / 2f64.powi(p + 1);
         (frac, p - 1073)
     } else {
@@ -1187,25 +1194,15 @@ fn enforce_bucket_limit(inner: &mut NativeHistogramState) -> bool {
         return true;
     }
 
-    let mut degraded = false;
-    while inner.positive.len() + inner.negative.len() > inner.max_buckets {
-        if widen_zero_bucket(inner) {
-            degraded = true;
-            continue;
-        }
-
-        if inner.schema > SCHEMA_MIN {
-            inner.schema -= 1;
-            inner.positive = downsample_buckets(&inner.positive);
-            inner.negative = downsample_buckets(&inner.negative);
-            degraded = true;
-            continue;
-        }
-
-        break;
+    if widen_zero_bucket(inner) {
+        inner.schedule_reset_after_degradation();
+        return false;
     }
 
-    if degraded {
+    if inner.schema > SCHEMA_MIN {
+        inner.schema -= 1;
+        inner.positive = downsample_buckets(&inner.positive);
+        inner.negative = downsample_buckets(&inner.negative);
         inner.schedule_reset_after_degradation();
     }
 
@@ -1269,15 +1266,16 @@ fn move_to_zero_bucket(schema: i8, threshold: f64, buckets: &mut NativeBuckets) 
 
 fn positive_upper_bound(schema: i8, index: i32) -> f64 {
     if schema < 0 {
-        let exp = index << (-(schema as i32) as u32);
+        let exp = index << u32::try_from(-i32::from(schema)).expect("negative schema shift");
         if exp == 1024 {
             return f64::MAX;
         }
         return 2f64.powi(exp);
     }
 
-    let bounds = &native_histogram_bounds()[schema as usize];
-    let frac = bounds[(index & ((1 << schema) - 1)) as usize];
+    let schema = u32::try_from(schema).expect("non-negative schema shift");
+    let bounds = NATIVE_HISTOGRAM_BOUNDS[usize::try_from(schema).expect("schema can be indexed")];
+    let frac = bounds[usize::try_from(index & ((1 << schema) - 1)).expect("index can be indexed")];
     let exp = (index >> schema) + 1;
     if frac == 0.5 && exp == 1025 {
         return f64::MAX;
@@ -1463,7 +1461,7 @@ mod tests {
 
     #[test]
     fn classic_histogram_counts_nan_in_infinity_bucket() {
-        let h = Histogram::new_classic([1.0, 2.0]);
+        let h = Histogram::new([1.0, 2.0]);
         h.observe(f64::NAN);
 
         let inner = h.inner.lock();
@@ -1491,9 +1489,30 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn native_histogram_rejects_negative_zero_threshold_except_sentinel() {
-        NativeHistogramConfig::with_schema(0).zero_threshold(-2.0);
+    fn native_histogram_zero_threshold_zero_uses_default() {
+        let h = Histogram::new_native(NativeHistogramConfig::with_schema(0).zero_threshold(0.0));
+        let inner = h.inner.lock();
+        let native = inner.native.as_ref().unwrap();
+        assert_eq!(
+            DEFAULT_NATIVE_HISTOGRAM_ZERO_THRESHOLD,
+            native.zero_threshold
+        );
+    }
+
+    #[test]
+    fn native_histogram_negative_zero_threshold_uses_zero_width_zero_bucket() {
+        let h = Histogram::new_native(NativeHistogramConfig::with_schema(0).zero_threshold(-2.0));
+        h.observe(0.0);
+        h.observe(0.01);
+
+        let inner = h.inner.lock();
+        let native = inner.native.as_ref().unwrap();
+        assert_eq!(NATIVE_HISTOGRAM_ZERO_THRESHOLD_ZERO, native.zero_threshold);
+        assert_eq!(1, native.zero_count);
+        assert_eq!(
+            1,
+            native.positive.iter().map(|(_, count)| *count).sum::<u64>()
+        );
     }
 
     #[test]
@@ -2118,7 +2137,7 @@ mod tests {
 
     #[test]
     fn native_histogram_bounds_match_client_golang_constants() {
-        let bounds = native_histogram_bounds();
+        let bounds = NATIVE_HISTOGRAM_BOUNDS;
         assert_eq!(1, bounds[0].len());
         assert_eq!(256, bounds[8].len());
         assert_eq!(0.5013556375251013, bounds[8][1]);
