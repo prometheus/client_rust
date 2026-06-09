@@ -1442,7 +1442,7 @@ mod tests {
         assert_eq!(4, inner.count);
         assert_eq!(1, native.zero_count);
         assert_eq!(2, native.positive.len());
-        assert_eq!(3, native.negative.len() + native.positive.len());
+        assert_eq!(1, native.negative.len());
     }
 
     #[test]
@@ -1569,6 +1569,37 @@ mod tests {
         assert_eq!(0, native.zero_count);
         assert!(native.positive.spans.is_empty());
         assert!(native.negative.spans.is_empty());
+    }
+
+    #[test]
+    fn native_histogram_scheduled_reset_is_triggered_by_observe() {
+        let h = Histogram::new_native(
+            NativeHistogramConfig::with_schema(8)
+                .max_buckets(1)
+                .min_reset_duration(Duration::from_secs(60)),
+        );
+        h.observe(1.0);
+        h.observe(1.1);
+
+        {
+            let mut inner = h.inner.lock();
+            let native = inner.native.as_mut().unwrap();
+            assert!(native.schema < 8);
+            assert!(native.scheduled_reset.is_some());
+            native.scheduled_reset = Some(SystemTime::now() - Duration::from_secs(1));
+        }
+
+        h.observe(2.0);
+
+        let inner = h.inner.lock();
+        let native = inner.native.as_ref().unwrap();
+        assert_eq!(1, inner.count);
+        assert_eq!(2.0, inner.sum);
+        assert_eq!(8, native.schema);
+        assert_eq!(0, native.zero_count);
+        assert_eq!(1, native.positive.len());
+        assert_eq!(1, native.positive[0].1);
+        assert!(native.negative.is_empty());
     }
 
     #[test]
@@ -2136,13 +2167,19 @@ mod tests {
     }
 
     #[test]
-    fn native_histogram_bounds_match_client_golang_constants() {
-        let bounds = NATIVE_HISTOGRAM_BOUNDS;
-        assert_eq!(1, bounds[0].len());
-        assert_eq!(256, bounds[8].len());
-        assert_eq!(0.5013556375251013, bounds[8][1]);
-        assert_eq!(0.7071067811865475, bounds[8][128]);
-        assert_eq!(0.9972960560854698, bounds[8][255]);
+    fn native_histogram_bounds_match_standard_formula() {
+        for schema in 0..=8 {
+            let bounds = NATIVE_HISTOGRAM_BOUNDS[schema];
+            assert_eq!(1 << schema, bounds.len());
+
+            for (i, bound) in bounds.iter().enumerate() {
+                let expected = 2f64.powf(i as f64 / (1 << schema) as f64) / 2.0;
+                assert!(
+                    (*bound - expected).abs() <= 4.0 * f64::EPSILON,
+                    "schema {schema} index {i}: expected {expected}, got {bound}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -2162,6 +2199,7 @@ mod tests {
         assert_eq!(vec![(0, 0)], native.positive.spans);
         assert!(native.positive.deltas.is_empty());
         assert!(native.negative.spans.is_empty());
+        assert!(native.negative.deltas.is_empty());
     }
 
     #[test]
