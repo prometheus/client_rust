@@ -2168,8 +2168,7 @@ mod tests {
 
     #[test]
     fn native_histogram_bounds_match_standard_formula() {
-        for schema in 0..=8 {
-            let bounds = NATIVE_HISTOGRAM_BOUNDS[schema];
+        for (schema, bounds) in NATIVE_HISTOGRAM_BOUNDS.iter().enumerate() {
             assert_eq!(1 << schema, bounds.len());
 
             for (i, bound) in bounds.iter().enumerate() {
