@@ -37,7 +37,9 @@
 //! assert_eq!(expected_msg, buffer);
 //! ```
 
-use crate::encoding::{EncodeExemplarTime, EncodeExemplarValue, EncodeLabelSet, NoLabelSet};
+use crate::encoding::{
+    EncodeExemplarTime, EncodeExemplarValue, EncodeLabelSet, NativeHistogram, NoLabelSet,
+};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -444,6 +446,21 @@ impl MetricEncoder<'_> {
         Ok(())
     }
 
+    pub fn encode_histogram_with_native<S: EncodeLabelSet>(
+        &mut self,
+        sum: f64,
+        count: u64,
+        buckets: &[(f64, u64)],
+        exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
+        _native: NativeHistogram<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        if buckets.is_empty() {
+            return Err(std::fmt::Error);
+        }
+
+        self.encode_histogram(sum, count, buckets, exemplars)
+    }
+
     /// Encode an exemplar for the given metric.
     fn encode_exemplar<S: EncodeLabelSet, V: EncodeExemplarValue>(
         &mut self,
@@ -745,7 +762,7 @@ mod tests {
     use crate::metrics::exemplar::HistogramWithExemplars;
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
-    use crate::metrics::histogram::{exponential_buckets, Histogram};
+    use crate::metrics::histogram::{exponential_buckets, Histogram, NativeHistogramConfig};
     use crate::metrics::info::Info;
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
@@ -939,6 +956,41 @@ mod tests {
         encode(&mut encoded, &registry).unwrap();
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_classic_and_native_histogram_as_classic_text() {
+        let mut registry = Registry::default();
+        let histogram = Histogram::new_classic_and_native(
+            [1.0, 2.0],
+            NativeHistogramConfig::with_bucket_factor(1.1),
+        );
+        registry.register("my_histogram", "My histogram", histogram.clone());
+        histogram.observe(1.0);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_histogram My histogram.\n".to_owned()
+            + "# TYPE my_histogram histogram\n"
+            + "my_histogram_sum 1.0\n"
+            + "my_histogram_count 1\n"
+            + "my_histogram_bucket{le=\"1.0\"} 1\n"
+            + "my_histogram_bucket{le=\"2.0\"} 1\n"
+            + "my_histogram_bucket{le=\"+Inf\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn encode_native_only_histogram_errors() {
+        let mut registry = Registry::default();
+        let histogram = Histogram::new_native(NativeHistogramConfig::with_schema(0));
+        registry.register("my_histogram", "My histogram", histogram.clone());
+        histogram.observe(1.0);
+
+        let mut encoded = String::new();
+        assert!(encode(&mut encoded, &registry).is_err());
     }
 
     #[test]

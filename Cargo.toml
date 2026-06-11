@@ -68,6 +68,10 @@ name = "family"
 harness = false
 
 [[bench]]
+name = "histogram"
+harness = false
+
+[[bench]]
 name = "text"
 path = "benches/encoding/text.rs"
 harness = false

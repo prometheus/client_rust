@@ -275,8 +275,9 @@ impl<S> HistogramWithExemplars<S> {
 impl<S: EncodeLabelSet> EncodeMetric for HistogramWithExemplars<S> {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
         let inner = self.inner();
-        let (sum, count, buckets) = inner.histogram.get();
-        encoder.encode_histogram(sum, count, &buckets, Some(&inner.exemplars))
+        inner
+            .histogram
+            .encode_with_exemplars(&mut encoder, Some(&inner.exemplars))
     }
 
     fn metric_type(&self) -> MetricType {
