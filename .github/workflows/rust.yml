@@ -8,40 +8,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # v1.0.6
         with:
           profile: minimal
           toolchain: stable
           override: true
 
       # Install prometheus_client python library.
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.x'
       - run: pip3 install prometheus_client
 
       # Caching
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/registry
           key: cargo-registry-${{ hashFiles('Cargo.toml') }}
       - name: Cache cargo index
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/git
           key: cargo-index-${{ hashFiles('Cargo.toml') }}
 
-      - uses: actions-rs/cargo@v1
+      - uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
         with:
           command: check
           args: --locked
 
-      - uses: actions-rs/cargo@v1
+      - uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
         with:
           command: test
           args: --locked --benches --all-features
@@ -51,35 +51,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # v1.0.6
         with:
           profile: minimal
           toolchain: stable
           override: true
 
       # Install prometheus_client python library.
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.x'
       - run: pip3 install prometheus_client
 
       # Caching
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/registry
           key: cargo-registry-${{ hashFiles('Cargo.toml') }}
       - name: Cache cargo index
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/git
           key: cargo-index-${{ hashFiles('Cargo.toml') }}
 
-      - uses: actions-rs/cargo@v1
+      - uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
         with:
           command: test
           args: --locked --all --all-features
@@ -89,17 +89,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # v1.0.6
         with:
           profile: minimal
           toolchain: stable
           override: true
       - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
+      - uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
         with:
           command: fmt
           args: --all -- --check
@@ -109,11 +109,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # v1.0.6
         with:
           profile: minimal
           toolchain: stable
@@ -122,17 +122,17 @@ jobs:
 
       # Caching
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/registry
           key: cargo-registry-${{ hashFiles('Cargo.toml') }}
       - name: Cache cargo index
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/git
           key: cargo-index-${{ hashFiles('Cargo.toml') }}
 
-      - uses: actions-rs/cargo@v1
+      - uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
         with:
           command: clippy
           args: --locked --workspace --all-targets -- -D warnings
@@ -142,16 +142,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # v1.0.6
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
+      - uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
         env:
           RUSTDOCFLAGS: "--deny broken_intra_doc_links"
         with:
@@ -169,11 +169,12 @@ jobs:
           - powerpc64-unknown-linux-gnu
           - wasm32-unknown-unknown
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
         with:
           target: ${{ matrix.target }}
+          toolchain: stable
 
       # Note that this does not test the `protobuf` feature (for now). See reasoning in https://github.com/prometheus/client_rust/pull/98/.
       - run: cargo check --locked --target=${{ matrix.target }}
