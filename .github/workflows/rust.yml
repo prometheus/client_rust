@@ -19,7 +19,7 @@ jobs:
           override: true
 
       # Install prometheus_client python library.
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.x'
       - run: pip3 install prometheus_client
@@ -62,7 +62,7 @@ jobs:
           override: true
 
       # Install prometheus_client python library.
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.x'
       - run: pip3 install prometheus_client
