@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
-use prometheus_client::encoding::text::encode;
-use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
-use prometheus_client::metrics::counter::Counter;
-use prometheus_client::metrics::family::Family;
-use prometheus_client::registry::Registry;
+use prometheus_client::{
+    encoding::{EncodeLabelSet, EncodeLabelValue, text::encode},
+    metrics::{counter::Counter, family::Family},
+    registry::Registry,
+};
 
-#[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug, PartialOrd, Ord)]
 struct Labels {
     method: Method,
     path: String,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, EncodeLabelValue, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, EncodeLabelValue, Debug, PartialOrd, Ord)]
 enum Method {
     Get,
     #[allow(dead_code)]
@@ -47,11 +47,11 @@ fn basic_flow() {
 
 mod protobuf {
     use crate::{Labels, Method};
-    use prometheus_client::encoding::prometheus_protobuf::encode;
-    use prometheus_client::encoding::prometheus_protobuf::prometheus_data_model;
-    use prometheus_client::metrics::counter::Counter;
-    use prometheus_client::metrics::family::Family;
-    use prometheus_client::registry::Registry;
+    use prometheus_client::{
+        encoding::prometheus_protobuf::{encode, prometheus_data_model},
+        metrics::{counter::Counter, family::Family},
+        registry::Registry,
+    };
 
     #[test]
     fn structs() {
@@ -106,7 +106,7 @@ mod protobuf {
 
 #[test]
 fn remap_keyword_identifiers() {
-    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug, PartialOrd, Ord)]
     struct Labels {
         // `r#type` is problematic as `r#` is not a valid OpenMetrics label name
         // but one needs to use keyword identifier syntax (aka. raw identifiers)
@@ -137,7 +137,7 @@ fn remap_keyword_identifiers() {
 
 #[test]
 fn arc_string() {
-    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug, PartialOrd, Ord)]
     struct Labels {
         client_id: Arc<String>,
     }
@@ -167,12 +167,12 @@ fn arc_string() {
 
 #[test]
 fn flatten() {
-    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug, PartialOrd, Ord)]
     struct CommonLabels {
         a: u64,
         b: u64,
     }
-    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug)]
+    #[derive(EncodeLabelSet, Hash, Clone, Eq, PartialEq, Debug, PartialOrd, Ord)]
     struct Labels {
         unique: u64,
         #[prometheus(flatten)]
