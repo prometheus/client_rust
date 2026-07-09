@@ -1,0 +1,41 @@
+error: Can not derive Encode for struct with unnamed fields.
+ --> tests/build/friendly-compilation-error-msg.rs:6:1
+  |
+6 | struct Unnamed(String);
+  | ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Can not derive Encode for struct with unit field.
+  --> tests/build/friendly-compilation-error-msg.rs:10:1
+   |
+10 | struct UnitStruct;
+   | ^^^^^^^^^^^^^^^^^^
+
+error: Can not derive Encode for enum.
+  --> tests/build/friendly-compilation-error-msg.rs:14:1
+   |
+14 | / enum NotAllowedSet {
+15 | |     A,
+16 | |     B,
+17 | | }
+   | |_^
+
+error: Provided attribute 'unknown', but only 'flatten' is supported
+  --> tests/build/friendly-compilation-error-msg.rs:22:18
+   |
+22 |     #[prometheus(unknown)]
+   |                  ^^^^^^^
+
+error: Can not derive EncodeLabel for struct.
+  --> tests/build/friendly-compilation-error-msg.rs:28:1
+   |
+28 | struct StructForValue;
+   | ^^^^^^^^^^^^^^^^^^^^^^
+
+error: Can not derive Encode for union.
+  --> tests/build/friendly-compilation-error-msg.rs:32:1
+   |
+32 | / union UnionSet {
+33 | |     a: u32,
+34 | |     b: f32,
+35 | | }
+   | |_^

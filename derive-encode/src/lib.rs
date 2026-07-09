@@ -11,6 +11,12 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::DeriveInput;
 
+fn error_spanned<T: quote::ToTokens>(tokens: &T, msg: &str) -> TokenStream {
+    syn::Error::new_spanned(tokens, msg)
+        .to_compile_error()
+        .into()
+}
+
 /// Derive `prometheus_client::encoding::EncodeLabelSet`.
 #[proc_macro_derive(EncodeLabelSet, attributes(prometheus))]
 pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
@@ -19,55 +25,82 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
 
     let body: TokenStream2 = match ast.clone().data {
         syn::Data::Struct(s) => match s.fields {
-            syn::Fields::Named(syn::FieldsNamed { named, .. }) => named
-                .into_iter()
-                .map(|f| {
-                    let attribute = f
-                        .attrs
-                        .iter()
-                        .find(|a| a.path().is_ident("prometheus"))
-                        .map(|a| a.parse_args::<syn::Ident>().unwrap().to_string());
-                    let flatten = match attribute.as_deref() {
-                        Some("flatten") => true,
-                        Some(other) => {
-                            panic!("Provided attribute '{other}', but only 'flatten' is supported")
-                        }
-                        None => false,
-                    };
-                    let ident = f.ident.unwrap();
-                    if flatten {
-                        quote! {
-                             EncodeLabelSet::encode(&self.#ident, encoder)?;
-                        }
-                    } else {
-                        let ident_string = KEYWORD_IDENTIFIERS
+            syn::Fields::Named(syn::FieldsNamed { named, .. }) => {
+                let body = named
+                    .into_iter()
+                    .map(|f| {
+                        let ident = f.ident.unwrap();
+                        let flatten = match f
+                            .attrs
                             .iter()
-                            .find(|pair| ident == pair.1)
-                            .map(|pair| pair.0.to_string())
-                            .unwrap_or_else(|| ident.to_string());
+                            .find(|a| a.path().is_ident("prometheus"))
+                        {
+                            None => false,
+                            Some(a) => match a.parse_args::<syn::Ident>() {
+                                Ok(ident) if ident == "flatten" => true,
+                                Ok(other) => {
+                                    return Err(error_spanned(
+                                        &other,
+                                        &format!(
+                                            "Provided attribute '{other}', but only 'flatten' is supported"
+                                        ),
+                                    ));
+                                }
+                                Err(_) => {
+                                    return Err(error_spanned(
+                                        a,
+                                        "Attribute on `#[prometheus(...)]` must be an identifier, e.g. `#[prometheus(flatten)]`",
+                                    ));
+                                }
+                            },
+                        };
 
-                        quote! {
-                            let mut label_encoder = encoder.encode_label();
-                            let mut label_key_encoder = label_encoder.encode_label_key()?;
-                            EncodeLabelKey::encode(&#ident_string, &mut label_key_encoder)?;
+                        if flatten {
+                            Ok(quote! {
+                                 EncodeLabelSet::encode(&self.#ident, encoder)?;
+                            })
+                        } else {
+                            let ident_string = KEYWORD_IDENTIFIERS
+                                .iter()
+                                .find(|pair| ident == pair.1)
+                                .map(|pair| pair.0.to_string())
+                                .unwrap_or_else(|| ident.to_string());
 
-                            let mut label_value_encoder = label_key_encoder.encode_label_value()?;
-                            EncodeLabelValue::encode(&self.#ident, &mut label_value_encoder)?;
+                            Ok(quote! {
+                                let mut label_encoder = encoder.encode_label();
+                                let mut label_key_encoder = label_encoder.encode_label_key()?;
+                                EncodeLabelKey::encode(&#ident_string, &mut label_key_encoder)?;
 
-                            label_value_encoder.finish()?;
+                                let mut label_value_encoder = label_key_encoder.encode_label_value()?;
+                                EncodeLabelValue::encode(&self.#ident, &mut label_value_encoder)?;
+
+                                label_value_encoder.finish()?;
+                            })
                         }
-                    }
-                })
-                .collect(),
-            syn::Fields::Unnamed(_) => {
-                panic!("Can not derive Encode for struct with unnamed fields.")
+                    })
+                    .collect::<Result<TokenStream2, TokenStream>>();
+
+                match body {
+                    Ok(body) => body,
+                    Err(err) => return err,
+                }
             }
-            syn::Fields::Unit => panic!("Can not derive Encode for struct with unit field."),
+            syn::Fields::Unnamed(_) => {
+                return error_spanned(
+                    &ast,
+                    "Can not derive Encode for struct with unnamed fields.",
+                );
+            }
+            syn::Fields::Unit => {
+                return error_spanned(&ast, "Can not derive Encode for struct with unit field.");
+            }
         },
         syn::Data::Enum(syn::DataEnum { .. }) => {
-            panic!("Can not derive Encode for enum.")
+            return error_spanned(&ast, "Can not derive Encode for enum.");
         }
-        syn::Data::Union(_) => panic!("Can not derive Encode for union."),
+        syn::Data::Union(_) => {
+            return error_spanned(&ast, "Can not derive Encode for union.");
+        }
     };
 
     let gen = quote! {
@@ -95,7 +128,7 @@ pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
 
     let body = match ast.clone().data {
         syn::Data::Struct(_) => {
-            panic!("Can not derive EncodeLabel for struct.")
+            return error_spanned(&ast, "Can not derive EncodeLabel for struct.");
         }
         syn::Data::Enum(syn::DataEnum { variants, .. }) => {
             let match_arms: TokenStream2 = variants
@@ -114,7 +147,9 @@ pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
                 }
             }
         }
-        syn::Data::Union(_) => panic!("Can not derive Encode for union."),
+        syn::Data::Union(_) => {
+            return error_spanned(&ast, "Can not derive Encode for union.");
+        }
     };
 
     let gen = quote! {
