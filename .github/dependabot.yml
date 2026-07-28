@@ -1,6 +1,13 @@
+###
+# Avoid syncing from prometheus/prometheus: no_prometheus_repo_sync
+###
 version: 2
 updates:
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "daily"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
