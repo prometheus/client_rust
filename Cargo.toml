@@ -37,7 +37,7 @@ prost-types = { version = "0.14", optional = true }
 
 [dev-dependencies]
 async-std = { version = "1", features = ["attributes"] }
-axum = "0.7"
+axum = "0.8"
 criterion = "0.5"
 futures = "0.3"
 http-types = "2"
