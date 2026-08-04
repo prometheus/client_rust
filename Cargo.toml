@@ -38,12 +38,12 @@ prost-types = { version = "0.14", optional = true }
 [dev-dependencies]
 async-std = { version = "1", features = ["attributes"] }
 axum = "0.8"
-criterion = "0.5"
+criterion = "0.8"
 futures = "0.3"
 http-types = "2"
 pyo3 = "0.29"
 quickcheck = "1"
-rand = "0.8.4"
+rand = "0.10.1"
 tide = "0.16"
 actix-web = "4"
 tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "signal"] }
