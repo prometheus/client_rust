@@ -1,13 +1,14 @@
 // Benchmark inspired by
 // https://github.com/tikv/rust-prometheus/blob/ab1ca7285d3463504381a5025ae1951e020d6796/benches/text_encoder.rs:write
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use prometheus_client::encoding::prometheus_protobuf;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
 use prometheus_client::registry::Registry;
 use prometheus_client_derive_encode::{EncodeLabelSet, EncodeLabelValue};
+use std::hint::black_box;
 
 pub fn proto(c: &mut Criterion) {
     c.bench_function("encode", |b| {
