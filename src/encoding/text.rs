@@ -37,16 +37,15 @@
 //! assert_eq!(expected_msg, buffer);
 //! ```
 
-use crate::encoding::{
-    EncodeExemplarTime, EncodeExemplarValue, EncodeLabelSet, NativeHistogram, NoLabelSet,
+use crate::{
+    encoding::{
+        EncodeExemplarTime, EncodeExemplarValue, EncodeLabelSet, NativeHistogram, NoLabelSet,
+    },
+    metrics::{MetricType, exemplar::Exemplar},
+    registry::{Prefix, Registry, Unit},
 };
-use crate::metrics::exemplar::Exemplar;
-use crate::metrics::MetricType;
-use crate::registry::{Prefix, Registry, Unit};
 
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::fmt::Write;
+use std::{borrow::Cow, collections::HashMap, fmt::Write};
 
 /// Encode both the metrics registered with the provided [`Registry`] and the
 /// EOF marker into the provided [`Write`]r using the OpenMetrics text format.
@@ -759,17 +758,21 @@ impl std::fmt::Write for LabelValueEncoder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::metrics::exemplar::HistogramWithExemplars;
-    use crate::metrics::family::Family;
-    use crate::metrics::gauge::Gauge;
-    use crate::metrics::histogram::{exponential_buckets, Histogram, NativeHistogramConfig};
-    use crate::metrics::info::Info;
-    use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
+    use crate::metrics::{
+        counter::Counter,
+        exemplar::{CounterWithExemplar, HistogramWithExemplars},
+        family::Family,
+        gauge::Gauge,
+        histogram::{Histogram, NativeHistogramConfig, exponential_buckets},
+        info::Info,
+    };
     use pyo3::{prelude::*, types::PyModule};
-    use std::borrow::Cow;
-    use std::fmt::Error;
-    use std::sync::atomic::{AtomicI32, AtomicU32};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        borrow::Cow,
+        fmt::Error,
+        sync::atomic::{AtomicI32, AtomicU32},
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     #[test]
     fn encode_counter() {
@@ -916,8 +919,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        let expected = "# HELP my_prefix_my_counter_family My counter family.\n"
-            .to_owned()
+        let expected = "# HELP my_prefix_my_counter_family My counter family.\n".to_owned()
             + "# TYPE my_prefix_my_counter_family counter\n"
             + "my_prefix_my_counter_family_total{my_key=\"my_value\",method=\"GET\",status=\"200\"} 1\n"
             + "# EOF\n";
@@ -1020,7 +1022,7 @@ mod tests {
             Family::new_with_constructor(|| Histogram::new(exponential_buckets(1.0, 2.0, 10)));
         registry.register("my_histogram", "My histogram", family.clone());
 
-        #[derive(Eq, PartialEq, Hash, Debug, Clone)]
+        #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone)]
         struct EmptyLabels {}
 
         impl EncodeLabelSet for EmptyLabels {
@@ -1210,7 +1212,7 @@ mod tests {
 
     #[test]
     fn label_sets_can_be_composed() {
-        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+        #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
         struct Color(&'static str);
         impl EncodeLabelSet for Color {
             fn encode(
@@ -1225,7 +1227,7 @@ mod tests {
             }
         }
 
-        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+        #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
         struct Size(&'static str);
         impl EncodeLabelSet for Size {
             fn encode(
@@ -1370,6 +1372,55 @@ def parse(input):
             + "# HELP counter2 Second counter.\n"
             + "# TYPE counter2 counter\n"
             + "counter2_total{label=\"value\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn metrics_are_sorted_by_registration_order() {
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        let another_counter: Counter = Counter::default();
+        registry.register("my_counter", "My counter", counter);
+        registry.register("another_counter", "Another counter", another_counter);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_counter My counter.\n".to_owned()
+            + "# TYPE my_counter counter\n"
+            + "my_counter_total 0\n"
+            + "# HELP another_counter Another counter.\n"
+            + "# TYPE another_counter counter\n"
+            + "another_counter_total 0\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+    }
+
+    #[test]
+    fn metric_family_is_sorted_lexicographically() {
+        let mut registry = Registry::default();
+        let gauge = Family::<Vec<(String, String)>, Gauge>::default();
+        registry.register("my_gauge", "My gauge", gauge.clone());
+
+        gauge
+            .get_or_create(&vec![("label".to_string(), "0".to_string())])
+            .set(0);
+        gauge
+            .get_or_create(&vec![("label".to_string(), "2".to_string())])
+            .set(2);
+        gauge
+            .get_or_create(&vec![("label".to_string(), "1".to_string())])
+            .set(1);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP my_gauge My gauge.\n".to_owned()
+            + "# TYPE my_gauge gauge\n"
+            + "my_gauge{label=\"0\"} 0\n"
+            + "my_gauge{label=\"1\"} 1\n"
+            + "my_gauge{label=\"2\"} 2\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
     }
