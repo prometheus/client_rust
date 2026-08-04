@@ -2,6 +2,8 @@ on:
   push:
     branches:
       - master
+    tags:
+      - "v*"
   pull_request:
 
 name: Continuous integration
@@ -12,8 +14,9 @@ permissions:
 concurrency:
   # GitHub concurrency keeps at most one running and one pending run per group.
   # Use ref_name for PRs so new commits cancel older PR runs on the same PR,
-  # but key pushes by SHA so postsubmit runs do not cancel each other.
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.ref_name) || format('push-{0}', github.sha) }}
+  # but key pushes by ref and SHA so postsubmit runs do not cancel each other,
+  # and a release tag does not queue behind the master run for the same commit.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.ref_name) || format('push-{0}-{1}', github.ref, github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
