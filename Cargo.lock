@@ -2489,7 +2489,7 @@ dependencies = [
 
 [[package]]
 name = "prometheus-client"
-version = "0.25.0"
+version = "0.25.1"
 dependencies = [
  "actix-web",
  "async-std",
@@ -2517,7 +2517,7 @@ dependencies = [
 
 [[package]]
 name = "prometheus-client-derive-encode"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "proc-macro2",
  "prometheus-client",
