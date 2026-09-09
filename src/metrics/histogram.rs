@@ -323,7 +323,7 @@ impl Histogram {
                 count: Default::default(),
                 buckets: buckets
                     .into_iter()
-                    .chain(once(f64::MAX))
+                    .chain(once(f64::INFINITY))
                     .map(|upper_bound| (upper_bound, 0))
                     .collect(),
                 native: None,
@@ -2224,6 +2224,44 @@ mod tests {
         assert_eq!(
             2,
             native.positive.iter().map(|(_, count)| *count).sum::<u64>()
+        );
+    }
+}
+
+#[cfg(test)]
+mod overflow_bucket_tests {
+    use super::Histogram;
+
+    /// An `+Inf` observation must land in the overflow bucket.
+    ///
+    /// `observe_classic` routes NaN to the last bucket explicitly, but everything else through
+    /// `find(|(upper_bound, _)| upper_bound >= &v)`. With `f64::MAX` as the sentinel,
+    /// `f64::MAX >= f64::INFINITY` is false, so an infinite observation incremented `sum` and
+    /// `count` while incrementing NO bucket — leaving the overflow bucket short of `_count`.
+    /// Prometheus only hid this because it ignored the finite sentinel and synthesised its own
+    /// `+Inf` series from `sample_count`.
+    #[test]
+    fn infinite_observation_lands_in_the_overflow_bucket() {
+        let histogram = Histogram::new([1.0, 2.0]);
+        histogram.observe(0.5);
+        histogram.observe(f64::INFINITY);
+        histogram.observe(f64::NAN);
+
+        let inner = histogram.inner.lock();
+        let cumulative: u64 = inner.buckets.iter().map(|(_, count)| count).sum();
+        assert_eq!(
+            cumulative, inner.count,
+            "every observation must be in some bucket; buckets={:?} count={}",
+            inner.buckets, inner.count
+        );
+        let (last_bound, last_count) = *inner.buckets.last().expect("no buckets");
+        assert!(
+            last_bound.is_infinite(),
+            "overflow bound is {last_bound:e}, not +Inf"
+        );
+        assert_eq!(
+            last_count, 2,
+            "the +Inf and NaN observations belong to the overflow bucket"
         );
     }
 }
