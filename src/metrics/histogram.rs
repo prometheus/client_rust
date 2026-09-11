@@ -316,6 +316,11 @@ impl Histogram {
     /// # use prometheus_client::metrics::histogram::Histogram;
     /// let histogram = Histogram::new([10.0, 100.0, 1_000.0]);
     /// ```
+    ///
+    /// The overflow bucket is implicit and always present, so non-finite bounds in `buckets` are
+    /// dropped: passing `f64::INFINITY` explicitly would otherwise produce two `le="+Inf"` series
+    /// for the same metric. `client_golang` strips an explicitly-configured `+Inf` bound for the
+    /// same reason. A `NaN` bound is dropped too, since no observation can ever match it.
     pub fn new(buckets: impl IntoIterator<Item = f64>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
@@ -323,6 +328,7 @@ impl Histogram {
                 count: Default::default(),
                 buckets: buckets
                     .into_iter()
+                    .filter(|upper_bound| upper_bound.is_finite())
                     .chain(once(f64::INFINITY))
                     .map(|upper_bound| (upper_bound, 0))
                     .collect(),
@@ -2240,6 +2246,49 @@ mod overflow_bucket_tests {
     /// `count` while incrementing NO bucket — leaving the overflow bucket short of `_count`.
     /// Prometheus only hid this because it ignored the finite sentinel and synthesised its own
     /// `+Inf` series from `sample_count`.
+    /// An explicitly-configured `+Inf` bound must not duplicate the implicit overflow bucket.
+    ///
+    /// Two buckets with the same `le` is invalid exposition, so `Histogram::new` drops non-finite
+    /// bounds, as `client_golang` does.
+    #[test]
+    fn explicit_infinite_bound_does_not_duplicate_the_overflow_bucket() {
+        use crate::encoding::text::encode;
+        use crate::registry::Registry;
+
+        let histogram = Histogram::new([1.0, f64::INFINITY, f64::NAN, f64::NEG_INFINITY]);
+        histogram.observe(0.5);
+
+        {
+            let inner = histogram.inner.lock();
+            let infinite = inner
+                .buckets
+                .iter()
+                .filter(|(upper_bound, _)| upper_bound.is_infinite())
+                .count();
+            assert_eq!(
+                infinite, 1,
+                "exactly one infinite bucket expected, got buckets={:?}",
+                inner.buckets
+            );
+            assert_eq!(
+                inner.buckets.len(),
+                2,
+                "only the finite 1.0 bound plus the implicit overflow bucket should remain, got {:?}",
+                inner.buckets
+            );
+        }
+
+        let mut registry = Registry::default();
+        registry.register("my_histogram", "My histogram", histogram);
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).expect("encode");
+        assert_eq!(
+            encoded.matches(r#"le="+Inf""#).count(),
+            1,
+            "the exposition must contain exactly one +Inf bucket:\n{encoded}"
+        );
+    }
+
     #[test]
     fn infinite_observation_lands_in_the_overflow_bucket() {
         let histogram = Histogram::new([1.0, 2.0]);
