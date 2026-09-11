@@ -316,6 +316,11 @@ impl Histogram {
     /// # use prometheus_client::metrics::histogram::Histogram;
     /// let histogram = Histogram::new([10.0, 100.0, 1_000.0]);
     /// ```
+    ///
+    /// The overflow bucket is implicit and always present, so non-finite bounds in `buckets` are
+    /// dropped: passing `f64::INFINITY` explicitly would otherwise produce two `le="+Inf"` series
+    /// for the same metric. `client_golang` strips an explicitly-configured `+Inf` bound for the
+    /// same reason. A `NaN` bound is dropped too, since no observation can ever match it.
     pub fn new(buckets: impl IntoIterator<Item = f64>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
@@ -323,7 +328,8 @@ impl Histogram {
                 count: Default::default(),
                 buckets: buckets
                     .into_iter()
-                    .chain(once(f64::MAX))
+                    .filter(|upper_bound| upper_bound.is_finite())
+                    .chain(once(f64::INFINITY))
                     .map(|upper_bound| (upper_bound, 0))
                     .collect(),
                 native: None,
@@ -2224,6 +2230,77 @@ mod tests {
         assert_eq!(
             2,
             native.positive.iter().map(|(_, count)| *count).sum::<u64>()
+        );
+    }
+}
+
+#[cfg(test)]
+mod overflow_bucket_tests {
+    use super::Histogram;
+
+    /// Every observation, including `+Inf` and `NaN`, must be counted in some bucket.
+    #[test]
+    fn infinite_observation_lands_in_the_overflow_bucket() {
+        let histogram = Histogram::new([1.0, 2.0]);
+        histogram.observe(0.5);
+        histogram.observe(f64::INFINITY);
+        histogram.observe(f64::NAN);
+
+        let inner = histogram.inner.lock();
+        let cumulative: u64 = inner.buckets.iter().map(|(_, count)| count).sum();
+        assert_eq!(
+            cumulative, inner.count,
+            "every observation must be in some bucket; buckets={:?} count={}",
+            inner.buckets, inner.count
+        );
+        let (last_bound, last_count) = *inner.buckets.last().expect("no buckets");
+        assert!(
+            last_bound.is_infinite(),
+            "overflow bound is {last_bound:e}, not +Inf"
+        );
+        assert_eq!(
+            last_count, 2,
+            "the +Inf and NaN observations belong to the overflow bucket"
+        );
+    }
+
+    /// An explicit `+Inf` bound must not duplicate the implicit overflow bucket.
+    #[test]
+    fn explicit_infinite_bound_does_not_duplicate_the_overflow_bucket() {
+        use crate::encoding::text::encode;
+        use crate::registry::Registry;
+
+        let histogram = Histogram::new([1.0, f64::INFINITY, f64::NAN, f64::NEG_INFINITY]);
+        histogram.observe(0.5);
+
+        {
+            let inner = histogram.inner.lock();
+            let infinite = inner
+                .buckets
+                .iter()
+                .filter(|(upper_bound, _)| upper_bound.is_infinite())
+                .count();
+            assert_eq!(
+                infinite, 1,
+                "exactly one infinite bucket expected, got buckets={:?}",
+                inner.buckets
+            );
+            assert_eq!(
+                inner.buckets.len(),
+                2,
+                "only the finite 1.0 bound plus the implicit overflow bucket should remain, got {:?}",
+                inner.buckets
+            );
+        }
+
+        let mut registry = Registry::default();
+        registry.register("my_histogram", "My histogram", histogram);
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).expect("encode");
+        assert_eq!(
+            encoded.matches(r#"le="+Inf""#).count(),
+            1,
+            "the exposition must contain exactly one +Inf bucket:\n{encoded}"
         );
     }
 }

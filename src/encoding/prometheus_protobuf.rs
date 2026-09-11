@@ -803,7 +803,11 @@ mod tests {
         assert_eq!(11, histogram.bucket.len());
         assert_eq!(1, histogram.bucket[0].cumulative_count);
         assert_eq!(1.0, histogram.bucket[0].upper_bound);
-        assert_eq!(f64::MAX, histogram.bucket.last().unwrap().upper_bound);
+        assert_eq!(
+            f64::INFINITY,
+            histogram.bucket.last().unwrap().upper_bound,
+            "the implicit overflow bucket must be exposed as +Inf"
+        );
     }
 
     #[test]

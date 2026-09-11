@@ -426,7 +426,7 @@ impl MetricEncoder<'_> {
             self.write_prefix_name_unit()?;
             self.write_suffix("bucket")?;
 
-            if *upper_bound == f64::MAX {
+            if *upper_bound == f64::INFINITY {
                 self.encode_labels(Some(&[("le", "+Inf")]))?;
             } else {
                 self.encode_labels(Some(&[("le", *upper_bound)]))?;
