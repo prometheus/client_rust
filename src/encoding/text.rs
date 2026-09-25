@@ -752,7 +752,19 @@ impl LabelValueEncoder<'_> {
 
 impl std::fmt::Write for LabelValueEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        self.writer.write_str(s)
+        let mut last = 0;
+        for (index, character) in s.char_indices() {
+            let escaped = match character {
+                '\\' => "\\\\",
+                '"' => "\\\"",
+                '\n' => "\\n",
+                _ => continue,
+            };
+            self.writer.write_str(&s[last..index])?;
+            self.writer.write_str(escaped)?;
+            last = index + character.len_utf8();
+        }
+        self.writer.write_str(&s[last..])
     }
 }
 
@@ -770,6 +782,56 @@ mod tests {
     use std::fmt::Error;
     use std::sync::atomic::{AtomicI32, AtomicU32};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn label_values_escape_special_characters() {
+        let mut encoded = String::new();
+        let mut label_set_encoder = LabelSetEncoder::new(&mut encoded);
+        let mut label_encoder = label_set_encoder.encode_label();
+        let mut key_encoder = label_encoder.encode_label_key().unwrap();
+        key_encoder.write_str("label").unwrap();
+        let mut value_encoder = key_encoder.encode_label_value().unwrap();
+        value_encoder
+            .write_str("plain \\ quoted \" line\ncarriage\r unicode λ")
+            .unwrap();
+        value_encoder.finish().unwrap();
+
+        assert_eq!(
+            concat!(
+                r#"label="plain \\ quoted \" line\ncarriage"#,
+                "\r",
+                r#" unicode λ""#
+            ),
+            encoded
+        );
+    }
+
+    #[test]
+    fn escaped_label_values_produce_parseable_exposition() {
+        let mut registry = Registry::default();
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+        registry.register("requests", "Requests", family.clone());
+        family
+            .get_or_create(&vec![(
+                "client_version".to_string(),
+                "a\"} evil{x=\"1\\line\nnext".to_string(),
+            )])
+            .inc();
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        assert_eq!(
+            concat!(
+                "# HELP requests Requests.\n",
+                "# TYPE requests counter\n",
+                r#"requests_total{client_version="a\"} evil{x=\"1\\line\nnext"} 1"#,
+                "\n# EOF\n"
+            ),
+            encoded
+        );
+        parse_with_python_client(encoded);
+    }
 
     #[test]
     fn encode_counter() {
