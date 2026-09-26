@@ -752,6 +752,10 @@ impl LabelValueEncoder<'_> {
 
 impl std::fmt::Write for LabelValueEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        if !s.bytes().any(|byte| matches!(byte, b'\\' | b'"' | b'\n')) {
+            return self.writer.write_str(s);
+        }
+
         let mut last = 0;
         for (index, character) in s.char_indices() {
             let escaped = match character {
