@@ -11,6 +11,11 @@ use std::hint::black_box;
 
 pub fn text(c: &mut Criterion) {
     bench_text(c, "encode", "200");
+    bench_text(
+        c,
+        "encode_realistic_string_labels",
+        "checkout-api-7d9f4c8b6f-2xkpt",
+    );
     bench_text(c, "encode_escaped_label_values", "2\\0\"0\n");
 }
 
