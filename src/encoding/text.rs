@@ -748,11 +748,39 @@ impl LabelValueEncoder<'_> {
     pub fn finish(self) -> Result<(), std::fmt::Error> {
         self.writer.write_str("\"")
     }
+
+    pub(crate) fn write_str_unescaped(&mut self, s: &str) -> Result<(), std::fmt::Error> {
+        self.writer.write_str(s)
+    }
+
+    #[cold]
+    fn write_str_escaped(&mut self, s: &str) -> Result<(), std::fmt::Error> {
+        let mut last = 0;
+        for (index, byte) in s.bytes().enumerate() {
+            let escaped = match byte {
+                b'\\' => "\\\\",
+                b'"' => "\\\"",
+                b'\n' => "\\n",
+                _ => continue,
+            };
+            self.writer.write_str(&s[last..index])?;
+            self.writer.write_str(escaped)?;
+            last = index + 1;
+        }
+        self.writer.write_str(&s[last..])
+    }
 }
 
 impl std::fmt::Write for LabelValueEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        self.writer.write_str(s)
+        let needs_escaping = s.bytes().fold(false, |found, byte| {
+            found | matches!(byte, b'\\' | b'"' | b'\n')
+        });
+        if needs_escaping {
+            self.write_str_escaped(s)
+        } else {
+            self.write_str_unescaped(s)
+        }
     }
 }
 
@@ -766,10 +794,101 @@ mod tests {
     use crate::metrics::info::Info;
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
     use pyo3::{prelude::*, types::PyModule};
+    use quickcheck::QuickCheck;
     use std::borrow::Cow;
     use std::fmt::Error;
     use std::sync::atomic::{AtomicI32, AtomicU32};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn label_values_escape_special_characters() {
+        let mut encoded = String::new();
+        let mut label_set_encoder = LabelSetEncoder::new(&mut encoded);
+        let mut label_encoder = label_set_encoder.encode_label();
+        let mut key_encoder = label_encoder.encode_label_key().unwrap();
+        key_encoder.write_str("label").unwrap();
+        let mut value_encoder = key_encoder.encode_label_value().unwrap();
+        value_encoder
+            .write_str("plain \\ quoted \" line\ncarriage\r unicode λ")
+            .unwrap();
+        value_encoder.finish().unwrap();
+
+        assert_eq!(
+            concat!(
+                r#"label="plain \\ quoted \" line\ncarriage"#,
+                "\r",
+                r#" unicode λ""#
+            ),
+            encoded
+        );
+    }
+
+    #[test]
+    fn label_value_escaping_matches_reference() {
+        fn reference(s: &str) -> String {
+            let mut escaped = String::new();
+            for character in s.chars() {
+                match character {
+                    '\\' => escaped.push_str("\\\\"),
+                    '"' => escaped.push_str("\\\""),
+                    '\n' => escaped.push_str("\\n"),
+                    _ => escaped.push(character),
+                }
+            }
+            escaped
+        }
+
+        fn encode(value: &str) -> String {
+            let mut encoded = String::new();
+            let mut encoder = LabelValueEncoder {
+                writer: &mut encoded,
+            };
+            encoder.write_str(value).unwrap();
+            encoded
+        }
+
+        fn prop(value: String) -> bool {
+            if encode(&value) != reference(&value) {
+                return false;
+            }
+
+            // Guarantee that QuickCheck exercises a newline without another special
+            // byte that could independently select the escaping path.
+            let newline_only = format!("{}\n", value.replace(['\\', '"', '\n'], ""));
+            encode(&newline_only) == reference(&newline_only)
+        }
+
+        QuickCheck::new()
+            .tests(1_000)
+            .quickcheck(prop as fn(String) -> bool);
+    }
+
+    #[test]
+    fn escaped_label_values_produce_parseable_exposition() {
+        let mut registry = Registry::default();
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+        registry.register("requests", "Requests", family.clone());
+        family
+            .get_or_create(&vec![(
+                "client_version".to_string(),
+                "a\"} evil{x=\"1\\line\nnext".to_string(),
+            )])
+            .inc();
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        assert_eq!(
+            concat!(
+                "# HELP requests Requests.\n",
+                "# TYPE requests counter\n",
+                r#"requests_total{client_version="a\"} evil{x=\"1\\line\nnext"} 1"#,
+                "\n# EOF\n"
+            ),
+            encoded
+        );
+        parse_with_python_client(encoded);
+    }
 
     #[test]
     fn encode_counter() {

@@ -10,7 +10,17 @@ use std::fmt::Write;
 use std::hint::black_box;
 
 pub fn text(c: &mut Criterion) {
-    c.bench_function("encode", |b| {
+    bench_text(c, "encode", "200");
+    bench_text(
+        c,
+        "encode_realistic_string_labels",
+        "checkout-api-7d9f4c8b6f-2xkpt",
+    );
+    bench_text(c, "encode_escaped_label_values", "2\\0\"0\n");
+}
+
+fn bench_text(c: &mut Criterion, name: &str, status_value: &'static str) {
+    c.bench_function(name, |b| {
         #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug)]
         struct Labels {
             method: Method,
@@ -26,23 +36,11 @@ pub fn text(c: &mut Criterion) {
         }
 
         #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-        enum Status {
-            Two,
-            #[allow(dead_code)]
-            Four,
-            #[allow(dead_code)]
-            Five,
-        }
+        struct Status(&'static str);
 
         impl prometheus_client::encoding::EncodeLabelValue for Status {
             fn encode(&self, writer: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
-                let status = match self {
-                    Status::Two => "200",
-                    Status::Four => "400",
-                    Status::Five => "500",
-                };
-                writer.write_str(status)?;
-                Ok(())
+                writer.write_str(self.0)
             }
         }
 
@@ -69,14 +67,14 @@ pub fn text(c: &mut Criterion) {
                 counter_family
                     .get_or_create(&Labels {
                         method: Method::Get,
-                        status: Status::Two,
+                        status: Status(status_value),
                         some_number: j.into(),
                     })
                     .inc();
                 histogram_family
                     .get_or_create(&Labels {
                         method: Method::Get,
-                        status: Status::Two,
+                        status: Status(status_value),
                         some_number: j.into(),
                     })
                     .observe(j.into());
@@ -86,6 +84,7 @@ pub fn text(c: &mut Criterion) {
         let mut buffer = String::new();
 
         b.iter(|| {
+            buffer.clear();
             encoding::text::encode(&mut buffer, &registry).unwrap();
             black_box(&mut buffer);
         })

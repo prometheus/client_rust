@@ -613,6 +613,10 @@ impl std::fmt::Write for LabelValueEncoder<'_> {
 }
 
 impl LabelValueEncoder<'_> {
+    pub(crate) fn write_str_unescaped(&mut self, s: &str) -> Result<(), std::fmt::Error> {
+        for_both_mut!(self, LabelValueEncoderInner, e, e.write_str_unescaped(s))
+    }
+
     /// Finish encoding the label value.
     pub fn finish(self) -> Result<(), std::fmt::Error> {
         for_both!(self, LabelValueEncoderInner, e, e.finish())
@@ -676,7 +680,7 @@ where
 
 impl EncodeLabelValue for f64 {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.write_str(dtoa::Buffer::new().format(*self))
+        encoder.write_str_unescaped(dtoa::Buffer::new().format(*self))
     }
 }
 
@@ -694,7 +698,7 @@ where
 
 impl EncodeLabelValue for bool {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.write_str(if *self { "true" } else { "false" })
+        encoder.write_str_unescaped(if *self { "true" } else { "false" })
     }
 }
 
@@ -702,7 +706,7 @@ macro_rules! impl_encode_label_value_for_integer {
     ($($t:ident),*) => {$(
         impl EncodeLabelValue for $t {
             fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
-                encoder.write_str(itoa::Buffer::new().format(*self))
+                encoder.write_str_unescaped(itoa::Buffer::new().format(*self))
             }
         }
     )*};
