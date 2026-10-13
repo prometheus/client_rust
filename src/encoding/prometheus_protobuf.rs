@@ -582,6 +582,11 @@ impl LabelValueEncoder<'_> {
     pub fn finish(self) -> Result<(), std::fmt::Error> {
         Ok(())
     }
+
+    pub(crate) fn write_str_unescaped(&mut self, s: &str) -> Result<(), std::fmt::Error> {
+        self.label_value.push_str(s);
+        Ok(())
+    }
 }
 
 impl std::fmt::Write for LabelValueEncoder<'_> {
