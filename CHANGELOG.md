@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.2]
+
+### Fixed
+
+- Label values in the text format are now escaped (`\`, `"` and newlines), as the exposition format requires. See [PR 347].
+- The implicit `Histogram` overflow bucket now uses `+Inf` instead of `f64::MAX` as its upper bound, and `Histogram::new` drops non-finite bucket bounds, so an explicit `f64::INFINITY` no longer produces a duplicate `le="+Inf"` series. See [PR 343].
+
+### Changed
+
+- Updated the optional `protox` build dependency to `v0.10`.
+
+[PR 343]: https://github.com/prometheus/client_rust/pull/343
+[PR 347]: https://github.com/prometheus/client_rust/pull/347
+
 ## [0.25.1]
 
 ### Fixed
