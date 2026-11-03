@@ -14,7 +14,7 @@ pub trait TypedMetric {
 }
 
 /// OpenMetrics metric type.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(missing_docs)]
 pub enum MetricType {
     Counter,
@@ -39,5 +39,16 @@ impl MetricType {
             MetricType::Info => "info",
             MetricType::Unknown => "unknown",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metric_type_equality() {
+        assert_eq!(MetricType::Counter, MetricType::Counter);
+        assert_ne!(MetricType::Counter, MetricType::Gauge);
     }
 }
