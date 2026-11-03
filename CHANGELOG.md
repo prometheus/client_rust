@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Implement `PartialEq` and `Eq` for `metrics::MetricType` and `registry::Unit`. See [PR 366].
+- Implement `PartialEq`, `Eq` and `Hash` for `metrics::MetricType` and `registry::Unit`. See [PR 366].
 
 [PR 366]: https://github.com/prometheus/client_rust/pull/366
 

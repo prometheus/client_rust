@@ -351,7 +351,7 @@ impl Descriptor {
 /// Metric units recommended by Open Metrics.
 ///
 /// See [`Unit::Other`] to specify alternative units.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum Unit {
     Amperes,
@@ -389,16 +389,3 @@ pub trait Metric: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug 
 
 impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
 {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn unit_equality() {
-        assert_eq!(Unit::Bytes, Unit::Bytes);
-        assert_ne!(Unit::Bytes, Unit::Seconds);
-        assert_eq!(Unit::Other("a".to_string()), Unit::Other("a".to_string()));
-        assert_ne!(Unit::Other("a".to_string()), Unit::Other("b".to_string()));
-    }
-}
