@@ -391,7 +391,7 @@ impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std:
 {}
 
 #[cfg(test)]
-mod unit_tests {
+mod tests {
     use super::*;
 
     #[test]
