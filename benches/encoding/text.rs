@@ -9,17 +9,32 @@ use prometheus_client::registry::Registry;
 use std::fmt::Write;
 use std::hint::black_box;
 
+type EncodeFn = fn(&mut String, &Registry) -> Result<(), std::fmt::Error>;
+
 pub fn text(c: &mut Criterion) {
-    bench_text(c, "encode", "200");
-    bench_text(
-        c,
-        "encode_realistic_string_labels",
-        "checkout-api-7d9f4c8b6f-2xkpt",
-    );
-    bench_text(c, "encode_escaped_label_values", "2\\0\"0\n");
+    let encoders: [(&str, EncodeFn); 2] = [
+        ("", encoding::text::encode),
+        ("prometheus_text_", encoding::prometheus_text::encode),
+    ];
+
+    for (prefix, encode) in encoders {
+        bench_text(c, &format!("{prefix}encode"), "200", encode);
+        bench_text(
+            c,
+            &format!("{prefix}encode_realistic_string_labels"),
+            "checkout-api-7d9f4c8b6f-2xkpt",
+            encode,
+        );
+        bench_text(
+            c,
+            &format!("{prefix}encode_escaped_label_values"),
+            "2\\0\"0\n",
+            encode,
+        );
+    }
 }
 
-fn bench_text(c: &mut Criterion, name: &str, status_value: &'static str) {
+fn bench_text(c: &mut Criterion, name: &str, status_value: &'static str, encode: EncodeFn) {
     c.bench_function(name, |b| {
         #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet, Debug)]
         struct Labels {
@@ -85,7 +100,7 @@ fn bench_text(c: &mut Criterion, name: &str, status_value: &'static str) {
 
         b.iter(|| {
             buffer.clear();
-            encoding::text::encode(&mut buffer, &registry).unwrap();
+            encode(&mut buffer, &registry).unwrap();
             black_box(&mut buffer);
         })
     });

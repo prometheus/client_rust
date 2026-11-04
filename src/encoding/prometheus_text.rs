@@ -31,6 +31,12 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
 
+/// The `Content-Type` of the Prometheus text format (version 0.0.4).
+///
+/// Equivalent to `expfmt.FmtText` in Go's
+/// [`prometheus/common`](https://github.com/prometheus/common/blob/main/expfmt/expfmt.go).
+pub const CONTENT_TYPE: &str = "text/plain; version=0.0.4; charset=utf-8";
+
 /// Encode the metrics registered with the provided [`Registry`] into the
 /// provided [`Write`]r using the Prometheus text format (version 0.0.4).
 ///
@@ -225,9 +231,7 @@ impl MetricEncoder<'_> {
     pub fn encode_info<S: EncodeLabelSet>(&mut self, label_set: &S) -> Result<(), std::fmt::Error> {
         self.write_name("")?;
         self.write_labels(Some(label_set))?;
-        self.writer.write_str(" ")?;
-        self.writer.write_str(itoa::Buffer::new().format(1))?;
-        self.writer.write_str("\n")
+        self.writer.write_str(" 1\n")
     }
 
     pub fn encode_family<'s, S: EncodeLabelSet>(
@@ -428,21 +432,22 @@ impl GaugeValueEncoder<'_> {
     }
 }
 
-fn format_float<F: dtoa::Float>(buf: &mut dtoa::Buffer, value: F) -> &str {
-    #[cold]
-    fn format_nonfinite<F: dtoa::Float>(value: F) -> &'static str {
-        // dtoa yields "NaN" / "inf" / "-inf", map to Prometheus spellings.
-        match value.format_nonfinite() {
-            "inf" => "+Inf",
-            "-inf" => "-Inf",
-            _ => "NaN",
-        }
-    }
-
-    if value.is_nonfinite() {
-        format_nonfinite(value)
-    } else {
+fn format_float(buf: &mut dtoa::Buffer, value: f64) -> &str {
+    if value.is_finite() {
         buf.format_finite(value)
+    } else {
+        format_nonfinite(value)
+    }
+}
+
+#[cold]
+fn format_nonfinite(value: f64) -> &'static str {
+    if value.is_nan() {
+        "NaN"
+    } else if value.is_sign_positive() {
+        "+Inf"
+    } else {
+        "-Inf"
     }
 }
 
