@@ -78,6 +78,11 @@ harness = false
 required-features = []
 
 [[bench]]
+name = "prometheus_text"
+path = "benches/encoding/prometheus_text.rs"
+harness = false
+
+[[bench]]
 name = "proto"
 path = "benches/encoding/proto.rs"
 harness = false
