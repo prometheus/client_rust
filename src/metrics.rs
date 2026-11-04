@@ -14,7 +14,7 @@ pub trait TypedMetric {
 }
 
 /// OpenMetrics metric type.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum MetricType {
     Counter,
