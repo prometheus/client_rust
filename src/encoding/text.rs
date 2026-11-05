@@ -409,7 +409,7 @@ impl MetricEncoder<'_> {
         self.write_suffix("sum")?;
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
-        self.writer.write_str(dtoa::Buffer::new().format(sum))?;
+        self.writer.write_str(zmij::Buffer::new().format(sum))?;
         self.newline()?;
 
         self.write_prefix_name_unit()?;
@@ -591,7 +591,7 @@ impl std::fmt::Debug for CounterValueEncoder<'_> {
 impl CounterValueEncoder<'_> {
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
-        self.writer.write_str(dtoa::Buffer::new().format(v))?;
+        self.writer.write_str(zmij::Buffer::new().format(v))?;
         Ok(())
     }
 
@@ -633,7 +633,7 @@ impl GaugeValueEncoder<'_> {
 
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
-        self.writer.write_str(dtoa::Buffer::new().format(v))?;
+        self.writer.write_str(zmij::Buffer::new().format(v))?;
         Ok(())
     }
 }
@@ -650,7 +650,7 @@ impl std::fmt::Debug for ExemplarValueEncoder<'_> {
 
 impl ExemplarValueEncoder<'_> {
     pub fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
-        self.writer.write_str(dtoa::Buffer::new().format(v))
+        self.writer.write_str(zmij::Buffer::new().format(v))
     }
 }
 
@@ -966,7 +966,7 @@ mod tests {
             + "# TYPE my_counter_with_exemplar_seconds counter\n"
             + "# UNIT my_counter_with_exemplar_seconds seconds\n"
             + "my_counter_with_exemplar_seconds_total 2 # {user_id=\"99\"} 1.0 "
-            + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
+            + zmij::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
             + "\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
@@ -1176,7 +1176,7 @@ mod tests {
             + "my_histogram_sum 3.0\n"
             + "my_histogram_count 2\n"
             + "my_histogram_bucket{le=\"1.0\"} 1 # {user_id=\"42\"} 1.0 "
-            + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
+            + zmij::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
             + "\n"
             + "my_histogram_bucket{le=\"2.0\"} 2 # {user_id=\"99\"} 2.0\n"
             + "my_histogram_bucket{le=\"4.0\"} 2\n"
