@@ -22,7 +22,10 @@
 //! assert_eq!(expected, buffer);
 //! ```
 
-use crate::encoding::{text, EncodeExemplarValue, EncodeLabelSet, NativeHistogram, NoLabelSet};
+use crate::encoding::{
+    text, EncodeExemplarValue, EncodeLabelSet, EncodeLabelValue, LabelValueEncoder,
+    NativeHistogram, NoLabelSet,
+};
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
 use crate::registry::{Prefix, Registry, Unit};
@@ -263,12 +266,8 @@ impl MetricEncoder<'_> {
         for (upper_bound, count) in buckets {
             cumulative += count;
             self.write_name("_bucket")?;
-            if *upper_bound == f64::INFINITY {
-                inf_seen = true;
-                self.write_labels(Some(&[("le", "+Inf")]))?;
-            } else {
-                self.write_labels(Some(&[("le", *upper_bound)]))?;
-            }
+            inf_seen |= *upper_bound == f64::INFINITY;
+            self.write_labels(Some(&[("le", GoFloat(*upper_bound))]))?;
             self.write_u64(cumulative)?;
         }
 
@@ -437,6 +436,75 @@ fn format_float(buf: &mut dtoa::Buffer, value: f64) -> &str {
         buf.format_finite(value)
     } else {
         format_nonfinite(value)
+    }
+}
+
+/// Formats an `f64` the way client_golang's `expfmt` writes histogram `le`
+/// labels, i.e. Go's `strconv.FormatFloat(v, 'g', -1, 64)` with `0`, `+Inf`,
+/// `-Inf` and `NaN` special cased. This keeps series identical to those
+/// exposed by Go clients.
+///
+/// Formatting happens entirely on the stack.
+#[repr(transparent)]
+struct GoFloat(f64);
+
+impl std::fmt::Display for GoFloat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let v = self.0;
+        // Fast path: Go prints whole numbers below 1e6 as plain integers.
+        if v.fract() == 0.0 && v.abs() < 1e6 {
+            return f.write_str(itoa::Buffer::new().format(v as i64));
+        }
+        // Go's shortest `%g` uses exponent notation iff the decimal exponent is
+        // `< -4` or `>= 6`, i.e. iff `|v|` is outside `[1e-4, 1e6)`. Inside that
+        // range Rust's `Display` prints the same digits. Outside of it, Rust's
+        // `{:e}` only differs in the exponent (`1e6` vs. `1e+06`).
+        if (1e-4..1e6).contains(&v.abs()) {
+            return write!(f, "{v}");
+        }
+        if !v.is_finite() {
+            return f.write_str(format_nonfinite(v));
+        }
+
+        let mut sci = SciBuffer::default();
+        write!(sci, "{v:e}")?;
+        let s = sci.as_str()?;
+        let e = s.find('e').ok_or(std::fmt::Error)?;
+        let (mantissa_e, exponent) = s.split_at(e + 1);
+        let exponent: i32 = exponent.parse().map_err(|_| std::fmt::Error)?;
+        f.write_str(mantissa_e)?;
+        write!(f, "{exponent:+03}")
+    }
+}
+
+impl EncodeLabelValue for GoFloat {
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        write!(encoder, "{self}")
+    }
+}
+
+/// Fixed capacity stack buffer for the `{:e}` representation of an `f64`.
+#[derive(Default)]
+struct SciBuffer {
+    bytes: [u8; 32],
+    len: usize,
+}
+
+impl SciBuffer {
+    fn as_str(&self) -> Result<&str, std::fmt::Error> {
+        std::str::from_utf8(&self.bytes[..self.len]).map_err(|_| std::fmt::Error)
+    }
+}
+
+impl Write for SciBuffer {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        let dst = self
+            .bytes
+            .get_mut(self.len..self.len + s.len())
+            .ok_or(std::fmt::Error)?;
+        dst.copy_from_slice(s.as_bytes());
+        self.len += s.len();
+        Ok(())
     }
 }
 
@@ -669,9 +737,9 @@ mod tests {
 
         let expected = "# HELP my_histogram My histogram.\n".to_owned()
             + "# TYPE my_histogram histogram\n"
-            + "my_histogram_bucket{le=\"1.0\"} 1\n"
+            + "my_histogram_bucket{le=\"1\"} 1\n"
             + "my_histogram_bucket{le=\"2.5\"} 1\n"
-            + "my_histogram_bucket{le=\"1000000.0\"} 1\n"
+            + "my_histogram_bucket{le=\"1e+06\"} 1\n"
             + "my_histogram_bucket{le=\"+Inf\"} 2\n"
             + "my_histogram_sum 2000001.0\n"
             + "my_histogram_count 2\n";
@@ -817,7 +885,7 @@ mod tests {
             + "native_only_count 1\n"
             + "# HELP native_and_classic Native and classic.\n"
             + "# TYPE native_and_classic histogram\n"
-            + "native_and_classic_bucket{le=\"1.0\"} 1\n"
+            + "native_and_classic_bucket{le=\"1\"} 1\n"
             + "native_and_classic_bucket{le=\"+Inf\"} 1\n"
             + "native_and_classic_sum 0.5\n"
             + "native_and_classic_count 1\n";
@@ -859,7 +927,7 @@ mod tests {
             + "my_prefix_my_counter_family_total{region=\"eu\",method=\"GET\",status=\"200\"} 1\n"
             + "# HELP my_prefix_my_histogram_family My histogram family.\n"
             + "# TYPE my_prefix_my_histogram_family histogram\n"
-            + "my_prefix_my_histogram_family_bucket{region=\"eu\",method=\"GET\",le=\"1.0\"} 1\n"
+            + "my_prefix_my_histogram_family_bucket{region=\"eu\",method=\"GET\",le=\"1\"} 1\n"
             + "my_prefix_my_histogram_family_bucket{region=\"eu\",method=\"GET\",le=\"+Inf\"} 1\n"
             + "my_prefix_my_histogram_family_sum{region=\"eu\",method=\"GET\"} 0.5\n"
             + "my_prefix_my_histogram_family_count{region=\"eu\",method=\"GET\"} 1\n";
@@ -915,6 +983,116 @@ mod tests {
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn go_float_matches_go() {
+        // Expected values generated with Go 1.26 via
+        // `strconv.FormatFloat(v, 'g', -1, 64)`, except for `-0.0`, which
+        // client_golang's expfmt writes as `0`.
+        let cases: &[(f64, &str)] = &[
+            (0.0, "0"),
+            (-0.0, "0"),
+            (1.0, "1"),
+            (-1.0, "-1"),
+            (2.5, "2.5"),
+            (0.1, "0.1"),
+            (0.25, "0.25"),
+            (0.0001, "0.0001"),
+            (0.0003, "0.0003"),
+            (0.00001, "1e-05"),
+            (1e-7, "1e-07"),
+            (1.5e-7, "1.5e-07"),
+            (99999.0, "99999"),
+            (100000.0, "100000"),
+            (999999.0, "999999"),
+            (1e6, "1e+06"),
+            (-1e6, "-1e+06"),
+            (1234567.0, "1.234567e+06"),
+            (123456789.0, "1.23456789e+08"),
+            (-123.456, "-123.456"),
+            (1.0 / 3.0, "0.3333333333333333"),
+            (0.1 + 0.2, "0.30000000000000004"),
+            (1e15, "1e+15"),
+            (1e21, "1e+21"),
+            (1e22, "1e+22"),
+            (1e300, "1e+300"),
+            (9007199254740992.0, "9.007199254740992e+15"),
+            (f64::MAX, "1.7976931348623157e+308"),
+            (f64::MIN_POSITIVE, "2.2250738585072014e-308"),
+            (5e-324, "5e-324"),
+            (f64::INFINITY, "+Inf"),
+            (f64::NEG_INFINITY, "-Inf"),
+            (f64::NAN, "NaN"),
+            // Neighbors of the plain/exponent notation boundaries.
+            (
+                f64::from_bits(1e-4f64.to_bits() - 1),
+                "9.999999999999999e-05",
+            ),
+            (999999.9999999999, "999999.9999999999"),
+        ];
+        for (v, expected) in cases {
+            assert_eq!(*expected, GoFloat(*v).to_string(), "for {v:?}");
+        }
+    }
+
+    #[test]
+    fn go_float_matches_go_exponential_buckets() {
+        // `exponential_buckets(1.0, 2.0, 25)`
+        let exponential = [
+            "1",
+            "2",
+            "4",
+            "8",
+            "16",
+            "32",
+            "64",
+            "128",
+            "256",
+            "512",
+            "1024",
+            "2048",
+            "4096",
+            "8192",
+            "16384",
+            "32768",
+            "65536",
+            "131072",
+            "262144",
+            "524288",
+            "1.048576e+06",
+            "2.097152e+06",
+            "4.194304e+06",
+            "8.388608e+06",
+            "1.6777216e+07",
+        ];
+        for (v, expected) in
+            crate::metrics::histogram::exponential_buckets(1.0, 2.0, 25).zip(exponential)
+        {
+            assert_eq!(expected, GoFloat(v).to_string(), "for {v:?}");
+        }
+    }
+
+    #[test]
+    fn go_float_matches_go_linear_buckets() {
+        // `linear_buckets(0.005, 0.005, 10)`, accumulated rounding error must be
+        // preserved exactly as Go would print it.
+        let linear = [
+            "0.005",
+            "0.01",
+            "0.015",
+            "0.02",
+            "0.025",
+            "0.030000000000000002",
+            "0.034999999999999996",
+            "0.04",
+            "0.045",
+            "0.049999999999999996",
+        ];
+        for (v, expected) in crate::metrics::histogram::linear_buckets(0.005, 0.005, 10).zip(linear)
+        {
+            assert_eq!(expected, GoFloat(v).to_string(), "for {v:?}");
+        }
     }
 
     fn parse_with_python_client(input: String) {
