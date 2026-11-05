@@ -60,9 +60,9 @@ pub struct NativeHistogramBuckets<'a> {
     pub deltas: &'a [i64],
 }
 
-macro_rules! match_variants {
-    ($target:expr, $inner:ident, [$($variant:ident),+], $pattern:pat, $fn:expr) => {
-        match $target {
+macro_rules! for_both_mut {
+    ($self:expr, $inner:ident, [$($variant:ident),+], $pattern:pat, $fn:expr) => {
+        match &mut $self.0 {
             $($inner::$variant($pattern) => $fn,)+
             #[cfg(feature = "openmetrics_protobuf")]
             $inner::Protobuf($pattern) => $fn,
@@ -70,11 +70,20 @@ macro_rules! match_variants {
             $inner::PrometheusProtobuf($pattern) => $fn,
         }
     };
+    ($self:expr, $inner:ident, $pattern:pat, $fn:expr) => {
+        for_both_mut!($self, $inner, [Text, PrometheusText], $pattern, $fn)
+    };
 }
 
-macro_rules! for_both_mut {
-    ($self:expr, $inner:ident, $pattern:pat, $fn:expr) => {
-        match_variants!(&mut $self.0, $inner, [Text, PrometheusText], $pattern, $fn)
+macro_rules! for_both {
+    ($self:expr, $inner:ident, [$($variant:ident),+], $pattern:pat, $fn:expr) => {
+        match $self.0 {
+            $($inner::$variant($pattern) => $fn,)+
+            #[cfg(feature = "openmetrics_protobuf")]
+            $inner::Protobuf($pattern) => $fn,
+            #[cfg(feature = "prometheus_protobuf")]
+            $inner::PrometheusProtobuf($pattern) => $fn,
+        }
     };
 }
 
@@ -350,8 +359,8 @@ impl<'a> From<prometheus_protobuf::LabelSetEncoder<'a>> for LabelSetEncoder<'a> 
 impl LabelSetEncoder<'_> {
     /// Encode the given label.
     pub fn encode_label(&mut self) -> LabelEncoder<'_> {
-        match_variants!(
-            &mut self.0,
+        for_both_mut!(
+            self,
             LabelSetEncoderInner,
             [Text],
             e,
@@ -454,8 +463,8 @@ impl<'a> From<prometheus_protobuf::LabelEncoder<'a>> for LabelEncoder<'a> {
 impl LabelEncoder<'_> {
     /// Encode a label.
     pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder<'_>, std::fmt::Error> {
-        match_variants!(
-            &mut self.0,
+        for_both_mut!(
+            self,
             LabelEncoderInner,
             [Text],
             e,
@@ -520,15 +529,15 @@ impl<'a> From<prometheus_protobuf::LabelKeyEncoder<'a>> for LabelKeyEncoder<'a> 
 
 impl std::fmt::Write for LabelKeyEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        match_variants!(&mut self.0, LabelKeyEncoderInner, [Text], e, e.write_str(s))
+        for_both_mut!(self, LabelKeyEncoderInner, [Text], e, e.write_str(s))
     }
 }
 
 impl<'a> LabelKeyEncoder<'a> {
     /// Encode a label value.
     pub fn encode_label_value(self) -> Result<LabelValueEncoder<'a>, std::fmt::Error> {
-        match_variants!(
-            self.0,
+        for_both!(
+            self,
             LabelKeyEncoderInner,
             [Text],
             e,
@@ -627,20 +636,14 @@ impl<'a> From<prometheus_protobuf::LabelValueEncoder<'a>> for LabelValueEncoder<
 
 impl std::fmt::Write for LabelValueEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        match_variants!(
-            &mut self.0,
-            LabelValueEncoderInner,
-            [Text],
-            e,
-            e.write_str(s)
-        )
+        for_both_mut!(self, LabelValueEncoderInner, [Text], e, e.write_str(s))
     }
 }
 
 impl LabelValueEncoder<'_> {
     pub(crate) fn write_str_unescaped(&mut self, s: &str) -> Result<(), std::fmt::Error> {
-        match_variants!(
-            &mut self.0,
+        for_both_mut!(
+            self,
             LabelValueEncoderInner,
             [Text],
             e,
@@ -650,7 +653,7 @@ impl LabelValueEncoder<'_> {
 
     /// Finish encoding the label value.
     pub fn finish(self) -> Result<(), std::fmt::Error> {
-        match_variants!(self.0, LabelValueEncoderInner, [Text], e, e.finish())
+        for_both!(self, LabelValueEncoderInner, [Text], e, e.finish())
     }
 }
 
@@ -1026,12 +1029,6 @@ impl<'a> From<prometheus_protobuf::ExemplarValueEncoder<'a>> for ExemplarValueEn
 
 impl ExemplarValueEncoder<'_> {
     fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
-        match_variants!(
-            &mut self.0,
-            ExemplarValueEncoderInner,
-            [Text],
-            e,
-            e.encode(v)
-        )
+        for_both_mut!(self, ExemplarValueEncoderInner, [Text], e, e.encode(v))
     }
 }

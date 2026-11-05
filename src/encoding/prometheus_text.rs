@@ -444,6 +444,10 @@ fn format_float(buf: &mut dtoa::Buffer, value: f64) -> &str {
 /// `-Inf` and `NaN` special cased. This keeps series identical to those
 /// exposed by Go clients.
 ///
+/// Note: Rust and Go break ties between equally short digit strings
+/// differently, so in rare cases the last digit can differ from Go
+/// (e.g. `562949953421312.25`). Typical bucket bounds are unaffected.
+///
 /// Formatting happens entirely on the stack.
 #[repr(transparent)]
 struct GoFloat(f64);
