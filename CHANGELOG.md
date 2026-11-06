@@ -11,8 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement `PartialEq`, `Eq` and `Hash` for `metrics::MetricType` and `registry::Unit`. See [PR 366].
 - Added `encoding::prometheus_text::encode` to encode a `Registry` in the Prometheus text exposition format (version 0.0.4). See [Issue 367] and [PR 368].
 
+### Changed
+
+- Registering a `Counter` with a name ending in `_total` now panics when debug
+  assertions are enabled, including default development and test builds. When
+  upgrading, remove the suffix from registered names (for example, `foo_total` ->
+  `foo`); encoding adds it automatically. In this example, the exported name
+  changes from `foo_total_total` to `foo_total`, so update affected queries and
+  dashboards. The new check is disabled in builds without debug assertions,
+  including default release builds. See [PR 371].
+
 [PR 366]: https://github.com/prometheus/client_rust/pull/366
 [PR 368]: https://github.com/prometheus/client_rust/pull/368
+[PR 371]: https://github.com/prometheus/client_rust/pull/371
 [Issue 367]: https://github.com/prometheus/client_rust/issues/367
 
 ## [0.25.2]
