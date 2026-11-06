@@ -714,7 +714,7 @@ where
 
 impl EncodeLabelValue for f64 {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
-        encoder.write_str_unescaped(dtoa::Buffer::new().format(*self))
+        encoder.write_str_unescaped(zmij::Buffer::new().format(*self))
     }
 }
 
