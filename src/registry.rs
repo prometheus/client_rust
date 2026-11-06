@@ -6,6 +6,7 @@ use std::borrow::Cow;
 
 use crate::collector::Collector;
 use crate::encoding::{DescriptorEncoder, EncodeMetric};
+use crate::metrics::MetricType;
 
 /// A metric registry.
 ///
@@ -169,6 +170,10 @@ impl Registry {
         unit: Option<Unit>,
     ) {
         let descriptor = Descriptor::new(name, help, unit);
+        debug_assert!(
+            metric.metric_type() != MetricType::Counter || !descriptor.name.ends_with("_total"),
+            "counter names must not end with _total"
+        );
         self.metrics.push((descriptor, Box::new(metric)));
     }
 
@@ -389,3 +394,29 @@ pub trait Metric: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug 
 
 impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
 {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metrics::{counter::Counter, gauge::Gauge};
+
+    #[test]
+    #[cfg_attr(debug_assertions, should_panic(expected = "must not end with _total"))]
+    fn register_counter_with_total_suffix() {
+        let counter: Counter = Counter::default();
+        Registry::default().register("my_counter_total", "", counter);
+    }
+
+    #[test]
+    #[cfg_attr(debug_assertions, should_panic(expected = "must not end with _total"))]
+    fn register_counter_with_unit_and_total_suffix() {
+        let counter: Counter = Counter::default();
+        Registry::default().register_with_unit("my_counter_total", "", Unit::Seconds, counter);
+    }
+
+    #[test]
+    fn register_gauge_with_total_suffix() {
+        let gauge: Gauge = Gauge::default();
+        Registry::default().register("my_gauge_total", "", gauge);
+    }
+}
