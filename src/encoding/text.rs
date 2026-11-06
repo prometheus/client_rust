@@ -144,13 +144,23 @@ pub fn encode_registry<W>(writer: &mut W, registry: &Registry) -> Result<(), std
 where
     W: Write,
 {
-    let mut buffer = String::with_capacity(FLUSH_THRESHOLD);
+    let mut buffer = TextBuf::new_buffer();
     registry.encode(&mut DescriptorEncoder::new(TextBuf::new(&mut buffer, writer)).into())?;
     writer.write_str(&buffer)
 }
 
 /// Size (in bytes) at which [`TextBuf`] flushes its buffer to the sink.
+///
+/// Flushed chunks are at least this large, except for the final remainder and
+/// for a flush that precedes a write larger than this threshold (such writes
+/// bypass the buffer, see [`TextBuf::write_large`]).
 pub(crate) const FLUSH_THRESHOLD: usize = 4 * 1024;
+
+/// Largest size the buffer can reach: it holds at most `FLUSH_THRESHOLD - 1`
+/// bytes before a write, and a single buffered write is at most
+/// `FLUSH_THRESHOLD` bytes. Reserving this up front keeps
+/// [`TextBuf::write_str`] allocation free.
+const BUFFER_CAPACITY: usize = FLUSH_THRESHOLD * 2 - 1;
 
 /// Buffered writer used by all text encoders.
 pub(crate) struct TextBuf<'a> {
@@ -172,6 +182,12 @@ impl<'a> TextBuf<'a> {
         }
     }
 
+    /// Allocate a buffer large enough that [`TextBuf::write_str`] never has to
+    /// grow it.
+    pub(crate) fn new_buffer() -> String {
+        String::with_capacity(BUFFER_CAPACITY)
+    }
+
     #[cold]
     #[inline(never)]
     fn flush(&mut self) -> std::fmt::Result {
@@ -179,11 +195,25 @@ impl<'a> TextBuf<'a> {
         self.buf.clear();
         Ok(())
     }
+
+    /// Flush pending output, then hand `s` to the sink directly instead of
+    /// copying it through (and growing) the buffer.
+    #[cold]
+    #[inline(never)]
+    fn write_large(&mut self, s: &str) -> std::fmt::Result {
+        if !self.buf.is_empty() {
+            self.flush()?;
+        }
+        self.sink.write_str(s)
+    }
 }
 
 impl Write for TextBuf<'_> {
     #[inline]
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        if s.len() > FLUSH_THRESHOLD {
+            return self.write_large(s);
+        }
         self.buf.push_str(s);
         if self.buf.len() >= FLUSH_THRESHOLD {
             self.flush()?;
@@ -852,6 +882,35 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
+    fn text_buf_never_reallocates() {
+        let mut buf = TextBuf::new_buffer();
+        let capacity = buf.capacity();
+        let mut sink = String::new();
+
+        let writes = [
+            "a".repeat(FLUSH_THRESHOLD - 1),
+            // Worst case: `FLUSH_THRESHOLD - 1` bytes pending, then a write of
+            // exactly `FLUSH_THRESHOLD` bytes stays on the buffered path.
+            "b".repeat(FLUSH_THRESHOLD),
+            "c".to_owned(),
+            "d".repeat(FLUSH_THRESHOLD - 1),
+            // Oversized writes bypass the buffer.
+            "e".repeat(3 * FLUSH_THRESHOLD),
+            "f".repeat(FLUSH_THRESHOLD - 1),
+            "g".repeat(FLUSH_THRESHOLD),
+        ];
+
+        let mut text_buf = TextBuf::new(&mut buf, &mut sink);
+        for write in &writes {
+            text_buf.write_str(write).unwrap();
+            assert_eq!(capacity, text_buf.buf.capacity());
+        }
+
+        sink.push_str(&buf);
+        assert_eq!(writes.concat(), sink);
+    }
+
+    #[test]
     fn label_values_escape_special_characters() {
         let encoded = TextBuf::encode_to_string(|mut buf| {
             let mut list = LabelList::new("");
@@ -909,6 +968,30 @@ mod tests {
         QuickCheck::new()
             .tests(1_000)
             .quickcheck(prop as fn(String) -> bool);
+    }
+
+    #[test]
+    fn oversized_label_value_is_encoded() {
+        let value = "v".repeat(3 * FLUSH_THRESHOLD);
+
+        let mut registry = Registry::default();
+        let family = Family::<Vec<(String, String)>, Counter>::default();
+        registry.register("requests", "Requests", family.clone());
+        family
+            .get_or_create(&vec![("label".to_string(), value.clone())])
+            .inc();
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP requests Requests.\n".to_owned()
+            + "# TYPE requests counter\n"
+            + "requests_total{label=\""
+            + &value
+            + "\"} 1\n"
+            + "# EOF\n";
+        assert_eq!(expected, encoded);
+        parse_with_python_client(encoded);
     }
 
     #[test]

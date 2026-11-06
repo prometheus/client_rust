@@ -22,7 +22,7 @@
 //! assert_eq!(expected, buffer);
 //! ```
 
-use crate::encoding::text::{LabelList, TextBuf, FLUSH_THRESHOLD};
+use crate::encoding::text::{LabelList, TextBuf};
 use crate::encoding::{
     EncodeExemplarValue, EncodeLabelSet, EncodeLabelValue, LabelValueEncoder, NativeHistogram,
     NoLabelSet,
@@ -63,7 +63,7 @@ pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Er
 where
     W: Write,
 {
-    let mut buffer = String::with_capacity(FLUSH_THRESHOLD);
+    let mut buffer = TextBuf::new_buffer();
     registry.encode(&mut DescriptorEncoder::new(TextBuf::new(&mut buffer, writer)).into())?;
     writer.write_str(&buffer)
 }
@@ -494,6 +494,7 @@ fn format_nonfinite(value: f64) -> &'static str {
 mod tests {
     use super::*;
     use crate::collector::Collector;
+    use crate::encoding::text::FLUSH_THRESHOLD;
     use crate::encoding::{DescriptorEncoder as GenericDescriptorEncoder, EncodeMetric};
     use crate::metrics::counter::{ConstCounter, Counter};
     use crate::metrics::exemplar::{CounterWithExemplar, HistogramWithExemplars};
