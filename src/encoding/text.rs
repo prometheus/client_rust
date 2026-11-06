@@ -144,7 +144,66 @@ pub fn encode_registry<W>(writer: &mut W, registry: &Registry) -> Result<(), std
 where
     W: Write,
 {
-    registry.encode(&mut DescriptorEncoder::new(writer).into())
+    let mut buffer = String::with_capacity(FLUSH_THRESHOLD);
+    registry.encode(&mut DescriptorEncoder::new(TextBuf::new(&mut buffer, writer)).into())?;
+    writer.write_str(&buffer)
+}
+
+/// Size (in bytes) at which [`TextBuf`] flushes its buffer to the sink.
+const FLUSH_THRESHOLD: usize = 4 * 1024;
+
+/// Buffered writer used by all text encoders.
+pub(crate) struct TextBuf<'a> {
+    buf: &'a mut String,
+    sink: &'a mut dyn Write,
+}
+
+impl<'a> TextBuf<'a> {
+    pub(crate) fn new(buf: &'a mut String, sink: &'a mut dyn Write) -> Self {
+        Self { buf, sink }
+    }
+
+    /// Reborrow with a shorter lifetime, e.g. to hand to a child encoder.
+    #[inline]
+    fn reborrow(&mut self) -> TextBuf<'_> {
+        TextBuf {
+            buf: self.buf,
+            sink: self.sink,
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn flush(&mut self) -> std::fmt::Result {
+        self.sink.write_str(self.buf)?;
+        self.buf.clear();
+        Ok(())
+    }
+}
+
+impl Write for TextBuf<'_> {
+    #[inline]
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.buf.push_str(s);
+        if self.buf.len() >= FLUSH_THRESHOLD {
+            self.flush()?;
+        }
+        Ok(())
+    }
+}
+
+impl TextBuf<'_> {
+    /// Run `f` with a [`TextBuf`] and collect everything it writes into a
+    /// `String`.
+    fn encode_to_string(
+        f: impl FnOnce(TextBuf<'_>) -> std::fmt::Result,
+    ) -> Result<String, std::fmt::Error> {
+        let mut out = String::new();
+        let mut buf = String::new();
+        f(TextBuf::new(&mut buf, &mut out))?;
+        out.push_str(&buf);
+        Ok(out)
+    }
 }
 
 /// Encode the EOF marker into the provided [`Write`]r using the OpenMetrics
@@ -185,7 +244,7 @@ where
 }
 
 pub(crate) struct DescriptorEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
     prefix: Option<&'a Prefix>,
     labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 }
@@ -196,8 +255,8 @@ impl std::fmt::Debug for DescriptorEncoder<'_> {
     }
 }
 
-impl DescriptorEncoder<'_> {
-    pub(crate) fn new(writer: &mut dyn Write) -> DescriptorEncoder<'_> {
+impl<'a> DescriptorEncoder<'a> {
+    pub(crate) fn new(writer: TextBuf<'a>) -> DescriptorEncoder<'a> {
         DescriptorEncoder {
             writer,
             prefix: Default::default(),
@@ -213,7 +272,7 @@ impl DescriptorEncoder<'_> {
         DescriptorEncoder {
             prefix,
             labels,
-            writer: self.writer,
+            writer: self.writer.reborrow(),
         }
     }
 
@@ -267,7 +326,7 @@ impl DescriptorEncoder<'_> {
         }
 
         Ok(MetricEncoder {
-            writer: self.writer,
+            writer: self.writer.reborrow(),
             prefix: self.prefix,
             name,
             unit,
@@ -287,7 +346,7 @@ impl DescriptorEncoder<'_> {
 //
 // TODO: Alternative solutions to the above are very much appreciated.
 pub(crate) struct MetricEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
     prefix: Option<&'a Prefix>,
     name: &'a str,
     unit: Option<&'a Unit>,
@@ -297,11 +356,10 @@ pub(crate) struct MetricEncoder<'a> {
 
 impl std::fmt::Debug for MetricEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut labels = String::new();
-        let mut encoder = LabelSetEncoder::new(&mut labels).into();
-        if let Some(l) = self.family_labels {
-            l.encode(&mut encoder)?;
-        }
+        let labels = TextBuf::encode_to_string(|buf| match self.family_labels {
+            Some(l) => l.encode(&mut LabelSetEncoder::new(buf).into()),
+            None => Ok(()),
+        })?;
 
         f.debug_struct("Encoder")
             .field("name", &self.name)
@@ -331,7 +389,7 @@ impl MetricEncoder<'_> {
 
         v.encode(
             &mut CounterValueEncoder {
-                writer: self.writer,
+                writer: self.writer.reborrow(),
             }
             .into(),
         )?;
@@ -355,7 +413,7 @@ impl MetricEncoder<'_> {
 
         v.encode(
             &mut GaugeValueEncoder {
-                writer: self.writer,
+                writer: self.writer.reborrow(),
             }
             .into(),
         )?;
@@ -389,7 +447,7 @@ impl MetricEncoder<'_> {
         debug_assert!(self.family_labels.is_none());
 
         Ok(MetricEncoder {
-            writer: self.writer,
+            writer: self.writer.reborrow(),
             prefix: self.prefix,
             name: self.name,
             unit: self.unit,
@@ -469,11 +527,11 @@ impl MetricEncoder<'_> {
         self.writer.write_str(" # {")?;
         exemplar
             .label_set
-            .encode(&mut LabelSetEncoder::new(self.writer).into())?;
+            .encode(&mut LabelSetEncoder::new(self.writer.reborrow()).into())?;
         self.writer.write_str("} ")?;
         exemplar.value.encode(
             ExemplarValueEncoder {
-                writer: self.writer,
+                writer: self.writer.reborrow(),
             }
             .into(),
         )?;
@@ -481,7 +539,7 @@ impl MetricEncoder<'_> {
             self.writer.write_char(' ')?;
             timestamp.encode(
                 ExemplarValueEncoder {
-                    writer: self.writer,
+                    writer: self.writer.reborrow(),
                 }
                 .into(),
             )?;
@@ -529,47 +587,24 @@ impl MetricEncoder<'_> {
         self.writer.write_str("{")?;
 
         self.const_labels
-            .encode(&mut LabelSetEncoder::new(self.writer).into())?;
+            .encode(&mut LabelSetEncoder::new(self.writer.reborrow()).into())?;
 
         if let Some(additional_labels) = additional_labels {
             if !self.const_labels.is_empty() {
                 self.writer.write_str(",")?;
             }
 
-            additional_labels.encode(&mut LabelSetEncoder::new(self.writer).into())?;
-        }
-
-        /// Writer impl which prepends a comma on the first call to write output to the wrapped writer
-        struct CommaPrependingWriter<'a> {
-            writer: &'a mut dyn Write,
-            should_prepend: bool,
-        }
-
-        impl Write for CommaPrependingWriter<'_> {
-            fn write_str(&mut self, s: &str) -> std::fmt::Result {
-                if self.should_prepend {
-                    self.writer.write_char(',')?;
-                    self.should_prepend = false;
-                }
-                self.writer.write_str(s)
-            }
+            additional_labels.encode(&mut LabelSetEncoder::new(self.writer.reborrow()).into())?;
         }
 
         if let Some(labels) = self.family_labels {
-            // if const labels or additional labels have been written, a comma must be prepended before writing the family labels.
-            // However, it could be the case that the family labels are `Some` and yet empty, so the comma should _only_
-            // be prepended if one of the `Write` methods are actually called when attempting to write the family labels.
-            // Therefore, wrap the writer on `Self` with a CommaPrependingWriter if other labels have been written and
-            // there may be a need to prepend an extra comma before writing additional labels.
-            if !self.const_labels.is_empty() || additional_labels.is_some() {
-                let mut writer = CommaPrependingWriter {
-                    writer: self.writer,
-                    should_prepend: true,
-                };
-                labels.encode(&mut LabelSetEncoder::new(&mut writer).into())?;
-            } else {
-                labels.encode(&mut LabelSetEncoder::new(self.writer).into())?;
-            };
+            // If const labels or additional labels have been written, a comma must be prepended before writing the
+            // family labels. However, the family labels could be `Some` and yet empty, so the comma should _only_ be
+            // written if a family label is actually encoded. Starting the `LabelSetEncoder` in the "not first" state
+            // makes it emit the separating comma before the first family label, and not at all if there is none.
+            let mut encoder = LabelSetEncoder::new(self.writer.reborrow());
+            encoder.first = self.const_labels.is_empty() && additional_labels.is_none();
+            labels.encode(&mut encoder.into())?;
         }
 
         self.writer.write_str("}")?;
@@ -579,7 +614,7 @@ impl MetricEncoder<'_> {
 }
 
 pub(crate) struct CounterValueEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
 }
 
 impl std::fmt::Debug for CounterValueEncoder<'_> {
@@ -603,7 +638,7 @@ impl CounterValueEncoder<'_> {
 }
 
 pub(crate) struct GaugeValueEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
 }
 
 impl std::fmt::Debug for GaugeValueEncoder<'_> {
@@ -639,7 +674,7 @@ impl GaugeValueEncoder<'_> {
 }
 
 pub(crate) struct ExemplarValueEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
 }
 
 impl std::fmt::Debug for ExemplarValueEncoder<'_> {
@@ -655,7 +690,7 @@ impl ExemplarValueEncoder<'_> {
 }
 
 pub(crate) struct LabelSetEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
     first: bool,
 }
 
@@ -668,7 +703,7 @@ impl std::fmt::Debug for LabelSetEncoder<'_> {
 }
 
 impl<'a> LabelSetEncoder<'a> {
-    pub(crate) fn new(writer: &'a mut dyn Write) -> Self {
+    pub(crate) fn new(writer: TextBuf<'a>) -> Self {
         Self {
             writer,
             first: true,
@@ -679,14 +714,14 @@ impl<'a> LabelSetEncoder<'a> {
         let first = self.first;
         self.first = false;
         LabelEncoder {
-            writer: self.writer,
+            writer: self.writer.reborrow(),
             first,
         }
     }
 }
 
 pub(crate) struct LabelEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
     first: bool,
 }
 
@@ -704,13 +739,13 @@ impl LabelEncoder<'_> {
             self.writer.write_str(",")?;
         }
         Ok(LabelKeyEncoder {
-            writer: self.writer,
+            writer: self.writer.reborrow(),
         })
     }
 }
 
 pub(crate) struct LabelKeyEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
 }
 
 impl std::fmt::Debug for LabelKeyEncoder<'_> {
@@ -720,7 +755,7 @@ impl std::fmt::Debug for LabelKeyEncoder<'_> {
 }
 
 impl<'a> LabelKeyEncoder<'a> {
-    pub fn encode_label_value(self) -> Result<LabelValueEncoder<'a>, std::fmt::Error> {
+    pub fn encode_label_value(mut self) -> Result<LabelValueEncoder<'a>, std::fmt::Error> {
         self.writer.write_str("=\"")?;
         Ok(LabelValueEncoder {
             writer: self.writer,
@@ -735,7 +770,7 @@ impl std::fmt::Write for LabelKeyEncoder<'_> {
 }
 
 pub(crate) struct LabelValueEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
 }
 
 impl std::fmt::Debug for LabelValueEncoder<'_> {
@@ -745,7 +780,7 @@ impl std::fmt::Debug for LabelValueEncoder<'_> {
 }
 
 impl LabelValueEncoder<'_> {
-    pub fn finish(self) -> Result<(), std::fmt::Error> {
+    pub fn finish(mut self) -> Result<(), std::fmt::Error> {
         self.writer.write_str("\"")
     }
 
@@ -802,16 +837,16 @@ mod tests {
 
     #[test]
     fn label_values_escape_special_characters() {
-        let mut encoded = String::new();
-        let mut label_set_encoder = LabelSetEncoder::new(&mut encoded);
-        let mut label_encoder = label_set_encoder.encode_label();
-        let mut key_encoder = label_encoder.encode_label_key().unwrap();
-        key_encoder.write_str("label").unwrap();
-        let mut value_encoder = key_encoder.encode_label_value().unwrap();
-        value_encoder
-            .write_str("plain \\ quoted \" line\ncarriage\r unicode λ")
-            .unwrap();
-        value_encoder.finish().unwrap();
+        let encoded = TextBuf::encode_to_string(|buf| {
+            let mut label_set_encoder = LabelSetEncoder::new(buf);
+            let mut label_encoder = label_set_encoder.encode_label();
+            let mut key_encoder = label_encoder.encode_label_key()?;
+            key_encoder.write_str("label")?;
+            let mut value_encoder = key_encoder.encode_label_value()?;
+            value_encoder.write_str("plain \\ quoted \" line\ncarriage\r unicode λ")?;
+            value_encoder.finish()
+        })
+        .unwrap();
 
         assert_eq!(
             concat!(
@@ -839,12 +874,8 @@ mod tests {
         }
 
         fn encode(value: &str) -> String {
-            let mut encoded = String::new();
-            let mut encoder = LabelValueEncoder {
-                writer: &mut encoded,
-            };
-            encoder.write_str(value).unwrap();
-            encoded
+            TextBuf::encode_to_string(|writer| LabelValueEncoder { writer }.write_str(value))
+                .unwrap()
         }
 
         fn prop(value: String) -> bool {
@@ -1454,6 +1485,50 @@ def parse(input):
                 .map_err(|e| e.to_string())
                 .unwrap();
         })
+    }
+
+    #[test]
+    fn encode_flushes_large_output_in_chunks() {
+        /// Writer recording each `write_str` call separately.
+        #[derive(Default)]
+        struct ChunkRecorder(Vec<String>);
+
+        impl Write for ChunkRecorder {
+            fn write_str(&mut self, s: &str) -> std::fmt::Result {
+                self.0.push(s.to_owned());
+                Ok(())
+            }
+        }
+
+        let mut registry = Registry::default();
+        for i in 0..200 {
+            let family = Family::<Vec<(String, String)>, Counter>::default();
+            registry.register(format!("my_counter_{i}"), "My counter", family.clone());
+            for j in 0..10 {
+                family
+                    .get_or_create(&vec![("label".to_string(), j.to_string())])
+                    .inc();
+            }
+        }
+
+        let mut expected = String::new();
+        encode(&mut expected, &registry).unwrap();
+        assert!(expected.len() > 2 * FLUSH_THRESHOLD);
+
+        let mut recorder = ChunkRecorder::default();
+        encode(&mut recorder, &registry).unwrap();
+
+        // The output is flushed in multiple chunks of at least
+        // `FLUSH_THRESHOLD` bytes (except for the trailing remainder and the
+        // EOF marker), and the concatenation matches.
+        let (chunks, tail) = recorder.0.split_at(recorder.0.len() - 2);
+        assert!(chunks.len() > 1);
+        assert!(chunks.iter().all(|chunk| chunk.len() >= FLUSH_THRESHOLD));
+        assert!(tail[0].len() < FLUSH_THRESHOLD);
+        assert_eq!(tail[1], "# EOF\n");
+        assert_eq!(recorder.0.concat(), expected);
+
+        parse_with_python_client(expected);
     }
 
     #[test]
