@@ -27,6 +27,7 @@ pub mod openmetrics_protobuf;
 #[cfg(feature = "prometheus_protobuf")]
 #[cfg_attr(docsrs, doc(cfg(feature = "prometheus_protobuf")))]
 pub mod prometheus_protobuf;
+pub mod prometheus_text;
 pub mod text;
 
 #[cfg(feature = "openmetrics_protobuf")]
@@ -60,21 +61,24 @@ pub struct NativeHistogramBuckets<'a> {
 }
 
 macro_rules! for_both_mut {
-    ($self:expr, $inner:ident, $pattern:pat, $fn:expr) => {
+    ($self:expr, $inner:ident, [$($variant:ident),+], $pattern:pat, $fn:expr) => {
         match &mut $self.0 {
-            $inner::Text($pattern) => $fn,
+            $($inner::$variant($pattern) => $fn,)+
             #[cfg(feature = "openmetrics_protobuf")]
             $inner::Protobuf($pattern) => $fn,
             #[cfg(feature = "prometheus_protobuf")]
             $inner::PrometheusProtobuf($pattern) => $fn,
         }
     };
+    ($self:expr, $inner:ident, $pattern:pat, $fn:expr) => {
+        for_both_mut!($self, $inner, [Text, PrometheusText], $pattern, $fn)
+    };
 }
 
 macro_rules! for_both {
-    ($self:expr, $inner:ident, $pattern:pat, $fn:expr) => {
+    ($self:expr, $inner:ident, [$($variant:ident),+], $pattern:pat, $fn:expr) => {
         match $self.0 {
-            $inner::Text($pattern) => $fn,
+            $($inner::$variant($pattern) => $fn,)+
             #[cfg(feature = "openmetrics_protobuf")]
             $inner::Protobuf($pattern) => $fn,
             #[cfg(feature = "prometheus_protobuf")]
@@ -126,6 +130,8 @@ pub struct DescriptorEncoder<'a>(DescriptorEncoderInner<'a>);
 enum DescriptorEncoderInner<'a> {
     Text(text::DescriptorEncoder<'a>),
 
+    PrometheusText(prometheus_text::DescriptorEncoder<'a>),
+
     #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::DescriptorEncoder<'a>),
 
@@ -136,6 +142,12 @@ enum DescriptorEncoderInner<'a> {
 impl<'a> From<text::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
     fn from(e: text::DescriptorEncoder<'a>) -> Self {
         Self(DescriptorEncoderInner::Text(e))
+    }
+}
+
+impl<'a> From<prometheus_text::DescriptorEncoder<'a>> for DescriptorEncoder<'a> {
+    fn from(e: prometheus_text::DescriptorEncoder<'a>) -> Self {
+        Self(DescriptorEncoderInner::PrometheusText(e))
     }
 }
 
@@ -193,6 +205,8 @@ pub struct MetricEncoder<'a>(MetricEncoderInner<'a>);
 enum MetricEncoderInner<'a> {
     Text(text::MetricEncoder<'a>),
 
+    PrometheusText(prometheus_text::MetricEncoder<'a>),
+
     #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::MetricEncoder<'a>),
 
@@ -203,6 +217,12 @@ enum MetricEncoderInner<'a> {
 impl<'a> From<text::MetricEncoder<'a>> for MetricEncoder<'a> {
     fn from(e: text::MetricEncoder<'a>) -> Self {
         Self(MetricEncoderInner::Text(e))
+    }
+}
+
+impl<'a> From<prometheus_text::MetricEncoder<'a>> for MetricEncoder<'a> {
+    fn from(e: prometheus_text::MetricEncoder<'a>) -> Self {
+        Self(MetricEncoderInner::PrometheusText(e))
     }
 }
 
@@ -339,7 +359,13 @@ impl<'a> From<prometheus_protobuf::LabelSetEncoder<'a>> for LabelSetEncoder<'a> 
 impl LabelSetEncoder<'_> {
     /// Encode the given label.
     pub fn encode_label(&mut self) -> LabelEncoder<'_> {
-        for_both_mut!(self, LabelSetEncoderInner, e, e.encode_label().into())
+        for_both_mut!(
+            self,
+            LabelSetEncoderInner,
+            [Text],
+            e,
+            e.encode_label().into()
+        )
     }
 }
 
@@ -440,6 +466,7 @@ impl LabelEncoder<'_> {
         for_both_mut!(
             self,
             LabelEncoderInner,
+            [Text],
             e,
             e.encode_label_key().map(Into::into)
         )
@@ -502,7 +529,7 @@ impl<'a> From<prometheus_protobuf::LabelKeyEncoder<'a>> for LabelKeyEncoder<'a> 
 
 impl std::fmt::Write for LabelKeyEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        for_both_mut!(self, LabelKeyEncoderInner, e, e.write_str(s))
+        for_both_mut!(self, LabelKeyEncoderInner, [Text], e, e.write_str(s))
     }
 }
 
@@ -512,6 +539,7 @@ impl<'a> LabelKeyEncoder<'a> {
         for_both!(
             self,
             LabelKeyEncoderInner,
+            [Text],
             e,
             e.encode_label_value().map(LabelValueEncoder::from)
         )
@@ -608,18 +636,24 @@ impl<'a> From<prometheus_protobuf::LabelValueEncoder<'a>> for LabelValueEncoder<
 
 impl std::fmt::Write for LabelValueEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        for_both_mut!(self, LabelValueEncoderInner, e, e.write_str(s))
+        for_both_mut!(self, LabelValueEncoderInner, [Text], e, e.write_str(s))
     }
 }
 
 impl LabelValueEncoder<'_> {
     pub(crate) fn write_str_unescaped(&mut self, s: &str) -> Result<(), std::fmt::Error> {
-        for_both_mut!(self, LabelValueEncoderInner, e, e.write_str_unescaped(s))
+        for_both_mut!(
+            self,
+            LabelValueEncoderInner,
+            [Text],
+            e,
+            e.write_str_unescaped(s)
+        )
     }
 
     /// Finish encoding the label value.
     pub fn finish(self) -> Result<(), std::fmt::Error> {
-        for_both!(self, LabelValueEncoderInner, e, e.finish())
+        for_both!(self, LabelValueEncoderInner, [Text], e, e.finish())
     }
 }
 
@@ -780,6 +814,7 @@ pub struct GaugeValueEncoder<'a>(GaugeValueEncoderInner<'a>);
 #[derive(Debug)]
 enum GaugeValueEncoderInner<'a> {
     Text(text::GaugeValueEncoder<'a>),
+    PrometheusText(prometheus_text::GaugeValueEncoder<'a>),
     #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::GaugeValueEncoder<'a>),
     #[cfg(feature = "prometheus_protobuf")]
@@ -807,6 +842,12 @@ impl GaugeValueEncoder<'_> {
 impl<'a> From<text::GaugeValueEncoder<'a>> for GaugeValueEncoder<'a> {
     fn from(e: text::GaugeValueEncoder<'a>) -> Self {
         GaugeValueEncoder(GaugeValueEncoderInner::Text(e))
+    }
+}
+
+impl<'a> From<prometheus_text::GaugeValueEncoder<'a>> for GaugeValueEncoder<'a> {
+    fn from(e: prometheus_text::GaugeValueEncoder<'a>) -> Self {
+        GaugeValueEncoder(GaugeValueEncoderInner::PrometheusText(e))
     }
 }
 
@@ -868,6 +909,7 @@ pub struct CounterValueEncoder<'a>(CounterValueEncoderInner<'a>);
 #[derive(Debug)]
 enum CounterValueEncoderInner<'a> {
     Text(text::CounterValueEncoder<'a>),
+    PrometheusText(prometheus_text::CounterValueEncoder<'a>),
     #[cfg(feature = "openmetrics_protobuf")]
     Protobuf(openmetrics_protobuf::CounterValueEncoder<'a>),
     #[cfg(feature = "prometheus_protobuf")]
@@ -877,6 +919,12 @@ enum CounterValueEncoderInner<'a> {
 impl<'a> From<text::CounterValueEncoder<'a>> for CounterValueEncoder<'a> {
     fn from(e: text::CounterValueEncoder<'a>) -> Self {
         CounterValueEncoder(CounterValueEncoderInner::Text(e))
+    }
+}
+
+impl<'a> From<prometheus_text::CounterValueEncoder<'a>> for CounterValueEncoder<'a> {
+    fn from(e: prometheus_text::CounterValueEncoder<'a>) -> Self {
+        CounterValueEncoder(CounterValueEncoderInner::PrometheusText(e))
     }
 }
 
@@ -981,6 +1029,6 @@ impl<'a> From<prometheus_protobuf::ExemplarValueEncoder<'a>> for ExemplarValueEn
 
 impl ExemplarValueEncoder<'_> {
     fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
-        for_both_mut!(self, ExemplarValueEncoderInner, e, e.encode(v))
+        for_both_mut!(self, ExemplarValueEncoderInner, [Text], e, e.encode(v))
     }
 }

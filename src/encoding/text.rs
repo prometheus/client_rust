@@ -668,7 +668,7 @@ impl std::fmt::Debug for LabelSetEncoder<'_> {
 }
 
 impl<'a> LabelSetEncoder<'a> {
-    fn new(writer: &'a mut dyn Write) -> Self {
+    pub(crate) fn new(writer: &'a mut dyn Write) -> Self {
         Self {
             writer,
             first: true,
