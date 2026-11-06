@@ -13,8 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Registering a `Counter` with a name ending in `_total` now panics in debug builds,
-  including default test builds. Release behavior is unchanged. See [PR 371].
+- Registering a `Counter` with a name ending in `_total` now panics when debug
+  assertions are enabled, including default development and test builds. When
+  upgrading, remove the suffix from registered names (for example, `foo_total` ->
+  `foo`); encoding adds it automatically. In this example, the exported name
+  changes from `foo_total_total` to `foo_total`, so update affected queries and
+  dashboards. The new check is disabled in builds without debug assertions,
+  including default release builds. See [PR 371].
 
 [PR 366]: https://github.com/prometheus/client_rust/pull/366
 [PR 368]: https://github.com/prometheus/client_rust/pull/368
