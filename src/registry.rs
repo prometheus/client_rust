@@ -108,6 +108,12 @@ impl Registry {
     /// Note: A full stop punctuation mark (`.`) is automatically added to the
     /// passed help text.
     ///
+    /// Note: Each call adds another entry to the [`Registry`]. Registering a
+    /// metric under a name that is already in use is an error: the registry
+    /// will expose the name more than once and will keep growing with every
+    /// call. Debug builds panic in this case. To expose a metric per label
+    /// combination use a [`Family`](crate::metrics::family::Family) instead.
+    ///
     /// Use [`Registry::register_with_unit`] whenever a unit for the given
     /// metric is known.
     ///
@@ -169,6 +175,14 @@ impl Registry {
         unit: Option<Unit>,
     ) {
         let descriptor = Descriptor::new(name, help, unit);
+        debug_assert!(
+            !self
+                .metrics
+                .iter()
+                .any(|(d, _)| d.name == descriptor.name && d.unit == descriptor.unit),
+            "metric `{}` is already registered in this registry",
+            descriptor.name,
+        );
         self.metrics.push((descriptor, Box::new(metric)));
     }
 
@@ -389,3 +403,30 @@ pub trait Metric: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug 
 
 impl<T> Metric for T where T: crate::encoding::EncodeMetric + Send + Sync + std::fmt::Debug + 'static
 {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metrics::counter::Counter;
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "metric `my_counter` is already registered")]
+    fn registering_same_name_twice_panics_in_debug() {
+        let mut registry = Registry::default();
+        registry.register("my_counter", "help", Counter::<u64>::default());
+        registry.register("my_counter", "help", Counter::<u64>::default());
+    }
+
+    #[test]
+    fn same_name_with_different_unit_or_sub_registry_is_allowed() {
+        let mut registry = Registry::default();
+        registry.register("size", "help", Counter::<u64>::default());
+        registry.register_with_unit("size", "help", Unit::Bytes, Counter::<u64>::default());
+        registry.sub_registry_with_prefix("sub").register(
+            "size",
+            "help",
+            Counter::<u64>::default(),
+        );
+    }
+}

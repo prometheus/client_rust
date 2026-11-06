@@ -11,9 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement `PartialEq`, `Eq` and `Hash` for `metrics::MetricType` and `registry::Unit`. See [PR 366].
 - Added `encoding::prometheus_text::encode` to encode a `Registry` in the Prometheus text exposition format (version 0.0.4). See [Issue 367] and [PR 368].
 
+### Changed
+
+- Registering a metric under a name that is already in use now panics in debug builds, and `Registry::register` documents that this is an error. See [Issue 292].
+
 [PR 366]: https://github.com/prometheus/client_rust/pull/366
 [PR 368]: https://github.com/prometheus/client_rust/pull/368
 [Issue 367]: https://github.com/prometheus/client_rust/issues/367
+[Issue 292]: https://github.com/prometheus/client_rust/issues/292
 
 ## [0.25.2]
 
