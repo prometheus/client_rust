@@ -22,9 +22,10 @@
 //! assert_eq!(expected, buffer);
 //! ```
 
+use crate::encoding::text::{LabelList, TextBuf};
 use crate::encoding::{
-    text, EncodeExemplarValue, EncodeLabelSet, EncodeLabelValue, LabelValueEncoder,
-    NativeHistogram, NoLabelSet,
+    EncodeExemplarValue, EncodeLabelSet, EncodeLabelValue, LabelValueEncoder, NativeHistogram,
+    NoLabelSet,
 };
 use crate::metrics::exemplar::Exemplar;
 use crate::metrics::MetricType;
@@ -62,11 +63,13 @@ pub fn encode<W>(writer: &mut W, registry: &Registry) -> Result<(), std::fmt::Er
 where
     W: Write,
 {
-    registry.encode(&mut DescriptorEncoder::new(writer).into())
+    let mut buffer = TextBuf::new_buffer();
+    registry.encode(&mut DescriptorEncoder::new(TextBuf::new(&mut buffer, writer)).into())?;
+    writer.write_str(&buffer)
 }
 
 pub(crate) struct DescriptorEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
     prefix: Option<&'a Prefix>,
     labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 }
@@ -77,8 +80,8 @@ impl std::fmt::Debug for DescriptorEncoder<'_> {
     }
 }
 
-impl DescriptorEncoder<'_> {
-    pub(crate) fn new(writer: &mut dyn Write) -> DescriptorEncoder<'_> {
+impl<'a> DescriptorEncoder<'a> {
+    pub(crate) fn new(writer: TextBuf<'a>) -> DescriptorEncoder<'a> {
         DescriptorEncoder {
             writer,
             prefix: Default::default(),
@@ -94,7 +97,7 @@ impl DescriptorEncoder<'_> {
         DescriptorEncoder {
             prefix,
             labels,
-            writer: self.writer,
+            writer: self.writer.reborrow(),
         }
     }
 
@@ -139,7 +142,7 @@ impl DescriptorEncoder<'_> {
         metric_type: MetricType,
     ) -> MetricEncoder<'s> {
         MetricEncoder {
-            writer: self.writer,
+            writer: self.writer.reborrow(),
             prefix: self.prefix,
             name,
             unit,
@@ -167,7 +170,7 @@ impl DescriptorEncoder<'_> {
 }
 
 pub(crate) struct MetricEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
     prefix: Option<&'a Prefix>,
     name: &'a str,
     unit: Option<&'a Unit>,
@@ -178,11 +181,10 @@ pub(crate) struct MetricEncoder<'a> {
 
 impl std::fmt::Debug for MetricEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut labels = String::new();
-        let mut encoder = text::LabelSetEncoder::new(&mut labels).into();
-        if let Some(l) = self.family_labels {
-            l.encode(&mut encoder)?;
-        }
+        let labels = TextBuf::encode_to_string(|buf| match self.family_labels {
+            Some(l) => LabelList::new("").encode(buf, l),
+            None => Ok(()),
+        })?;
 
         f.debug_struct("Encoder")
             .field("name", &self.name)
@@ -209,7 +211,7 @@ impl MetricEncoder<'_> {
         self.write_labels::<NoLabelSet>(None)?;
         v.encode(
             &mut CounterValueEncoder {
-                writer: self.writer,
+                writer: self.writer.reborrow(),
             }
             .into(),
         )?;
@@ -224,7 +226,7 @@ impl MetricEncoder<'_> {
         self.write_labels::<NoLabelSet>(None)?;
         v.encode(
             &mut GaugeValueEncoder {
-                writer: self.writer,
+                writer: self.writer.reborrow(),
             }
             .into(),
         )?;
@@ -244,7 +246,7 @@ impl MetricEncoder<'_> {
         debug_assert!(self.family_labels.is_none());
 
         Ok(MetricEncoder {
-            writer: self.writer,
+            writer: self.writer.reborrow(),
             prefix: self.prefix,
             name: self.name,
             unit: self.unit,
@@ -322,30 +324,15 @@ impl MetricEncoder<'_> {
         &mut self,
         additional_labels: Option<&S>,
     ) -> Result<(), std::fmt::Error> {
-        let mut writer = LabelWriter {
-            writer: self.writer,
-            opened: false,
-            pending: true,
-        };
-
-        self.const_labels
-            .encode(&mut text::LabelSetEncoder::new(&mut writer).into())?;
-
+        let mut list = LabelList::new("{");
+        list.encode(self.writer.reborrow(), &self.const_labels)?;
         if let Some(labels) = self.family_labels {
-            writer.pending = true;
-            labels.encode(&mut text::LabelSetEncoder::new(&mut writer).into())?;
+            list.encode(self.writer.reborrow(), labels)?;
         }
-
         if let Some(labels) = additional_labels {
-            writer.pending = true;
-            labels.encode(&mut text::LabelSetEncoder::new(&mut writer).into())?;
+            list.encode(self.writer.reborrow(), labels)?;
         }
-
-        if writer.opened {
-            writer.writer.write_str("}")?;
-        }
-
-        Ok(())
+        list.finish(self.writer.reborrow(), "}")
     }
 
     fn write_u64(&mut self, v: u64) -> Result<(), std::fmt::Error> {
@@ -355,28 +342,8 @@ impl MetricEncoder<'_> {
     }
 }
 
-struct LabelWriter<'a> {
-    writer: &'a mut dyn Write,
-    opened: bool,
-    pending: bool,
-}
-
-impl Write for LabelWriter<'_> {
-    fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        if s.is_empty() {
-            return Ok(());
-        }
-        if self.pending {
-            self.writer.write_str(if self.opened { "," } else { "{" })?;
-            self.opened = true;
-            self.pending = false;
-        }
-        self.writer.write_str(s)
-    }
-}
-
 pub(crate) struct CounterValueEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
 }
 
 impl std::fmt::Debug for CounterValueEncoder<'_> {
@@ -399,7 +366,7 @@ impl CounterValueEncoder<'_> {
 }
 
 pub(crate) struct GaugeValueEncoder<'a> {
-    writer: &'a mut dyn Write,
+    writer: TextBuf<'a>,
 }
 
 impl std::fmt::Debug for GaugeValueEncoder<'_> {
@@ -527,6 +494,7 @@ fn format_nonfinite(value: f64) -> &'static str {
 mod tests {
     use super::*;
     use crate::collector::Collector;
+    use crate::encoding::text::FLUSH_THRESHOLD;
     use crate::encoding::{DescriptorEncoder as GenericDescriptorEncoder, EncodeMetric};
     use crate::metrics::counter::{ConstCounter, Counter};
     use crate::metrics::exemplar::{CounterWithExemplar, HistogramWithExemplars};
@@ -642,6 +610,21 @@ mod tests {
         let expected = "# HELP my_info_metric_info My info metric.\n".to_owned()
             + "# TYPE my_info_metric_info gauge\n"
             + "my_info_metric_info{env=\"prod\",os=\"GNU/linux\"} 1\n";
+        let encoded = encode_to_string(&registry);
+        assert_eq!(expected, encoded);
+        parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_info_with_const_labels_and_empty_label_set() {
+        let mut registry =
+            Registry::with_labels(vec![(Cow::Borrowed("env"), Cow::Borrowed("prod"))].into_iter());
+        let info = Info::new(Vec::<(String, String)>::new());
+        registry.register("my_info_metric", "My info metric", info);
+
+        let expected = "# HELP my_info_metric_info My info metric.\n".to_owned()
+            + "# TYPE my_info_metric_info gauge\n"
+            + "my_info_metric_info{env=\"prod\"} 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
         parse_with_python_client(encoded);
@@ -962,6 +945,48 @@ mod tests {
         registry.register("my_counter", "My counter", family);
 
         assert_eq!("", encode_to_string(&registry));
+    }
+
+    #[test]
+    fn encode_flushes_large_output_in_chunks() {
+        /// Writer recording each `write_str` call separately.
+        #[derive(Default)]
+        struct ChunkRecorder(Vec<String>);
+
+        impl Write for ChunkRecorder {
+            fn write_str(&mut self, s: &str) -> std::fmt::Result {
+                self.0.push(s.to_owned());
+                Ok(())
+            }
+        }
+
+        let mut registry = Registry::default();
+        for i in 0..200 {
+            let family = Family::<Vec<(String, String)>, Counter>::default();
+            registry.register(format!("my_counter_{i}"), "My counter", family.clone());
+            for j in 0..10 {
+                family
+                    .get_or_create(&vec![("label".to_string(), j.to_string())])
+                    .inc();
+            }
+        }
+
+        let expected = encode_to_string(&registry);
+        assert!(expected.len() > 2 * FLUSH_THRESHOLD);
+
+        let mut recorder = ChunkRecorder::default();
+        encode(&mut recorder, &registry).unwrap();
+
+        // The output is flushed in multiple chunks of at least
+        // `FLUSH_THRESHOLD` bytes (except for the trailing remainder), and the
+        // concatenation matches.
+        let (tail, chunks) = recorder.0.split_last().unwrap();
+        assert!(chunks.len() > 1);
+        assert!(chunks.iter().all(|chunk| chunk.len() >= FLUSH_THRESHOLD));
+        assert!(tail.len() < FLUSH_THRESHOLD);
+        assert_eq!(recorder.0.concat(), expected);
+
+        parse_with_python_client(expected);
     }
 
     #[test]
