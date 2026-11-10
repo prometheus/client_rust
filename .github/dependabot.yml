@@ -30,6 +30,10 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    # Synced from prometheus/prometheus; bump them upstream instead.
+    exclude-paths:
+      - ".github/workflows/zizmor.yml"
+      - ".github/workflows/approve-workflows.yml"
     schedule:
       interval: "monthly"
     groups:
