@@ -48,6 +48,12 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
 
+/// The `Content-Type` of the OpenMetrics text format (version 1.0.0).
+///
+/// Equivalent to `expfmt.FmtOpenMetrics_1_0_0` in Go's
+/// [`prometheus/common`](https://github.com/prometheus/common/blob/main/expfmt/expfmt.go).
+pub const CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
+
 /// Encode both the metrics registered with the provided [`Registry`] and the
 /// EOF marker into the provided [`Write`]r using the OpenMetrics text format.
 ///
