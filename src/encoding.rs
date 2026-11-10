@@ -34,6 +34,24 @@ pub mod text;
 #[deprecated(note = "Use openmetrics_protobuf instead.")]
 pub use openmetrics_protobuf as protobuf;
 
+#[cfg(test)]
+pub(crate) mod py_test_support {
+    use std::sync::Once;
+
+    /// Import the Python `prometheus_client` parser modules once, serialized, 
+    /// to get around CPython's import deadlock.
+    pub(crate) fn ensure_parsers() {
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            pyo3::Python::initialize();
+            pyo3::Python::attach(|py| {
+                py.import("prometheus_client.parser").unwrap();
+                py.import("prometheus_client.openmetrics.parser").unwrap();
+            });
+        });
+    }
+}
+
 /// Native histogram fields shared by encoders.
 #[derive(Clone, Copy, Debug)]
 pub struct NativeHistogram<'a> {

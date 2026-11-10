@@ -534,7 +534,7 @@ mod tests {
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{Histogram, NativeHistogramConfig};
     use crate::metrics::info::Info;
-    use pyo3::{prelude::*, types::PyModule};
+    use pyo3::{prelude::*, types::PyDict};
     use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU64};
 
     fn encode_to_string(registry: &Registry) -> String {
@@ -1100,31 +1100,24 @@ mod tests {
     }
 
     fn parse_with_python_client(input: String) {
-        pyo3::Python::initialize();
+        crate::encoding::py_test_support::ensure_parsers();
 
         println!("{input:?}");
+    
         Python::attach(|py| {
-            let parser = PyModule::from_code(
-                py,
+            let locals = PyDict::new(py);
+            locals.set_item("input", input).unwrap();
+            py.run(
                 c"
 from prometheus_client.parser import text_string_to_metric_families
 
-def parse(input):
-    families = text_string_to_metric_families(input)
-    list(families)
+list(text_string_to_metric_families(input))
 ",
-                c"parser.py",
-                c"parser",
+                None,
+                Some(&locals),
             )
             .map_err(|e| e.to_string())
             .unwrap();
-
-            parser
-                .getattr("parse")
-                .expect("`parse` to exist.")
-                .call1((input.clone(),))
-                .map_err(|e| e.to_string())
-                .unwrap();
         })
     }
 }
