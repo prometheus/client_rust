@@ -695,8 +695,9 @@ impl ExemplarValueEncoder<'_> {
 
 /// Joins one or more label sets into a single comma-separated list.
 ///
-/// `open` is written lazily before the first label, so label sets which turn
-/// out to be empty produce no output (in particular, no stray `,` or `{}`).
+/// `open` is written lazily before the first label key, so label sets which
+/// turn out to be empty, as well as labels which never encode a key, produce
+/// no output (in particular, no stray `,` or `{}`).
 #[derive(Debug)]
 pub(crate) struct LabelList {
     open: &'static str,
@@ -752,37 +753,38 @@ impl<'a> LabelSetEncoder<'a> {
     }
 
     pub fn encode_label(&mut self) -> LabelEncoder<'_> {
-        let separator = if self.list.written {
-            ","
-        } else {
-            self.list.open
-        };
-        self.list.written = true;
         LabelEncoder {
             writer: self.writer.reborrow(),
-            separator,
+            list: &mut *self.list,
         }
     }
 }
 
 pub(crate) struct LabelEncoder<'a> {
     writer: TextBuf<'a>,
-    /// Written before the label key.
-    separator: &'static str,
+    list: &'a mut LabelList,
 }
 
 impl std::fmt::Debug for LabelEncoder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LabelEncoder")
-            .field("separator", &self.separator)
+            .field("list", &self.list)
             .finish()
     }
 }
 
 impl LabelEncoder<'_> {
     pub fn encode_label_key(&mut self) -> Result<LabelKeyEncoder<'_>, std::fmt::Error> {
-        if !self.separator.is_empty() {
-            self.writer.write_str(self.separator)?;
+        // Only mark the list as written once a key is actually encoded, so a
+        // label which never writes a key leaves no stray separator behind.
+        let separator = if self.list.written {
+            ","
+        } else {
+            self.list.open
+        };
+        self.list.written = true;
+        if !separator.is_empty() {
+            self.writer.write_str(separator)?;
         }
         Ok(LabelKeyEncoder {
             writer: self.writer.reborrow(),
@@ -1211,6 +1213,65 @@ mod tests {
         assert_eq!(expected, encoded);
 
         parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_labels_skipping_label_key() {
+        /// Label which only encodes a key when present.
+        #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+        struct OptionalLabel(Option<(&'static str, &'static str)>);
+
+        impl crate::encoding::EncodeLabel for OptionalLabel {
+            fn encode(&self, encoder: crate::encoding::LabelEncoder) -> Result<(), Error> {
+                match self.0 {
+                    Some(label) => label.encode(encoder),
+                    None => Ok(()),
+                }
+            }
+        }
+
+        fn encode_info(
+            const_labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
+            labels: Vec<OptionalLabel>,
+        ) -> String {
+            let mut registry = Registry::with_labels(const_labels.into_iter());
+            registry.register("my_info_metric", "My info metric", Info::new(labels));
+            let mut encoded = String::new();
+            encode(&mut encoded, &registry).unwrap();
+            encoded
+        }
+
+        fn expected(series: &str) -> String {
+            "# HELP my_info_metric My info metric.\n".to_owned()
+                + "# TYPE my_info_metric info\n"
+                + series
+                + "\n# EOF\n"
+        }
+
+        let cases = [
+            (vec![], vec![OptionalLabel(None)], "my_info_metric_info 1"),
+            (
+                vec![],
+                vec![
+                    OptionalLabel(None),
+                    OptionalLabel(Some(("a", "1"))),
+                    OptionalLabel(None),
+                    OptionalLabel(Some(("b", "2"))),
+                ],
+                "my_info_metric_info{a=\"1\",b=\"2\"} 1",
+            ),
+            (
+                vec![(Cow::Borrowed("env"), Cow::Borrowed("prod"))],
+                vec![OptionalLabel(None)],
+                "my_info_metric_info{env=\"prod\"} 1",
+            ),
+        ];
+
+        for (const_labels, labels, series) in cases {
+            let encoded = encode_info(const_labels, labels);
+            assert_eq!(expected(series), encoded);
+            parse_with_python_client(encoded);
+        }
     }
 
     #[test]
