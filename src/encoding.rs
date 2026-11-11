@@ -28,6 +28,7 @@ pub mod openmetrics_protobuf;
 #[cfg_attr(docsrs, doc(cfg(feature = "prometheus_protobuf")))]
 pub mod prometheus_protobuf;
 pub mod prometheus_text;
+mod scratch;
 pub mod text;
 
 #[cfg(feature = "openmetrics_protobuf")]
