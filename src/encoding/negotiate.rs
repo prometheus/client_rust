@@ -1,0 +1,540 @@
+//! Choosing the exposition format of a response from the `Accept` header of the
+//! request.
+
+use crate::encoding::{prometheus_text, text};
+
+#[cfg(feature = "prometheus_protobuf")]
+use crate::encoding::prometheus_protobuf;
+
+/// An exposition format that a registry can be encoded in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Format {
+    /// The OpenMetrics text format, see [`text`].
+    OpenMetricsText,
+    /// The Prometheus text format (version 0.0.4), see [`prometheus_text`].
+    PrometheusText,
+    /// The Promethues protobuf format, see [`prometheus_protobuf`].
+    #[cfg(feature = "prometheus_protobuf")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "prometheus_protobuf")))]
+    PrometheusProtobuf,
+}
+
+impl Format {
+    /// The `Content-Type` to answer with when the response is in this format.
+    pub fn content_type(self) -> &'static str {
+        match self {
+            Format::OpenMetricsText => text::CONTENT_TYPE,
+            Format::PrometheusText => prometheus_text::CONTENT_TYPE,
+            #[cfg(feature = "prometheus_protobuf")]
+            Format::PrometheusProtobuf => prometheus_protobuf::CONTENT_TYPE,
+        }
+    }
+
+    /// The type and subtype of the media type of this format.
+    fn media_type(self) -> (&'static str, &'static str) {
+        match self {
+            Format::OpenMetricsText => ("application", "openmetrics-text"),
+            Format::PrometheusText => ("text", "plain"),
+            #[cfg(feature = "prometheus_protobuf")]
+            Format::PrometheusProtobuf => ("application", "vnd.google.protobuf"),
+        }
+    }
+
+    /// The parameters that a media range has to carry to match this format.
+    ///
+    /// `charset` is left out, as Go's [`matchFormat`](https://github.com/prometheus/common/blob/f072bc2e5c1d524da47e4f7aec401017ab24dce1/expfmt/encode.go#L198-L201)
+    /// skips it.
+    fn params(self) -> &'static [(&'static str, &'static str)] {
+        match self {
+            Format::OpenMetricsText => &[("version", "1.0.0")],
+            Format::PrometheusText => &[("version", "0.0.4")],
+            #[cfg(feature = "prometheus_protobuf")]
+            Format::PrometheusProtobuf => &[
+                ("proto", "io.prometheus.client.MetricFamily"),
+                ("encoding", "delimited"),
+            ],
+        }
+    }
+}
+
+/// Picks the format that a client wants most, from the value of its `Accept`
+/// header.
+///
+/// `offered` are the formats that the caller can answer with, most preferred
+/// first.
+///
+/// This follows [`expfmt.NegotiateAccept`](https://github.com/prometheus/common/blob/f072bc2e5c1d524da47e4f7aec401017ab24dce1/expfmt/encode.go#L129-L154)
+/// in Go's `prometheus/common`:
+///
+/// - The media types in `accept` are tried in the order the client prefers
+///   them, and the first offered format that matches one of them is returned.
+///   The order of `offered` only decides between formats that match the same
+///   media type.
+/// - If nothing matches, or `accept` is `None` or empty, the
+///   result is [`Format::PrometheusText`] if it is offered, wherever it is in
+///   `offered`. Otherwise it is the first of `offered`.
+/// - When `offered` is empty, the result is [`Format::PrometheusText`].
+pub fn negotiate(accept: Option<&str>, offered: &[Format]) -> Format {
+    if offered.is_empty() {
+        return Format::PrometheusText;
+    }
+
+    let Some(accept) = accept else {
+        return fallback(offered);
+    };
+
+    // The media range that the client wants most, which is the one with the
+    // highest weight, then the most specific, then the first in the header.
+    let mut best: Option<(Format, f32, u8)> = None;
+    for range in parse_accept(accept) {
+        let Some(format) = offered.iter().copied().find(|f| range.matches(*f)) else {
+            continue;
+        };
+
+        let specificity = range.specificity();
+
+        if best.is_none_or(|(_, q, s)| (range.q, specificity) > (q, s)) {
+            best = Some((format, range.q, specificity));
+        }
+    }
+
+    best.map_or_else(|| fallback(offered), |(format, ..)| format)
+}
+
+/// The text format if it is offered and otherwise the first of `offered`.
+fn fallback(offered: &[Format]) -> Format {
+    if offered.contains(&Format::PrometheusText) {
+        return Format::PrometheusText;
+    }
+    offered[0]
+}
+
+/// A media range from an `Accept` header, with its weight and parameters.
+#[derive(Debug)]
+struct MediaRange<'a> {
+    type_: &'a str,
+    subtype: &'a str,
+    q: f32,
+    /// Everything after the media type, unparsed.
+    params: &'a str,
+}
+
+impl<'a> MediaRange<'a> {
+    /// Whether this range accepts `format`, where `*` accepts any type or
+    /// subtype and the range has to carry the parameters of the format.
+    fn matches(&self, format: Format) -> bool {
+        let (type_, subtype) = format.media_type();
+        if (self.type_ != "*" && self.type_ != type_)
+            || (self.subtype != "*" && self.subtype != subtype)
+        {
+            return false;
+        }
+
+        format
+            .params()
+            .iter()
+            .all(|(key, value)| match self.param(key) {
+                Some(v) => v == *value,
+                // Only `version` is optional.
+                None => *key == "version",
+            })
+    }
+
+    fn param(&self, key: &str) -> Option<&'a str> {
+        self.params
+            .split(';')
+            .filter_map(split_param)
+            .find_map(|(k, v)| (k == key).then_some(v))
+    }
+
+    /// `*/*` is the least specific, then `type/*`, then `type/subtype`.
+    fn specificity(&self) -> u8 {
+        match (self.type_, self.subtype) {
+            ("*", _) => 0,
+            (_, "*") => 1,
+            _ => 2,
+        }
+    }
+}
+
+/// Parses the value of an `Accept` header, a list of media ranges, skipping
+/// entries that are not valid. See [RFC 9110 section 12.5.1](https://www.rfc-editor.org/rfc/rfc9110#section-12.5.1).
+fn parse_accept(accept: &str) -> impl Iterator<Item = MediaRange<'_>> {
+    accept.split(',').filter_map(parse_media_range)
+}
+
+fn parse_media_range(entry: &str) -> Option<MediaRange<'_>> {
+    let (media_type, params) = entry.split_once(';').unwrap_or((entry, ""));
+    let media_type = media_type.trim();
+    let (type_, subtype) = match media_type.split_once('/') {
+        Some((type_, subtype)) if !subtype.contains('/') => (type_.trim(), subtype.trim()),
+        None if media_type == "*" => ("*", "*"),
+        _ => return None,
+    };
+
+    // Only `q` is needed to rank ranges. The other params are read on demand
+    // by `MediaRange::param`, which avoids allocating a Vec for them.
+    let q = params
+        .split(';')
+        .filter_map(split_param)
+        .rfind(|(k, _)| *k == "q")
+        .map_or(1.0, |(_, v)| v.parse().unwrap_or(0.0));
+
+    Some(MediaRange {
+        type_,
+        subtype,
+        q,
+        params,
+    })
+}
+
+/// Splits a `key=value` parameter, skipping malformed ones.
+fn split_param(param: &str) -> Option<(&str, &str)> {
+    let (key, value) = param.split_once('=')?;
+    if value.contains('=') {
+        return None;
+    }
+    Some((key.trim(), value.trim()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn falls_back() {
+        let cases: &[(Option<&str>, &[Format], Format)] = &[
+            // Nothing offered: the text format, as Go's NegotiateAccept does
+            // with `FmtText` when `accepted` is empty:
+            // https://github.com/prometheus/common/blob/f072bc2e5c1d524da47e4f7aec401017ab24dce1/expfmt/encode.go#L150-L153
+            (None, &[], Format::PrometheusText),
+            (Some(""), &[], Format::PrometheusText),
+            (Some("*/*"), &[], Format::PrometheusText),
+            (
+                Some("application/openmetrics-text"),
+                &[],
+                Format::PrometheusText,
+            ),
+            // The text format is offered: it is preferred wherever it is, as
+            // in Go:
+            // https://github.com/prometheus/common/blob/f072bc2e5c1d524da47e4f7aec401017ab24dce1/expfmt/encode.go#L145-L149
+            (
+                None,
+                &[Format::OpenMetricsText, Format::PrometheusText],
+                Format::PrometheusText,
+            ),
+            (
+                None,
+                &[Format::PrometheusText, Format::OpenMetricsText],
+                Format::PrometheusText,
+            ),
+            (
+                Some(""),
+                &[Format::OpenMetricsText, Format::PrometheusText],
+                Format::PrometheusText,
+            ),
+            (
+                Some("application/json"),
+                &[Format::OpenMetricsText, Format::PrometheusText],
+                Format::PrometheusText,
+            ),
+            // The text format is not offered: the first offered format, as Go
+            // does with `accepted[0]`:
+            // https://github.com/prometheus/common/blob/f072bc2e5c1d524da47e4f7aec401017ab24dce1/expfmt/encode.go#L150-L152
+            (None, &[Format::OpenMetricsText], Format::OpenMetricsText),
+            (
+                Some(""),
+                &[Format::OpenMetricsText],
+                Format::OpenMetricsText,
+            ),
+            (
+                Some("application/json"),
+                &[Format::OpenMetricsText],
+                Format::OpenMetricsText,
+            ),
+            (
+                Some("text/plain"),
+                &[Format::OpenMetricsText],
+                Format::OpenMetricsText,
+            ),
+        ];
+
+        for (accept, offered, expected) in cases {
+            assert_eq!(negotiate(*accept, offered), *expected, "{accept:?}");
+        }
+    }
+
+    #[test]
+    fn negotiates_formats() {
+        let offered = [Format::OpenMetricsText, Format::PrometheusText];
+
+        let cases = [
+            ("application/openmetrics-text", Format::OpenMetricsText),
+            (
+                "application/openmetrics-text;version=1.0.0",
+                Format::OpenMetricsText,
+            ),
+            (
+                "application/openmetrics-text;version=1.0.0;charset=utf-8",
+                Format::OpenMetricsText,
+            ),
+            ("application/*", Format::OpenMetricsText),
+            ("*/*", Format::OpenMetricsText),
+            (
+                "*/*;q=0.1,application/openmetrics-text;version=1.0.0",
+                Format::OpenMetricsText,
+            ),
+            // Wrong versions do not match, so these fall back to the text format.
+            (
+                "application/openmetrics-text;version=0.0.1",
+                Format::PrometheusText,
+            ),
+            (
+                "application/openmetrics-text;version=2.0.0",
+                Format::PrometheusText,
+            ),
+            ("text/plain", Format::PrometheusText),
+            ("text/plain;version=0.0.4", Format::PrometheusText),
+            (
+                "text/plain;version=0.0.4;charset=utf-8",
+                Format::PrometheusText,
+            ),
+            ("text/*", Format::PrometheusText),
+            ("text/plain;version=1.0.0", Format::PrometheusText),
+            (
+                "text/plain;q=0.9,application/openmetrics-text;q=0.1",
+                Format::PrometheusText,
+            ),
+        ];
+
+        for (accept, expected) in cases {
+            assert_eq!(negotiate(Some(accept), &offered), expected, "{accept}");
+        }
+    }
+
+    #[test]
+    fn ranks_matching_ranges() {
+        const OM_FIRST: &[Format] = &[Format::OpenMetricsText, Format::PrometheusText];
+        const TEXT_FIRST: &[Format] = &[Format::PrometheusText, Format::OpenMetricsText];
+
+        let cases = [
+            // Equal weight and specificity: the first range in the header wins.
+            (
+                "text/plain, application/openmetrics-text",
+                OM_FIRST,
+                Format::PrometheusText,
+            ),
+            (
+                "application/openmetrics-text, text/plain",
+                TEXT_FIRST,
+                Format::OpenMetricsText,
+            ),
+            (
+                "text/plain;q=0.5, application/openmetrics-text;q=0.5",
+                OM_FIRST,
+                Format::PrometheusText,
+            ),
+            // Equal weight: the more specific range wins, wherever it is.
+            ("*/*, text/plain", OM_FIRST, Format::PrometheusText),
+            ("text/plain, */*", OM_FIRST, Format::PrometheusText),
+            (
+                "*/*, application/openmetrics-text",
+                TEXT_FIRST,
+                Format::OpenMetricsText,
+            ),
+            (
+                "application/*;q=0.5, text/plain;q=0.5",
+                OM_FIRST,
+                Format::PrometheusText,
+            ),
+            // A higher weight wins over a more specific range.
+            ("*/*, text/plain;q=0.5", OM_FIRST, Format::OpenMetricsText),
+            // Formats matching the same range: the order of `offered` decides.
+            ("*/*", OM_FIRST, Format::OpenMetricsText),
+            ("*/*", TEXT_FIRST, Format::PrometheusText),
+        ];
+
+        for (accept, offered, expected) in cases {
+            assert_eq!(negotiate(Some(accept), offered), expected, "{accept}");
+        }
+    }
+
+    #[cfg(feature = "prometheus_protobuf")]
+    #[test]
+    fn negotiates_protobuf() {
+        let offered = [Format::PrometheusProtobuf, Format::PrometheusText];
+
+        let cases = [
+            (
+                "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
+                Format::PrometheusProtobuf,
+            ),
+            (
+                "application/vnd.google.protobuf;encoding=delimited;proto=io.prometheus.client.MetricFamily",
+                Format::PrometheusProtobuf,
+            ),
+            (
+                "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited;q=0.5,text/plain;q=0.1",
+                Format::PrometheusProtobuf,
+            ),
+            // Both `proto` and `encoding` are required and have to match, so these fall back to the text format.
+            ("application/vnd.google.protobuf", Format::PrometheusText),
+            (
+                "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily",
+                Format::PrometheusText,
+            ),
+            (
+                "application/vnd.google.protobuf;encoding=delimited",
+                Format::PrometheusText,
+            ),
+            (
+                "application/vnd.google.protobuf;proto=other.Message;encoding=delimited",
+                Format::PrometheusText,
+            ),
+            (
+                "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=text",
+                Format::PrometheusText,
+            ),
+        ];
+
+        for (accept, expected) in cases {
+            assert_eq!(negotiate(Some(accept), &offered), expected, "{accept}");
+        }
+    }
+
+    #[test]
+    fn parses_accept() {
+        // The expected media type, `q` and the params to look up by key.
+        type Expected<'a> = (&'a str, &'a str, f32, &'a [(&'a str, Option<&'a str>)]);
+
+        let cases: [(&str, Vec<Expected>); 8] = [
+            ("text/plain", vec![("text", "plain", 1.0, &[])]),
+            (
+                "application/openmetrics-text; version=1.0.0; q=0.8",
+                vec![(
+                    "application",
+                    "openmetrics-text",
+                    0.8,
+                    &[("version", Some("1.0.0"))],
+                )],
+            ),
+            (
+                "application/openmetrics-text;version=1.0.0,\
+                text/plain;version=0.0.4;q=0.5,*/*;q=0.1",
+                vec![
+                    (
+                        "application",
+                        "openmetrics-text",
+                        1.0,
+                        &[("version", Some("1.0.0"))],
+                    ),
+                    ("text", "plain", 0.5, &[("version", Some("0.0.4"))]),
+                    ("*", "*", 0.1, &[]),
+                ],
+            ),
+            ("*", vec![("*", "*", 1.0, &[])]),
+            ("", vec![]),
+            (
+                "text, a/b/c, , text/plain",
+                vec![("text", "plain", 1.0, &[])],
+            ),
+            ("text/plain;q=abc", vec![("text", "plain", 0.0, &[])]),
+            (
+                "text/plain;foo;a=b=c;version=0.0.4",
+                vec![(
+                    "text",
+                    "plain",
+                    1.0,
+                    &[("foo", None), ("a", None), ("version", Some("0.0.4"))],
+                )],
+            ),
+        ];
+
+        for (accept, expected) in cases {
+            let parsed: Vec<_> = parse_accept(accept).collect();
+            assert_eq!(parsed.len(), expected.len(), "{accept}");
+
+            for (range, (type_, subtype, q, params)) in parsed.iter().zip(expected) {
+                assert_eq!(
+                    (range.type_, range.subtype, range.q),
+                    (type_, subtype, q),
+                    "{accept}"
+                );
+                for (key, value) in params {
+                    assert_eq!(range.param(key), *value, "{accept}: {key}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn matches_formats() {
+        let cases: &[(&str, Format, bool)] = &[
+            // OpenMetricsText
+            (
+                "application/openmetrics-text",
+                Format::OpenMetricsText,
+                true,
+            ),
+            (
+                "application/openmetrics-text;version=1.0.0",
+                Format::OpenMetricsText,
+                true,
+            ),
+            (
+                "application/openmetrics-text;version=1.0.0;charset=utf-8",
+                Format::OpenMetricsText,
+                true,
+            ),
+            (
+                "application/openmetrics-text;version=0.0.1",
+                Format::OpenMetricsText,
+                false,
+            ),
+            (
+                "application/openmetrics-text;version=2.0.0",
+                Format::OpenMetricsText,
+                false,
+            ),
+            ("application/*", Format::OpenMetricsText, true),
+            ("*/*", Format::OpenMetricsText, true),
+            ("text/plain", Format::OpenMetricsText, false),
+            // PrometheusText
+            ("text/plain", Format::PrometheusText, true),
+            ("text/plain;version=0.0.4", Format::PrometheusText, true),
+            ("text/plain;version=1.0.0", Format::PrometheusText, false),
+            ("text/*", Format::PrometheusText, true),
+            ("*/*", Format::PrometheusText, true),
+            (
+                "application/openmetrics-text",
+                Format::PrometheusText,
+                false,
+            ),
+            // PrometheusProtobuf
+            #[cfg(feature = "prometheus_protobuf")]
+            (
+                "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
+                Format::PrometheusProtobuf,
+                true,
+            ),
+            #[cfg(feature = "prometheus_protobuf")]
+            (
+                "application/vnd.google.protobuf",
+                Format::PrometheusProtobuf,
+                false,
+            ),
+            #[cfg(feature = "prometheus_protobuf")]
+            (
+                "application/vnd.google.protobuf;proto=other.Message;encoding=delimited",
+                Format::PrometheusProtobuf,
+                false,
+            ),
+        ];
+
+        for (range, format, expected) in cases {
+            let range = parse_media_range(range).unwrap();
+            assert_eq!(range.matches(*format), *expected, "{range:?} vs {format:?}");
+        }
+    }
+}
