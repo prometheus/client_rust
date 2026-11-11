@@ -75,6 +75,59 @@ impl Format {
 ///   result is [`Format::PrometheusText`] if it is offered, wherever it is in
 ///   `offered`. Otherwise it is the first of `offered`.
 /// - When `offered` is empty, the result is [`Format::PrometheusText`].
+///
+/// # Example
+///
+/// ```
+/// use prometheus_client::encoding::negotiate::{negotiate, Format};
+/// use prometheus_client::encoding::{prometheus_text, text};
+/// # #[cfg(feature = "prometheus_protobuf")]
+/// use prometheus_client::encoding::prometheus_protobuf;
+/// use prometheus_client::metrics::counter::Counter;
+/// use prometheus_client::registry::Registry;
+///
+/// let mut registry = Registry::default();
+/// let counter: Counter = Counter::default();
+/// registry.register("my_counter", "This is my counter", counter.clone());
+///
+/// // The value of the `Accept` header of the request.
+/// let accept = Some("text/plain;version=0.0.4;q=0.5,application/openmetrics-text;version=1.0.0");
+///
+/// let offered = [
+///     Format::OpenMetricsText,
+///     Format::PrometheusText,
+///     #[cfg(feature = "prometheus_protobuf")]
+///     Format::PrometheusProtobuf,
+/// ];
+/// let format = negotiate(accept, &offered);
+///
+/// let body: Vec<u8> = match format {
+///     Format::OpenMetricsText => {
+///         let mut body = String::new();
+///         text::encode(&mut body, &registry).unwrap();
+///         body.into_bytes()
+///     }
+///     Format::PrometheusText => {
+///         let mut body = String::new();
+///         prometheus_text::encode(&mut body, &registry).unwrap();
+///         body.into_bytes()
+///     }
+///     // The wire format is `MetricFamily` messages back to back, each with
+///     // a length prefix, which `encode_to_vec` writes.
+///     #[cfg(feature = "prometheus_protobuf")]
+///     Format::PrometheusProtobuf => prometheus_protobuf::encode_to_vec(&registry).unwrap(),
+///     // `Format` is non-exhaustive, and only offered formats are returned.
+///     _ => unreachable!(),
+/// };
+///
+/// // Respond with `body`, and `format.content_type()` as the `Content-Type`.
+/// assert_eq!(format, Format::OpenMetricsText);
+/// assert_eq!(
+///     format.content_type(),
+///     "application/openmetrics-text; version=1.0.0; charset=utf-8"
+/// );
+/// assert!(!body.is_empty());
+/// ```
 pub fn negotiate(accept: Option<&str>, offered: &[Format]) -> Format {
     if offered.is_empty() {
         return Format::PrometheusText;
