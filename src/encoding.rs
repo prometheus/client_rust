@@ -86,6 +86,25 @@ pub(crate) mod py_test_support {
             }
         })
     }
+
+    mod tests {
+        use super::*;
+
+        #[test]
+        #[should_panic(expected = "could not convert string to float")]
+        fn prometheus_parser_rejects_invalid_value() {
+            parse_with_python_client(Parser::PrometheusClientParser, "foo abc\n");
+        }
+
+        #[test]
+        #[should_panic(expected = "Missing # EOF at end")]
+        fn openmetrics_parser_rejects_missing_eof() {
+            parse_with_python_client(
+                Parser::OpenMetricsParser,
+                "# TYPE foo counter\nfoo_total 1\n",
+            );
+        }
+    }
 }
 
 /// Native histogram fields shared by encoders.
