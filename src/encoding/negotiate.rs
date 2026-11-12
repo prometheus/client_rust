@@ -14,7 +14,7 @@ pub enum Format {
     PrometheusText0_0_4,
     /// The OpenMetrics text format, see [`text`].
     OpenMetricsText1_0_0,
-    /// The Promethues protobuf format, see [`prometheus_protobuf`].
+    /// The Prometheus protobuf format, see [`prometheus_protobuf`].
     #[cfg(feature = "prometheus_protobuf")]
     #[cfg_attr(docsrs, doc(cfg(feature = "prometheus_protobuf")))]
     PrometheusProtobuf,
@@ -88,8 +88,6 @@ impl MediaType {
 ///
 /// - The media types in `accept` are tried in the order the client prefers
 ///   them, and the first offered format that matches one of them is returned.
-///   The order of `offered` only decides between formats that match the same
-///   media type.
 /// - If nothing matches, or `accept` is `None` or empty, the [`MediaType`] has
 ///   the format [`Format::PrometheusText0_0_4`] if it is offered, wherever it is
 ///   in `offered`. Otherwise it has the first of `offered`.
