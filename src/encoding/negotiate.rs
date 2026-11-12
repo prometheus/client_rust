@@ -190,8 +190,11 @@ impl<'a> MediaRange<'a> {
             .iter()
             .all(|(key, value)| match self.param(key) {
                 Some(v) => v == *value,
-                // Only `version` is optional.
-                None => *key == "version",
+                // Only `version` is optional, and only when the range names the
+                // media type. A wildcard like `*/*` has no default version and
+                // matches nothing, so a client that accepts anything gets the
+                // fallback and not the first offered format.
+                None => *key == "version" && self.type_ == type_ && self.subtype == subtype,
             })
     }
 
@@ -337,12 +340,15 @@ mod tests {
                 "application/openmetrics-text;version=1.0.0;charset=utf-8",
                 Format::OpenMetricsText1_0_0,
             ),
-            ("application/*", Format::OpenMetricsText1_0_0),
-            ("*/*", Format::OpenMetricsText1_0_0),
             (
                 "*/*;q=0.1,application/openmetrics-text;version=1.0.0",
                 Format::OpenMetricsText1_0_0,
             ),
+            // Wildcards have no default version, so they match nothing and
+            // fall back to the text format.
+            ("application/*", Format::PrometheusText0_0_4),
+            ("*/*", Format::PrometheusText0_0_4),
+            ("text/*", Format::PrometheusText0_0_4),
             // Wrong versions do not match, so these fall back to the text format.
             (
                 "application/openmetrics-text;version=0.0.1",
@@ -358,7 +364,6 @@ mod tests {
                 "text/plain;version=0.0.4;charset=utf-8",
                 Format::PrometheusText0_0_4,
             ),
-            ("text/*", Format::PrometheusText0_0_4),
             ("text/plain;version=1.0.0", Format::PrometheusText0_0_4),
             (
                 "text/plain;q=0.9,application/openmetrics-text;q=0.1",
@@ -373,51 +378,42 @@ mod tests {
 
     #[test]
     fn ranks_matching_ranges() {
-        const OM_FIRST: &[Format] = &[Format::OpenMetricsText1_0_0, Format::PrometheusText0_0_4];
-        const TEXT_FIRST: &[Format] = &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0];
+        let offered = [Format::OpenMetricsText1_0_0, Format::PrometheusText0_0_4];
 
+        // A wildcard only matches a format when it carries the version of it.
         let cases = [
             // Equal weight and specificity: the first range in the header wins.
             (
                 "text/plain, application/openmetrics-text",
-                OM_FIRST,
                 Format::PrometheusText0_0_4,
             ),
             (
                 "application/openmetrics-text, text/plain",
-                TEXT_FIRST,
                 Format::OpenMetricsText1_0_0,
             ),
             (
                 "text/plain;q=0.5, application/openmetrics-text;q=0.5",
-                OM_FIRST,
                 Format::PrometheusText0_0_4,
             ),
             // Equal weight: the more specific range wins, wherever it is.
-            ("*/*, text/plain", OM_FIRST, Format::PrometheusText0_0_4),
-            ("text/plain, */*", OM_FIRST, Format::PrometheusText0_0_4),
+            ("*/*;version=1.0.0, text/plain", Format::PrometheusText0_0_4),
+            ("text/plain, */*;version=1.0.0", Format::PrometheusText0_0_4),
             (
-                "*/*, application/openmetrics-text",
-                TEXT_FIRST,
+                "*/*;version=0.0.4, application/openmetrics-text",
                 Format::OpenMetricsText1_0_0,
             ),
             (
-                "application/*;q=0.5, text/plain;q=0.5",
-                OM_FIRST,
+                "application/*;version=1.0.0;q=0.5, text/plain;q=0.5",
                 Format::PrometheusText0_0_4,
             ),
             // A higher weight wins over a more specific range.
             (
-                "*/*, text/plain;q=0.5",
-                OM_FIRST,
+                "*/*;version=1.0.0, text/plain;q=0.5",
                 Format::OpenMetricsText1_0_0,
             ),
-            // Formats matching the same range: the order of `offered` decides.
-            ("*/*", OM_FIRST, Format::OpenMetricsText1_0_0),
-            ("*/*", TEXT_FIRST, Format::PrometheusText0_0_4),
         ];
 
-        for (accept, offered, expected) in cases {
+        for (accept, expected) in cases {
             assert_eq!(negotiate(Some(accept), offered), expected, "{accept}");
         }
     }
@@ -559,15 +555,15 @@ mod tests {
                 Format::OpenMetricsText1_0_0,
                 false,
             ),
-            ("application/*", Format::OpenMetricsText1_0_0, true),
-            ("*/*", Format::OpenMetricsText1_0_0, true),
+            ("application/*", Format::OpenMetricsText1_0_0, false),
+            ("*/*", Format::OpenMetricsText1_0_0, false),
             ("text/plain", Format::OpenMetricsText1_0_0, false),
             // PrometheusText0_0_4
             ("text/plain", Format::PrometheusText0_0_4, true),
             ("text/plain;version=0.0.4", Format::PrometheusText0_0_4, true),
             ("text/plain;version=1.0.0", Format::PrometheusText0_0_4, false),
-            ("text/*", Format::PrometheusText0_0_4, true),
-            ("*/*", Format::PrometheusText0_0_4, true),
+            ("text/*", Format::PrometheusText0_0_4, false),
+            ("*/*", Format::PrometheusText0_0_4, false),
             (
                 "application/openmetrics-text",
                 Format::PrometheusText0_0_4,
