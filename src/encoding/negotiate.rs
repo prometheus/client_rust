@@ -21,16 +21,6 @@ pub enum Format {
 }
 
 impl Format {
-    /// The `Content-Type` to answer with when the response is in this format.
-    pub fn content_type(self) -> &'static str {
-        match self {
-            Format::PrometheusText0_0_4 => prometheus_text::CONTENT_TYPE,
-            Format::OpenMetricsText1_0_0 => text::CONTENT_TYPE,
-            #[cfg(feature = "prometheus_protobuf")]
-            Format::PrometheusProtobuf => prometheus_protobuf::CONTENT_TYPE,
-        }
-    }
-
     /// The type and subtype of the media type of this format.
     fn media_type(self) -> (&'static str, &'static str) {
         match self {
@@ -60,8 +50,35 @@ impl Format {
     }
 }
 
-/// Picks the format that a client wants most, from the value of its `Accept`
-/// header.
+/// The media type to respond with, as chosen by [`negotiate`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MediaType {
+    format: Format,
+}
+
+impl MediaType {
+    pub(crate) const fn new(format: Format) -> Self {
+        Self { format }
+    }
+
+    /// The format to encode the response in.
+    pub const fn format(&self) -> Format {
+        self.format
+    }
+
+    /// The `Content-Type` to answer with.
+    pub fn content_type(&self) -> &'static str {
+        match self.format {
+            Format::PrometheusText0_0_4 => prometheus_text::CONTENT_TYPE,
+            Format::OpenMetricsText1_0_0 => text::CONTENT_TYPE,
+            #[cfg(feature = "prometheus_protobuf")]
+            Format::PrometheusProtobuf => prometheus_protobuf::CONTENT_TYPE,
+        }
+    }
+}
+
+/// Picks the media type that a client wants most, from the value of its
+/// `Accept` header.
 ///
 /// `offered` are the formats that the caller can answer with, most preferred
 /// first.
@@ -73,10 +90,11 @@ impl Format {
 ///   them, and the first offered format that matches one of them is returned.
 ///   The order of `offered` only decides between formats that match the same
 ///   media type.
-/// - If nothing matches, or `accept` is `None` or empty, the
-///   result is [`Format::PrometheusText0_0_4`] if it is offered, wherever it is in
-///   `offered`. Otherwise it is the first of `offered`.
-/// - When `offered` is empty, the result is [`Format::PrometheusText0_0_4`].
+/// - If nothing matches, or `accept` is `None` or empty, the [`MediaType`] has
+///   the format [`Format::PrometheusText0_0_4`] if it is offered, wherever it is
+///   in `offered`. Otherwise it has the first of `offered`.
+/// - When `offered` is empty, the [`MediaType`] has the format
+///   [`Format::PrometheusText0_0_4`].
 ///
 /// # Example
 ///
@@ -101,9 +119,9 @@ impl Format {
 ///     #[cfg(feature = "prometheus_protobuf")]
 ///     Format::PrometheusProtobuf,
 /// ];
-/// let format = negotiate(accept, &offered);
+/// let media_type = negotiate(accept, &offered);
 ///
-/// let body: Vec<u8> = match format {
+/// let body: Vec<u8> = match media_type.format() {
 ///     Format::PrometheusText0_0_4 => {
 ///         let mut body = String::new();
 ///         prometheus_text::encode(&mut body, &registry).unwrap();
@@ -122,18 +140,18 @@ impl Format {
 ///     _ => unreachable!(),
 /// };
 ///
-/// // Respond with `body`, and `format.content_type()` as the `Content-Type`.
-/// assert_eq!(format, Format::OpenMetricsText1_0_0);
+/// // Respond with `body`, and `media_type.content_type()` as the `Content-Type`.
+/// assert_eq!(media_type.format(), Format::OpenMetricsText1_0_0);
 /// assert_eq!(
-///     format.content_type(),
+///     media_type.content_type(),
 ///     "application/openmetrics-text; version=1.0.0; charset=utf-8"
 /// );
 /// assert!(!body.is_empty());
 /// ```
-pub fn negotiate(accept: Option<&str>, offered: impl AsRef<[Format]>) -> Format {
+pub fn negotiate(accept: Option<&str>, offered: impl AsRef<[Format]>) -> MediaType {
     let offered = offered.as_ref();
     if offered.is_empty() {
-        return Format::PrometheusText0_0_4;
+        return MediaType::new(Format::PrometheusText0_0_4);
     }
 
     let Some(accept) = accept else {
@@ -155,15 +173,15 @@ pub fn negotiate(accept: Option<&str>, offered: impl AsRef<[Format]>) -> Format 
         }
     }
 
-    best.map_or_else(|| fallback(offered), |(format, ..)| format)
+    best.map_or_else(|| fallback(offered), |(format, ..)| MediaType::new(format))
 }
 
 /// The text format if it is offered and otherwise the first of `offered`.
-fn fallback(offered: &[Format]) -> Format {
+fn fallback(offered: &[Format]) -> MediaType {
     if offered.contains(&Format::PrometheusText0_0_4) {
-        return Format::PrometheusText0_0_4;
+        return MediaType::new(Format::PrometheusText0_0_4);
     }
-    offered[0]
+    MediaType::new(offered[0])
 }
 
 /// A media range from an `Accept` header, with its weight and parameters.
@@ -324,7 +342,11 @@ mod tests {
         ];
 
         for (accept, offered, expected) in cases {
-            assert_eq!(negotiate(*accept, offered), *expected, "{accept:?}");
+            assert_eq!(
+                negotiate(*accept, offered).format(),
+                *expected,
+                "{accept:?}"
+            );
         }
     }
 
@@ -374,7 +396,11 @@ mod tests {
         ];
 
         for (accept, expected) in cases {
-            assert_eq!(negotiate(Some(accept), &offered), expected, "{accept}");
+            assert_eq!(
+                negotiate(Some(accept), &offered).format(),
+                expected,
+                "{accept}"
+            );
         }
     }
 
@@ -416,7 +442,11 @@ mod tests {
         ];
 
         for (accept, expected) in cases {
-            assert_eq!(negotiate(Some(accept), offered), expected, "{accept}");
+            assert_eq!(
+                negotiate(Some(accept), offered).format(),
+                expected,
+                "{accept}"
+            );
         }
     }
 
@@ -459,7 +489,11 @@ mod tests {
         ];
 
         for (accept, expected) in cases {
-            assert_eq!(negotiate(Some(accept), &offered), expected, "{accept}");
+            assert_eq!(
+                negotiate(Some(accept), &offered).format(),
+                expected,
+                "{accept}"
+            );
         }
     }
 
