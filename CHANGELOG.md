@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.26.0]
 
 ### Added
 
@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Improved text encoding performance by buffering output internally, reducing
+  dynamic dispatch overhead. Empty label sets and custom labels that encode no
+  key no longer produce `{}` or a stray `,` in the text output. See [PR 370].
 - Registering a `Counter` with a name ending in `_total` now panics when debug
   assertions are enabled, including default development and test builds. When
   upgrading, remove the suffix from registered names (for example, `foo_total` ->
@@ -23,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [PR 366]: https://github.com/prometheus/client_rust/pull/366
 [PR 368]: https://github.com/prometheus/client_rust/pull/368
+[PR 370]: https://github.com/prometheus/client_rust/pull/370
 [PR 371]: https://github.com/prometheus/client_rust/pull/371
 [Issue 367]: https://github.com/prometheus/client_rust/issues/367
 
