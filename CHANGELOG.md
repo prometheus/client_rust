@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Improved text encoding performance for histograms by encoding their const and
+  family labels once instead of once per line. In the OpenMetrics text format,
+  family labels are now written before the histogram `le` label and before info
+  labels, matching the Prometheus text format, e.g.
+  `{region="eu",method="GET",le="1.0"}` instead of
+  `{region="eu",le="1.0",method="GET"}`. See [PR 380].
+
+[PR 380]: https://github.com/prometheus/client_rust/pull/380
+
 ## [0.26.0]
 
 ### Added

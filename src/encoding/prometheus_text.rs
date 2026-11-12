@@ -22,7 +22,8 @@
 //! assert_eq!(expected, buffer);
 //! ```
 
-use crate::encoding::text::{LabelList, TextBuf};
+use crate::encoding::scratch::{ScratchBuf, Span};
+use crate::encoding::text::{LabelList, LabelSeqEncoder, TextBuf};
 use crate::encoding::{
     EncodeExemplarValue, EncodeLabelSet, EncodeLabelValue, LabelValueEncoder, NativeHistogram,
     NoLabelSet,
@@ -64,12 +65,16 @@ where
     W: Write,
 {
     let mut buffer = TextBuf::new_buffer();
-    registry.encode(&mut DescriptorEncoder::new(TextBuf::new(&mut buffer, writer)).into())?;
+    let mut scratch = ScratchBuf::new();
+    registry.encode(
+        &mut DescriptorEncoder::new(TextBuf::new(&mut buffer, writer), &mut scratch).into(),
+    )?;
     writer.write_str(&buffer)
 }
 
 pub(crate) struct DescriptorEncoder<'a> {
     writer: TextBuf<'a>,
+    scratch: &'a mut ScratchBuf,
     prefix: Option<&'a Prefix>,
     labels: &'a [(Cow<'static, str>, Cow<'static, str>)],
 }
@@ -81,9 +86,10 @@ impl std::fmt::Debug for DescriptorEncoder<'_> {
 }
 
 impl<'a> DescriptorEncoder<'a> {
-    pub(crate) fn new(writer: TextBuf<'a>) -> DescriptorEncoder<'a> {
+    pub(crate) fn new(writer: TextBuf<'a>, scratch: &'a mut ScratchBuf) -> DescriptorEncoder<'a> {
         DescriptorEncoder {
             writer,
+            scratch,
             prefix: Default::default(),
             labels: Default::default(),
         }
@@ -98,6 +104,7 @@ impl<'a> DescriptorEncoder<'a> {
             prefix,
             labels,
             writer: self.writer.reborrow(),
+            scratch: &mut *self.scratch,
         }
     }
 
@@ -143,6 +150,7 @@ impl<'a> DescriptorEncoder<'a> {
     ) -> MetricEncoder<'s> {
         MetricEncoder {
             writer: self.writer.reborrow(),
+            scratch: &mut *self.scratch,
             prefix: self.prefix,
             name,
             unit,
@@ -171,6 +179,7 @@ impl<'a> DescriptorEncoder<'a> {
 
 pub(crate) struct MetricEncoder<'a> {
     writer: TextBuf<'a>,
+    scratch: &'a mut ScratchBuf,
     prefix: Option<&'a Prefix>,
     name: &'a str,
     unit: Option<&'a Unit>,
@@ -247,6 +256,7 @@ impl MetricEncoder<'_> {
 
         Ok(MetricEncoder {
             writer: self.writer.reborrow(),
+            scratch: &mut *self.scratch,
             prefix: self.prefix,
             name: self.name,
             unit: self.unit,
@@ -263,31 +273,61 @@ impl MetricEncoder<'_> {
         buckets: &[(f64, u64)],
         _exemplars: Option<&HashMap<usize, Exemplar<S, f64>>>,
     ) -> Result<(), std::fmt::Error> {
+        // Encode the const and family labels once and reuse them for every
+        // line.
+        let start = self.scratch.offset();
+        let result = self
+            .encode_cached_labels()
+            .and_then(|labels| self.write_histogram_lines(labels, sum, count, buckets));
+        self.scratch.rewind(start);
+        result
+    }
+
+    /// Encodes the const and family labels into the scratch buffer as a
+    /// `k="v",...` sequence and returns its span.
+    fn encode_cached_labels(&mut self) -> Result<Span, std::fmt::Error> {
+        let mut seq = LabelSeqEncoder::new(self.scratch);
+        seq.encode(&self.const_labels)?;
+        if let Some(labels) = self.family_labels {
+            seq.encode(labels)?;
+        }
+        Ok(seq.finish())
+    }
+
+    /// Writes the bucket, `_sum` and `_count` lines of a histogram whose
+    /// const and family labels are cached in the scratch buffer at `labels`.
+    fn write_histogram_lines(
+        &mut self,
+        labels: Span,
+        sum: f64,
+        count: u64,
+        buckets: &[(f64, u64)],
+    ) -> Result<(), std::fmt::Error> {
         let mut cumulative = 0;
         let mut inf_seen = false;
         for (upper_bound, count) in buckets {
             cumulative += count;
             self.write_name("_bucket")?;
             inf_seen |= *upper_bound == f64::INFINITY;
-            self.write_labels(Some(&[("le", GoFloat(*upper_bound))]))?;
+            self.write_labels_raw(labels, Some(&[("le", GoFloat(*upper_bound))]))?;
             self.write_u64(cumulative)?;
         }
 
         if !inf_seen {
             self.write_name("_bucket")?;
-            self.write_labels(Some(&[("le", "+Inf")]))?;
+            self.write_labels_raw(labels, Some(&[("le", "+Inf")]))?;
             self.write_u64(count)?;
         }
 
         self.write_name("_sum")?;
-        self.write_labels::<NoLabelSet>(None)?;
+        self.write_labels_raw::<NoLabelSet>(labels, None)?;
         self.writer.write_str(" ")?;
         self.writer
             .write_str(format_float(&mut dtoa::Buffer::new(), sum))?;
         self.writer.write_str("\n")?;
 
         self.write_name("_count")?;
-        self.write_labels::<NoLabelSet>(None)?;
+        self.write_labels_raw::<NoLabelSet>(labels, None)?;
         self.write_u64(count)
     }
 
@@ -329,6 +369,22 @@ impl MetricEncoder<'_> {
         if let Some(labels) = self.family_labels {
             list.encode(self.writer.reborrow(), labels)?;
         }
+        if let Some(labels) = additional_labels {
+            list.encode(self.writer.reborrow(), labels)?;
+        }
+        list.finish(self.writer.reborrow(), "}")
+    }
+
+    /// Like [`Self::write_labels`], but with the const and family labels
+    /// replaced by the sequence at `cached` in the scratch buffer.
+    fn write_labels_raw<S: EncodeLabelSet>(
+        &mut self,
+        cached: Span,
+        additional_labels: Option<&S>,
+    ) -> Result<(), std::fmt::Error> {
+        let cached = self.scratch.get(cached).ok_or(std::fmt::Error)?;
+        let mut list = LabelList::new("{");
+        list.encode_raw(self.writer.reborrow(), cached)?;
         if let Some(labels) = additional_labels {
             list.encode(self.writer.reborrow(), labels)?;
         }
@@ -921,6 +977,71 @@ mod tests {
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
         parse_with_python_client(Parser::PrometheusClientParser, &encoded);
+    }
+
+    #[test]
+    fn encode_histogram_with_const_and_escaped_family_labels() {
+        let mut registry = Registry::default();
+        let sub_registry =
+            registry.sub_registry_with_label((Cow::Borrowed("region"), Cow::Borrowed("eu")));
+        let histograms = Family::<Vec<(String, String)>, Histogram>::new_with_constructor(|| {
+            Histogram::new([1.0])
+        });
+        sub_registry.register("my_histogram", "My histogram", histograms.clone());
+        histograms
+            .get_or_create(&vec![("path".to_string(), "a\"b\\c\nd".to_string())])
+            .observe(2.0);
+
+        let labels = r#"region="eu",path="a\"b\\c\nd""#;
+        let expected = "# HELP my_histogram My histogram.\n".to_owned()
+            + "# TYPE my_histogram histogram\n"
+            + &format!("my_histogram_bucket{{{labels},le=\"1\"}} 0\n")
+            + &format!("my_histogram_bucket{{{labels},le=\"+Inf\"}} 1\n")
+            + &format!("my_histogram_sum{{{labels}}} 2.0\n")
+            + &format!("my_histogram_count{{{labels}}} 1\n");
+        let encoded = encode_to_string(&registry);
+        assert_eq!(expected, encoded);
+        parse_with_python_client(encoded);
+    }
+
+    #[test]
+    fn encode_consecutive_histograms_with_different_labels() {
+        let mut registry = Registry::default();
+        let first = Histogram::new([1.0]);
+        registry
+            .sub_registry_with_label((Cow::Borrowed("a"), Cow::Borrowed("1")))
+            .register("first", "First", first.clone());
+        let second = Histogram::new([1.0]);
+        registry
+            .sub_registry_with_label((Cow::Borrowed("b"), Cow::Borrowed("2")))
+            .register("second", "Second", second.clone());
+        let third = Histogram::new([1.0]);
+        registry.register("third", "Third", third.clone());
+        first.observe(0.5);
+        second.observe(0.5);
+        third.observe(0.5);
+
+        let expected = "# HELP third Third.\n".to_owned()
+            + "# TYPE third histogram\n"
+            + "third_bucket{le=\"1\"} 1\n"
+            + "third_bucket{le=\"+Inf\"} 1\n"
+            + "third_sum 0.5\n"
+            + "third_count 1\n"
+            + "# HELP first First.\n"
+            + "# TYPE first histogram\n"
+            + "first_bucket{a=\"1\",le=\"1\"} 1\n"
+            + "first_bucket{a=\"1\",le=\"+Inf\"} 1\n"
+            + "first_sum{a=\"1\"} 0.5\n"
+            + "first_count{a=\"1\"} 1\n"
+            + "# HELP second Second.\n"
+            + "# TYPE second histogram\n"
+            + "second_bucket{b=\"2\",le=\"1\"} 1\n"
+            + "second_bucket{b=\"2\",le=\"+Inf\"} 1\n"
+            + "second_sum{b=\"2\"} 0.5\n"
+            + "second_count{b=\"2\"} 1\n";
+        let encoded = encode_to_string(&registry);
+        assert_eq!(expected, encoded);
+        parse_with_python_client(encoded);
     }
 
     #[test]
