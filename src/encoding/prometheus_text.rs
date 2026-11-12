@@ -527,6 +527,7 @@ fn format_nonfinite(value: f64) -> &'static str {
 mod tests {
     use super::*;
     use crate::collector::Collector;
+    use crate::encoding::py_test_support::parse_with_python_client;
     use crate::encoding::{DescriptorEncoder as GenericDescriptorEncoder, EncodeMetric};
     use crate::metrics::counter::{ConstCounter, Counter};
     use crate::metrics::exemplar::{CounterWithExemplar, HistogramWithExemplars};
@@ -534,7 +535,6 @@ mod tests {
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{Histogram, NativeHistogramConfig};
     use crate::metrics::info::Info;
-    use pyo3::{prelude::*, types::PyDict};
     use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU64};
 
     fn encode_to_string(registry: &Registry) -> String {
@@ -1097,27 +1097,5 @@ mod tests {
         {
             assert_eq!(expected, GoFloat(v).to_string(), "for {v:?}");
         }
-    }
-
-    fn parse_with_python_client(input: String) {
-        crate::encoding::py_test_support::ensure_parsers();
-
-        println!("{input:?}");
-    
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            locals.set_item("input", input).unwrap();
-            py.run(
-                c"
-from prometheus_client.parser import text_string_to_metric_families
-
-list(text_string_to_metric_families(input))
-",
-                None,
-                Some(&locals),
-            )
-            .map_err(|e| e.to_string())
-            .unwrap();
-        })
     }
 }

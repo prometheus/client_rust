@@ -38,7 +38,12 @@ pub use openmetrics_protobuf as protobuf;
 pub(crate) mod py_test_support {
     use std::sync::Once;
 
-    /// Import the Python `prometheus_client` parser modules once, serialized, 
+    use pyo3::{
+        types::{PyAnyMethods, PyDict},
+        Python,
+    };
+
+    /// Import the Python `prometheus_client` parser modules once, serialized,
     /// to get around CPython's import deadlock.
     pub(crate) fn ensure_parsers() {
         static INIT: Once = Once::new();
@@ -49,6 +54,28 @@ pub(crate) mod py_test_support {
                 py.import("prometheus_client.openmetrics.parser").unwrap();
             });
         });
+    }
+
+    pub(crate) fn parse_with_python_client(input: String) {
+        crate::encoding::py_test_support::ensure_parsers();
+
+        println!("{input:?}");
+
+        Python::attach(|py| {
+            let locals = PyDict::new(py);
+            locals.set_item("input", input).unwrap();
+            py.run(
+                c"
+from prometheus_client.parser import text_string_to_metric_families
+
+list(text_string_to_metric_families(input))
+",
+                None,
+                Some(&locals),
+            )
+            .map_err(|e| e.to_string())
+            .unwrap();
+        })
     }
 }
 
