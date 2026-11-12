@@ -1167,12 +1167,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dtoa"
-version = "1.0.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c3cf4824e2d5f025c7b531afcb2325364084a16806f6d47fbc1f5fbd9960590"
-
-[[package]]
 name = "either"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2448,7 +2442,6 @@ dependencies = [
  "async-std",
  "axum",
  "criterion",
- "dtoa",
  "futures",
  "http-body-util",
  "http-types",
@@ -2466,6 +2459,7 @@ dependencies = [
  "rand 0.10.3",
  "tide",
  "tokio",
+ "zmij",
 ]
 
 [[package]]
@@ -4258,9 +4252,9 @@ dependencies = [
 
 [[package]]
 name = "zmij"
-version = "1.0.21"
+version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
+checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
 name = "zstd"

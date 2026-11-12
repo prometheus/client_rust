@@ -497,7 +497,7 @@ impl MetricEncoder<'_> {
         self.write_suffix("sum")?;
         self.encode_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
-        self.writer.write_str(dtoa::Buffer::new().format(sum))?;
+        self.writer.write_str(zmij::Buffer::new().format(sum))?;
         self.newline()?;
 
         self.write_prefix_name_unit()?;
@@ -630,7 +630,7 @@ impl std::fmt::Debug for CounterValueEncoder<'_> {
 impl CounterValueEncoder<'_> {
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
-        self.writer.write_str(dtoa::Buffer::new().format(v))?;
+        self.writer.write_str(zmij::Buffer::new().format(v))?;
         Ok(())
     }
 
@@ -672,7 +672,7 @@ impl GaugeValueEncoder<'_> {
 
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
-        self.writer.write_str(dtoa::Buffer::new().format(v))?;
+        self.writer.write_str(zmij::Buffer::new().format(v))?;
         Ok(())
     }
 }
@@ -689,7 +689,7 @@ impl std::fmt::Debug for ExemplarValueEncoder<'_> {
 
 impl ExemplarValueEncoder<'_> {
     pub fn encode(&mut self, v: f64) -> Result<(), std::fmt::Error> {
-        self.writer.write_str(dtoa::Buffer::new().format(v))
+        self.writer.write_str(zmij::Buffer::new().format(v))
     }
 }
 
@@ -1100,7 +1100,7 @@ mod tests {
             + "# TYPE my_counter_with_exemplar_seconds counter\n"
             + "# UNIT my_counter_with_exemplar_seconds seconds\n"
             + "my_counter_with_exemplar_seconds_total 2 # {user_id=\"99\"} 1.0 "
-            + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
+            + zmij::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
             + "\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
@@ -1290,6 +1290,47 @@ mod tests {
     }
 
     #[test]
+    fn encode_histogram_fixed_le_labels() {
+        let mut registry = Registry::default();
+        let histogram = Histogram::new(crate::metrics::histogram::linear_buckets(0.1, 0.1, 20));
+        registry.register("my_histogram", "My histogram", histogram.clone());
+        histogram.observe(0.000001);
+
+        let expected = "# HELP my_histogram My histogram.\n".to_owned()
+            + "# TYPE my_histogram histogram\n"
+            + "my_histogram_sum 1e-6\n"
+            + "my_histogram_count 1\n"
+            + "my_histogram_bucket{le=\"0.1\"} 1\n"
+            + "my_histogram_bucket{le=\"0.2\"} 1\n"
+            + "my_histogram_bucket{le=\"0.30000000000000004\"} 1\n"
+            + "my_histogram_bucket{le=\"0.4\"} 1\n"
+            + "my_histogram_bucket{le=\"0.5\"} 1\n"
+            + "my_histogram_bucket{le=\"0.6\"} 1\n"
+            + "my_histogram_bucket{le=\"0.7000000000000001\"} 1\n"
+            + "my_histogram_bucket{le=\"0.8\"} 1\n"
+            + "my_histogram_bucket{le=\"0.9\"} 1\n"
+            + "my_histogram_bucket{le=\"1.0\"} 1\n"
+            + "my_histogram_bucket{le=\"1.1\"} 1\n"
+            + "my_histogram_bucket{le=\"1.2000000000000002\"} 1\n"
+            + "my_histogram_bucket{le=\"1.3000000000000003\"} 1\n"
+            + "my_histogram_bucket{le=\"1.4000000000000001\"} 1\n"
+            + "my_histogram_bucket{le=\"1.5000000000000002\"} 1\n"
+            + "my_histogram_bucket{le=\"1.6\"} 1\n"
+            + "my_histogram_bucket{le=\"1.7000000000000002\"} 1\n"
+            + "my_histogram_bucket{le=\"1.8000000000000003\"} 1\n"
+            + "my_histogram_bucket{le=\"1.9000000000000001\"} 1\n"
+            + "my_histogram_bucket{le=\"2.0\"} 1\n"
+            + "my_histogram_bucket{le=\"+Inf\"} 1\n"
+            + "# EOF\n";
+
+        let mut encoded = String::new();
+
+        encode(&mut encoded, &registry).unwrap();
+        assert_eq!(expected, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
+    }
+
+    #[test]
     fn encode_classic_and_native_histogram_as_classic_text() {
         let mut registry = Registry::default();
         let histogram = Histogram::new_classic_and_native(
@@ -1388,7 +1429,7 @@ mod tests {
             + "my_histogram_sum 3.0\n"
             + "my_histogram_count 2\n"
             + "my_histogram_bucket{le=\"1.0\"} 1 # {user_id=\"42\"} 1.0 "
-            + dtoa::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
+            + zmij::Buffer::new().format(now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
             + "\n"
             + "my_histogram_bucket{le=\"2.0\"} 2 # {user_id=\"99\"} 2.0\n"
             + "my_histogram_bucket{le=\"4.0\"} 2\n"

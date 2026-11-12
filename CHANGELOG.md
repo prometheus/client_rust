@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The floating point to string library changed from [dtoa] to [zmij].
+  zmij uses a shorter notation
+  (`0.000001` becomes `1e-6` and `10000000000000000.0` becomes `1e+16`)
+  and the rounding differs a bit
+  (`0.1 + 0.2` was `0.30000000000000007` and becomes `0.30000000000000004`).
+  This change affects floating point values, and the histogram `le` bucket
+  labels, which (depending on the value) could result in a new series. See [PR 369].
+
+[PR 369]: https://github.com/prometheus/client_rust/pull/369
+[zmij]: https://github.com/vitaut/zmij
+[dtoa]: https://github.com/dtolnay/dtoa
+
 ## [0.26.0]
 
 ### Added
