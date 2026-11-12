@@ -128,7 +128,8 @@ impl Format {
 /// );
 /// assert!(!body.is_empty());
 /// ```
-pub fn negotiate(accept: Option<&str>, offered: &[Format]) -> Format {
+pub fn negotiate(accept: Option<&str>, offered: impl AsRef<[Format]>) -> Format {
+    let offered = offered.as_ref();
     if offered.is_empty() {
         return Format::PrometheusText0_0_4;
     }
