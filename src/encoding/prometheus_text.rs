@@ -527,7 +527,7 @@ fn format_nonfinite(value: f64) -> &'static str {
 mod tests {
     use super::*;
     use crate::collector::Collector;
-    use crate::encoding::py_test_support::parse_with_python_client;
+    use crate::encoding::py_test_support::{parse_with_python_client, Parser};
     use crate::encoding::{DescriptorEncoder as GenericDescriptorEncoder, EncodeMetric};
     use crate::metrics::counter::{ConstCounter, Counter};
     use crate::metrics::exemplar::{CounterWithExemplar, HistogramWithExemplars};
@@ -566,7 +566,7 @@ mod tests {
             + "my_float_counter_total 1.5\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -586,7 +586,7 @@ mod tests {
             + "my_counter_seconds_total 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -629,7 +629,7 @@ mod tests {
             + "my_i64_gauge -1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -644,7 +644,7 @@ mod tests {
             + "my_info_metric_info{env=\"prod\",os=\"GNU/linux\"} 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -685,7 +685,7 @@ mod tests {
             + "my_untyped 3\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -728,7 +728,7 @@ mod tests {
             + "big_total 9007199254740993\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -749,7 +749,7 @@ mod tests {
             + "my_histogram_count 2\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     type HistogramFamily =
@@ -821,7 +821,7 @@ mod tests {
 
         let encoded = encode_to_string(&registry);
         assert_encoded_with_blocks_in_any_order(&encoded, &prefix, &[&get_block, &post_block]);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -863,7 +863,7 @@ mod tests {
 
         let encoded = encode_to_string(&registry);
         assert_encoded_with_blocks_in_any_order(&encoded, &prefix, &[&get_block, &post_block]);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -895,7 +895,7 @@ mod tests {
             + "native_and_classic_count 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -937,7 +937,7 @@ mod tests {
             + "my_prefix_my_histogram_family_count{region=\"eu\",method=\"GET\"} 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -952,7 +952,7 @@ mod tests {
             + "my_counter_total 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]
@@ -986,7 +986,7 @@ mod tests {
             + "my_gauge{path=\"C:\\\\dir \\\"quoted\\\"\\nnext\"} 2\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, encoded);
     }
 
     #[test]

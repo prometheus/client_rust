@@ -38,10 +38,21 @@ pub use openmetrics_protobuf as protobuf;
 pub(crate) mod py_test_support {
     use std::sync::Once;
 
-    use pyo3::{
-        types::{PyAnyMethods, PyDict},
-        Python,
-    };
+    use pyo3::{types::PyAnyMethods, Python};
+
+    pub(crate) enum Parser {
+        PrometheusClientParser,
+        OpemMetricsParser,
+    }
+
+    impl Parser {
+        fn module_name(self) -> &'static str {
+            match self {
+                Parser::PrometheusClientParser => "prometheus_client.parser",
+                Parser::OpemMetricsParser => "prometheus_client.openmetrics.parser",
+            }
+        }
+    }
 
     /// Import the Python `prometheus_client` parser modules once, serialized,
     /// to get around CPython's import deadlock.
@@ -50,31 +61,29 @@ pub(crate) mod py_test_support {
         INIT.call_once(|| {
             pyo3::Python::initialize();
             pyo3::Python::attach(|py| {
-                py.import("prometheus_client.parser").unwrap();
-                py.import("prometheus_client.openmetrics.parser").unwrap();
+                py.import(Parser::PrometheusClientParser.module_name())
+                    .unwrap();
+                py.import(Parser::OpemMetricsParser.module_name()).unwrap();
             });
         });
     }
 
-    pub(crate) fn parse_with_python_client(input: String) {
+    pub(crate) fn parse_with_python_client(parser: Parser, input: String) {
         crate::encoding::py_test_support::ensure_parsers();
 
         println!("{input:?}");
 
         Python::attach(|py| {
-            let locals = PyDict::new(py);
-            locals.set_item("input", input).unwrap();
-            py.run(
-                c"
-from prometheus_client.parser import text_string_to_metric_families
+            let families = py
+                .import(parser.module_name())
+                .and_then(|m| m.getattr("text_string_to_metric_families"))
+                .and_then(|f| f.call1((input,)))
+                .map_err(|e| e.to_string())
+                .unwrap();
 
-list(text_string_to_metric_families(input))
-",
-                None,
-                Some(&locals),
-            )
-            .map_err(|e| e.to_string())
-            .unwrap();
+            for family in families.try_iter().unwrap() {
+                family.map_err(|e| e.to_string()).unwrap();
+            }
         })
     }
 }
