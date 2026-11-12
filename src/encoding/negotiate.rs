@@ -41,18 +41,20 @@ impl Format {
         }
     }
 
-    /// The parameters that a media range has to carry to match this format.
+    /// The parameters that a media range has to carry to match this format,
+    /// with the values that are accepted for each.
     ///
     /// `charset` is left out, as Go's [`matchFormat`](https://github.com/prometheus/common/blob/f072bc2e5c1d524da47e4f7aec401017ab24dce1/expfmt/encode.go#L198-L201)
     /// skips it.
-    fn params(self) -> &'static [(&'static str, &'static str)] {
+    fn params(self) -> &'static [(&'static str, &'static [&'static str])] {
         match self {
-            Format::PrometheusText0_0_4 => &[("version", "0.0.4")],
-            Format::OpenMetricsText1_0_0 => &[("version", "1.0.0")],
+            Format::PrometheusText0_0_4 => &[("version", &["0.0.4"])],
+            // A client that asks for 0.0.1 is answered with 1.0.0.
+            Format::OpenMetricsText1_0_0 => &[("version", &["1.0.0", "0.0.1"])],
             #[cfg(feature = "prometheus_protobuf")]
             Format::PrometheusProtobuf => &[
-                ("proto", "io.prometheus.client.MetricFamily"),
-                ("encoding", "delimited"),
+                ("proto", &["io.prometheus.client.MetricFamily"]),
+                ("encoding", &["delimited"]),
             ],
         }
     }
@@ -188,8 +190,8 @@ impl<'a> MediaRange<'a> {
         format
             .params()
             .iter()
-            .all(|(key, value)| match self.param(key) {
-                Some(v) => v == *value,
+            .all(|(key, values)| match self.param(key) {
+                Some(v) => values.contains(&v),
                 // Only `version` is optional, and only when the range names the
                 // media type. A wildcard like `*/*` has no default version and
                 // matches nothing, so a client that accepts anything gets the
@@ -341,6 +343,10 @@ mod tests {
                 Format::OpenMetricsText1_0_0,
             ),
             (
+                "application/openmetrics-text;version=0.0.1",
+                Format::OpenMetricsText1_0_0,
+            ),
+            (
                 "*/*;q=0.1,application/openmetrics-text;version=1.0.0",
                 Format::OpenMetricsText1_0_0,
             ),
@@ -350,10 +356,6 @@ mod tests {
             ("*/*", Format::PrometheusText0_0_4),
             ("text/*", Format::PrometheusText0_0_4),
             // Wrong versions do not match, so these fall back to the text format.
-            (
-                "application/openmetrics-text;version=0.0.1",
-                Format::PrometheusText0_0_4,
-            ),
             (
                 "application/openmetrics-text;version=2.0.0",
                 Format::PrometheusText0_0_4,
@@ -548,7 +550,7 @@ mod tests {
             (
                 "application/openmetrics-text;version=0.0.1",
                 Format::OpenMetricsText1_0_0,
-                false,
+                true,
             ),
             (
                 "application/openmetrics-text;version=2.0.0",
