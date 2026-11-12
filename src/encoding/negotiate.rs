@@ -10,10 +10,10 @@ use crate::encoding::prometheus_protobuf;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Format {
-    /// The OpenMetrics text format, see [`text`].
-    OpenMetricsText,
     /// The Prometheus text format (version 0.0.4), see [`prometheus_text`].
-    PrometheusText,
+    PrometheusText0_0_4,
+    /// The OpenMetrics text format, see [`text`].
+    OpenMetricsText1_0_0,
     /// The Promethues protobuf format, see [`prometheus_protobuf`].
     #[cfg(feature = "prometheus_protobuf")]
     #[cfg_attr(docsrs, doc(cfg(feature = "prometheus_protobuf")))]
@@ -24,8 +24,8 @@ impl Format {
     /// The `Content-Type` to answer with when the response is in this format.
     pub fn content_type(self) -> &'static str {
         match self {
-            Format::OpenMetricsText => text::CONTENT_TYPE,
-            Format::PrometheusText => prometheus_text::CONTENT_TYPE,
+            Format::PrometheusText0_0_4 => prometheus_text::CONTENT_TYPE,
+            Format::OpenMetricsText1_0_0 => text::CONTENT_TYPE,
             #[cfg(feature = "prometheus_protobuf")]
             Format::PrometheusProtobuf => prometheus_protobuf::CONTENT_TYPE,
         }
@@ -34,8 +34,8 @@ impl Format {
     /// The type and subtype of the media type of this format.
     fn media_type(self) -> (&'static str, &'static str) {
         match self {
-            Format::OpenMetricsText => ("application", "openmetrics-text"),
-            Format::PrometheusText => ("text", "plain"),
+            Format::PrometheusText0_0_4 => ("text", "plain"),
+            Format::OpenMetricsText1_0_0 => ("application", "openmetrics-text"),
             #[cfg(feature = "prometheus_protobuf")]
             Format::PrometheusProtobuf => ("application", "vnd.google.protobuf"),
         }
@@ -47,8 +47,8 @@ impl Format {
     /// skips it.
     fn params(self) -> &'static [(&'static str, &'static str)] {
         match self {
-            Format::OpenMetricsText => &[("version", "1.0.0")],
-            Format::PrometheusText => &[("version", "0.0.4")],
+            Format::PrometheusText0_0_4 => &[("version", "0.0.4")],
+            Format::OpenMetricsText1_0_0 => &[("version", "1.0.0")],
             #[cfg(feature = "prometheus_protobuf")]
             Format::PrometheusProtobuf => &[
                 ("proto", "io.prometheus.client.MetricFamily"),
@@ -72,9 +72,9 @@ impl Format {
 ///   The order of `offered` only decides between formats that match the same
 ///   media type.
 /// - If nothing matches, or `accept` is `None` or empty, the
-///   result is [`Format::PrometheusText`] if it is offered, wherever it is in
+///   result is [`Format::PrometheusText0_0_4`] if it is offered, wherever it is in
 ///   `offered`. Otherwise it is the first of `offered`.
-/// - When `offered` is empty, the result is [`Format::PrometheusText`].
+/// - When `offered` is empty, the result is [`Format::PrometheusText0_0_4`].
 ///
 /// # Example
 ///
@@ -94,22 +94,22 @@ impl Format {
 /// let accept = Some("text/plain;version=0.0.4;q=0.5,application/openmetrics-text;version=1.0.0");
 ///
 /// let offered = [
-///     Format::OpenMetricsText,
-///     Format::PrometheusText,
+///     Format::PrometheusText0_0_4,
+///     Format::OpenMetricsText1_0_0,
 ///     #[cfg(feature = "prometheus_protobuf")]
 ///     Format::PrometheusProtobuf,
 /// ];
 /// let format = negotiate(accept, &offered);
 ///
 /// let body: Vec<u8> = match format {
-///     Format::OpenMetricsText => {
-///         let mut body = String::new();
-///         text::encode(&mut body, &registry).unwrap();
-///         body.into_bytes()
-///     }
-///     Format::PrometheusText => {
+///     Format::PrometheusText0_0_4 => {
 ///         let mut body = String::new();
 ///         prometheus_text::encode(&mut body, &registry).unwrap();
+///         body.into_bytes()
+///     }
+///     Format::OpenMetricsText1_0_0 => {
+///         let mut body = String::new();
+///         text::encode(&mut body, &registry).unwrap();
 ///         body.into_bytes()
 ///     }
 ///     // The wire format is `MetricFamily` messages back to back, each with
@@ -121,7 +121,7 @@ impl Format {
 /// };
 ///
 /// // Respond with `body`, and `format.content_type()` as the `Content-Type`.
-/// assert_eq!(format, Format::OpenMetricsText);
+/// assert_eq!(format, Format::OpenMetricsText1_0_0);
 /// assert_eq!(
 ///     format.content_type(),
 ///     "application/openmetrics-text; version=1.0.0; charset=utf-8"
@@ -130,7 +130,7 @@ impl Format {
 /// ```
 pub fn negotiate(accept: Option<&str>, offered: &[Format]) -> Format {
     if offered.is_empty() {
-        return Format::PrometheusText;
+        return Format::PrometheusText0_0_4;
     }
 
     let Some(accept) = accept else {
@@ -157,8 +157,8 @@ pub fn negotiate(accept: Option<&str>, offered: &[Format]) -> Format {
 
 /// The text format if it is offered and otherwise the first of `offered`.
 fn fallback(offered: &[Format]) -> Format {
-    if offered.contains(&Format::PrometheusText) {
-        return Format::PrometheusText;
+    if offered.contains(&Format::PrometheusText0_0_4) {
+        return Format::PrometheusText0_0_4;
     }
     offered[0]
 }
@@ -261,55 +261,59 @@ mod tests {
             // Nothing offered: the text format, as Go's NegotiateAccept does
             // with `FmtText` when `accepted` is empty:
             // https://github.com/prometheus/common/blob/f072bc2e5c1d524da47e4f7aec401017ab24dce1/expfmt/encode.go#L150-L153
-            (None, &[], Format::PrometheusText),
-            (Some(""), &[], Format::PrometheusText),
-            (Some("*/*"), &[], Format::PrometheusText),
+            (None, &[], Format::PrometheusText0_0_4),
+            (Some(""), &[], Format::PrometheusText0_0_4),
+            (Some("*/*"), &[], Format::PrometheusText0_0_4),
             (
                 Some("application/openmetrics-text"),
                 &[],
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
             // The text format is offered: it is preferred wherever it is, as
             // in Go:
             // https://github.com/prometheus/common/blob/f072bc2e5c1d524da47e4f7aec401017ab24dce1/expfmt/encode.go#L145-L149
             (
                 None,
-                &[Format::OpenMetricsText, Format::PrometheusText],
-                Format::PrometheusText,
+                &[Format::OpenMetricsText1_0_0, Format::PrometheusText0_0_4],
+                Format::PrometheusText0_0_4,
             ),
             (
                 None,
-                &[Format::PrometheusText, Format::OpenMetricsText],
-                Format::PrometheusText,
+                &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
+                Format::PrometheusText0_0_4,
             ),
             (
                 Some(""),
-                &[Format::OpenMetricsText, Format::PrometheusText],
-                Format::PrometheusText,
+                &[Format::OpenMetricsText1_0_0, Format::PrometheusText0_0_4],
+                Format::PrometheusText0_0_4,
             ),
             (
                 Some("application/json"),
-                &[Format::OpenMetricsText, Format::PrometheusText],
-                Format::PrometheusText,
+                &[Format::OpenMetricsText1_0_0, Format::PrometheusText0_0_4],
+                Format::PrometheusText0_0_4,
             ),
             // The text format is not offered: the first offered format, as Go
             // does with `accepted[0]`:
             // https://github.com/prometheus/common/blob/f072bc2e5c1d524da47e4f7aec401017ab24dce1/expfmt/encode.go#L150-L152
-            (None, &[Format::OpenMetricsText], Format::OpenMetricsText),
+            (
+                None,
+                &[Format::OpenMetricsText1_0_0],
+                Format::OpenMetricsText1_0_0,
+            ),
             (
                 Some(""),
-                &[Format::OpenMetricsText],
-                Format::OpenMetricsText,
+                &[Format::OpenMetricsText1_0_0],
+                Format::OpenMetricsText1_0_0,
             ),
             (
                 Some("application/json"),
-                &[Format::OpenMetricsText],
-                Format::OpenMetricsText,
+                &[Format::OpenMetricsText1_0_0],
+                Format::OpenMetricsText1_0_0,
             ),
             (
                 Some("text/plain"),
-                &[Format::OpenMetricsText],
-                Format::OpenMetricsText,
+                &[Format::OpenMetricsText1_0_0],
+                Format::OpenMetricsText1_0_0,
             ),
         ];
 
@@ -320,44 +324,44 @@ mod tests {
 
     #[test]
     fn negotiates_formats() {
-        let offered = [Format::OpenMetricsText, Format::PrometheusText];
+        let offered = [Format::OpenMetricsText1_0_0, Format::PrometheusText0_0_4];
 
         let cases = [
-            ("application/openmetrics-text", Format::OpenMetricsText),
+            ("application/openmetrics-text", Format::OpenMetricsText1_0_0),
             (
                 "application/openmetrics-text;version=1.0.0",
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
             ),
             (
                 "application/openmetrics-text;version=1.0.0;charset=utf-8",
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
             ),
-            ("application/*", Format::OpenMetricsText),
-            ("*/*", Format::OpenMetricsText),
+            ("application/*", Format::OpenMetricsText1_0_0),
+            ("*/*", Format::OpenMetricsText1_0_0),
             (
                 "*/*;q=0.1,application/openmetrics-text;version=1.0.0",
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
             ),
             // Wrong versions do not match, so these fall back to the text format.
             (
                 "application/openmetrics-text;version=0.0.1",
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
             (
                 "application/openmetrics-text;version=2.0.0",
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
-            ("text/plain", Format::PrometheusText),
-            ("text/plain;version=0.0.4", Format::PrometheusText),
+            ("text/plain", Format::PrometheusText0_0_4),
+            ("text/plain;version=0.0.4", Format::PrometheusText0_0_4),
             (
                 "text/plain;version=0.0.4;charset=utf-8",
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
-            ("text/*", Format::PrometheusText),
-            ("text/plain;version=1.0.0", Format::PrometheusText),
+            ("text/*", Format::PrometheusText0_0_4),
+            ("text/plain;version=1.0.0", Format::PrometheusText0_0_4),
             (
                 "text/plain;q=0.9,application/openmetrics-text;q=0.1",
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
         ];
 
@@ -368,44 +372,48 @@ mod tests {
 
     #[test]
     fn ranks_matching_ranges() {
-        const OM_FIRST: &[Format] = &[Format::OpenMetricsText, Format::PrometheusText];
-        const TEXT_FIRST: &[Format] = &[Format::PrometheusText, Format::OpenMetricsText];
+        const OM_FIRST: &[Format] = &[Format::OpenMetricsText1_0_0, Format::PrometheusText0_0_4];
+        const TEXT_FIRST: &[Format] = &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0];
 
         let cases = [
             // Equal weight and specificity: the first range in the header wins.
             (
                 "text/plain, application/openmetrics-text",
                 OM_FIRST,
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
             (
                 "application/openmetrics-text, text/plain",
                 TEXT_FIRST,
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
             ),
             (
                 "text/plain;q=0.5, application/openmetrics-text;q=0.5",
                 OM_FIRST,
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
             // Equal weight: the more specific range wins, wherever it is.
-            ("*/*, text/plain", OM_FIRST, Format::PrometheusText),
-            ("text/plain, */*", OM_FIRST, Format::PrometheusText),
+            ("*/*, text/plain", OM_FIRST, Format::PrometheusText0_0_4),
+            ("text/plain, */*", OM_FIRST, Format::PrometheusText0_0_4),
             (
                 "*/*, application/openmetrics-text",
                 TEXT_FIRST,
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
             ),
             (
                 "application/*;q=0.5, text/plain;q=0.5",
                 OM_FIRST,
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
             // A higher weight wins over a more specific range.
-            ("*/*, text/plain;q=0.5", OM_FIRST, Format::OpenMetricsText),
+            (
+                "*/*, text/plain;q=0.5",
+                OM_FIRST,
+                Format::OpenMetricsText1_0_0,
+            ),
             // Formats matching the same range: the order of `offered` decides.
-            ("*/*", OM_FIRST, Format::OpenMetricsText),
-            ("*/*", TEXT_FIRST, Format::PrometheusText),
+            ("*/*", OM_FIRST, Format::OpenMetricsText1_0_0),
+            ("*/*", TEXT_FIRST, Format::PrometheusText0_0_4),
         ];
 
         for (accept, offered, expected) in cases {
@@ -416,7 +424,7 @@ mod tests {
     #[cfg(feature = "prometheus_protobuf")]
     #[test]
     fn negotiates_protobuf() {
-        let offered = [Format::PrometheusProtobuf, Format::PrometheusText];
+        let offered = [Format::PrometheusProtobuf, Format::PrometheusText0_0_4];
 
         let cases = [
             (
@@ -432,22 +440,22 @@ mod tests {
                 Format::PrometheusProtobuf,
             ),
             // Both `proto` and `encoding` are required and have to match, so these fall back to the text format.
-            ("application/vnd.google.protobuf", Format::PrometheusText),
+            ("application/vnd.google.protobuf", Format::PrometheusText0_0_4),
             (
                 "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily",
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
             (
                 "application/vnd.google.protobuf;encoding=delimited",
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
             (
                 "application/vnd.google.protobuf;proto=other.Message;encoding=delimited",
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
             (
                 "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=text",
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
             ),
         ];
 
@@ -524,44 +532,44 @@ mod tests {
     #[test]
     fn matches_formats() {
         let cases: &[(&str, Format, bool)] = &[
-            // OpenMetricsText
+            // OpenMetricsText1_0_0
             (
                 "application/openmetrics-text",
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
                 true,
             ),
             (
                 "application/openmetrics-text;version=1.0.0",
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
                 true,
             ),
             (
                 "application/openmetrics-text;version=1.0.0;charset=utf-8",
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
                 true,
             ),
             (
                 "application/openmetrics-text;version=0.0.1",
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
                 false,
             ),
             (
                 "application/openmetrics-text;version=2.0.0",
-                Format::OpenMetricsText,
+                Format::OpenMetricsText1_0_0,
                 false,
             ),
-            ("application/*", Format::OpenMetricsText, true),
-            ("*/*", Format::OpenMetricsText, true),
-            ("text/plain", Format::OpenMetricsText, false),
-            // PrometheusText
-            ("text/plain", Format::PrometheusText, true),
-            ("text/plain;version=0.0.4", Format::PrometheusText, true),
-            ("text/plain;version=1.0.0", Format::PrometheusText, false),
-            ("text/*", Format::PrometheusText, true),
-            ("*/*", Format::PrometheusText, true),
+            ("application/*", Format::OpenMetricsText1_0_0, true),
+            ("*/*", Format::OpenMetricsText1_0_0, true),
+            ("text/plain", Format::OpenMetricsText1_0_0, false),
+            // PrometheusText0_0_4
+            ("text/plain", Format::PrometheusText0_0_4, true),
+            ("text/plain;version=0.0.4", Format::PrometheusText0_0_4, true),
+            ("text/plain;version=1.0.0", Format::PrometheusText0_0_4, false),
+            ("text/*", Format::PrometheusText0_0_4, true),
+            ("*/*", Format::PrometheusText0_0_4, true),
             (
                 "application/openmetrics-text",
-                Format::PrometheusText,
+                Format::PrometheusText0_0_4,
                 false,
             ),
             // PrometheusProtobuf
