@@ -888,7 +888,7 @@ mod tests {
             ),
             encoded
         );
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -905,7 +905,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -924,7 +924,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -955,7 +955,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
 
         counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), 99)]), Some(now));
 
@@ -972,7 +972,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -993,7 +993,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1013,7 +1013,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1043,7 +1043,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1061,7 +1061,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1075,7 +1075,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1130,7 +1130,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1155,7 +1155,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1192,7 +1192,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1266,7 +1266,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1325,7 +1325,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1379,7 +1379,7 @@ mod tests {
                         # EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(Parser::OpemMetricsParser, encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]

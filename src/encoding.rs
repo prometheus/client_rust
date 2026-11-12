@@ -42,14 +42,14 @@ pub(crate) mod py_test_support {
 
     pub(crate) enum Parser {
         PrometheusClientParser,
-        OpemMetricsParser,
+        OpenMetricsParser,
     }
 
     impl Parser {
         fn module_name(self) -> &'static str {
             match self {
                 Parser::PrometheusClientParser => "prometheus_client.parser",
-                Parser::OpemMetricsParser => "prometheus_client.openmetrics.parser",
+                Parser::OpenMetricsParser => "prometheus_client.openmetrics.parser",
             }
         }
     }
@@ -63,12 +63,12 @@ pub(crate) mod py_test_support {
             pyo3::Python::attach(|py| {
                 py.import(Parser::PrometheusClientParser.module_name())
                     .unwrap();
-                py.import(Parser::OpemMetricsParser.module_name()).unwrap();
+                py.import(Parser::OpenMetricsParser.module_name()).unwrap();
             });
         });
     }
 
-    pub(crate) fn parse_with_python_client(parser: Parser, input: String) {
+    pub(crate) fn parse_with_python_client(parser: Parser, input: &str) {
         crate::encoding::py_test_support::ensure_parsers();
 
         println!("{input:?}");
