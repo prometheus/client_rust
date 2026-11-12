@@ -34,6 +34,79 @@ pub mod text;
 #[deprecated(note = "Use openmetrics_protobuf instead.")]
 pub use openmetrics_protobuf as protobuf;
 
+#[cfg(test)]
+pub(crate) mod py_test_support {
+    use std::sync::Once;
+
+    use pyo3::{types::PyAnyMethods, Python};
+
+    pub(crate) enum Parser {
+        PrometheusClientParser,
+        OpenMetricsParser,
+    }
+
+    impl Parser {
+        fn module_name(self) -> &'static str {
+            match self {
+                Parser::PrometheusClientParser => "prometheus_client.parser",
+                Parser::OpenMetricsParser => "prometheus_client.openmetrics.parser",
+            }
+        }
+    }
+
+    /// Import the Python `prometheus_client` parser modules once, serialized,
+    /// to get around CPython's import deadlock.
+    pub(crate) fn ensure_parsers() {
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            pyo3::Python::initialize();
+            pyo3::Python::attach(|py| {
+                py.import(Parser::PrometheusClientParser.module_name())
+                    .unwrap();
+                py.import(Parser::OpenMetricsParser.module_name()).unwrap();
+            });
+        });
+    }
+
+    pub(crate) fn parse_with_python_client(parser: Parser, input: &str) {
+        crate::encoding::py_test_support::ensure_parsers();
+
+        println!("{input:?}");
+
+        Python::attach(|py| {
+            let families = py
+                .import(parser.module_name())
+                .and_then(|m| m.getattr("text_string_to_metric_families"))
+                .and_then(|f| f.call1((input,)))
+                .map_err(|e| e.to_string())
+                .unwrap();
+
+            for family in families.try_iter().unwrap() {
+                family.map_err(|e| e.to_string()).unwrap();
+            }
+        })
+    }
+
+    mod tests {
+        use super::*;
+
+        #[test]
+        #[should_panic(expected = "could not convert string to float")]
+        fn prometheus_parser_rejects_invalid_value() {
+            parse_with_python_client(Parser::PrometheusClientParser, "foo abc\n");
+        }
+
+        #[test]
+        #[should_panic(expected = "Missing # EOF at end")]
+        fn openmetrics_parser_rejects_missing_eof() {
+            parse_with_python_client(
+                Parser::OpenMetricsParser,
+                "# TYPE foo counter\nfoo_total 1\n",
+            );
+        }
+    }
+}
+
 /// Native histogram fields shared by encoders.
 #[derive(Clone, Copy, Debug)]
 pub struct NativeHistogram<'a> {

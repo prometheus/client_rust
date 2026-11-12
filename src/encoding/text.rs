@@ -870,13 +870,14 @@ impl std::fmt::Write for LabelValueEncoder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::encoding::py_test_support::parse_with_python_client;
+    use crate::encoding::py_test_support::Parser;
     use crate::metrics::exemplar::HistogramWithExemplars;
     use crate::metrics::family::Family;
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{exponential_buckets, Histogram, NativeHistogramConfig};
     use crate::metrics::info::Info;
     use crate::metrics::{counter::Counter, exemplar::CounterWithExemplar};
-    use pyo3::{prelude::*, types::PyModule};
     use quickcheck::QuickCheck;
     use std::borrow::Cow;
     use std::fmt::Error;
@@ -993,7 +994,7 @@ mod tests {
             + "\"} 1\n"
             + "# EOF\n";
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1020,7 +1021,7 @@ mod tests {
             ),
             encoded
         );
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1037,7 +1038,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1056,7 +1057,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1087,7 +1088,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
 
         counter_with_exemplar.inc_by(1, Some(vec![("user_id".to_string(), 99)]), Some(now));
 
@@ -1104,7 +1105,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1125,7 +1126,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1145,7 +1146,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1175,7 +1176,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1193,7 +1194,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1212,7 +1213,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1270,7 +1271,7 @@ mod tests {
         for (const_labels, labels, series) in cases {
             let encoded = encode_info(const_labels, labels);
             assert_eq!(expected(series), encoded);
-            parse_with_python_client(encoded);
+            parse_with_python_client(Parser::OpenMetricsParser, &encoded);
         }
     }
 
@@ -1285,7 +1286,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1340,7 +1341,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1365,7 +1366,7 @@ mod tests {
 
         encode(&mut encoded, &registry).unwrap();
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1402,7 +1403,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1476,7 +1477,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1535,7 +1536,7 @@ mod tests {
             + "# EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1589,7 +1590,7 @@ mod tests {
                         # EOF\n";
         assert_eq!(expected, encoded);
 
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
     }
 
     #[test]
@@ -1638,35 +1639,6 @@ mod tests {
         assert_eq!(&response[response.len() - 20..], "ogins_total 0\n# EOF\n");
     }
 
-    fn parse_with_python_client(input: String) {
-        pyo3::Python::initialize();
-
-        println!("{input:?}");
-        Python::attach(|py| {
-            let parser = PyModule::from_code(
-                py,
-                c"
-from prometheus_client.openmetrics.parser import text_string_to_metric_families
-
-def parse(input):
-    families = text_string_to_metric_families(input)
-    list(families)
-",
-                c"parser.py",
-                c"parser",
-            )
-            .map_err(|e| e.to_string())
-            .unwrap();
-
-            parser
-                .getattr("parse")
-                .expect("`parse` to exist.")
-                .call1((input.clone(),))
-                .map_err(|e| e.to_string())
-                .unwrap();
-        })
-    }
-
     #[test]
     fn encode_flushes_large_output_in_chunks() {
         /// Writer recording each `write_str` call separately.
@@ -1708,7 +1680,7 @@ def parse(input):
         assert_eq!(tail[1], "# EOF\n");
         assert_eq!(recorder.0.concat(), expected);
 
-        parse_with_python_client(expected);
+        parse_with_python_client(Parser::PrometheusClientParser, &expected);
     }
 
     #[test]

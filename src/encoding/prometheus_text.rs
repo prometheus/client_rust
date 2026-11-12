@@ -494,6 +494,7 @@ fn format_nonfinite(value: f64) -> &'static str {
 mod tests {
     use super::*;
     use crate::collector::Collector;
+    use crate::encoding::py_test_support::{parse_with_python_client, Parser};
     use crate::encoding::text::FLUSH_THRESHOLD;
     use crate::encoding::{DescriptorEncoder as GenericDescriptorEncoder, EncodeMetric};
     use crate::metrics::counter::{ConstCounter, Counter};
@@ -502,7 +503,6 @@ mod tests {
     use crate::metrics::gauge::Gauge;
     use crate::metrics::histogram::{Histogram, NativeHistogramConfig};
     use crate::metrics::info::Info;
-    use pyo3::{prelude::*, types::PyModule};
     use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU64};
 
     fn encode_to_string(registry: &Registry) -> String {
@@ -534,7 +534,7 @@ mod tests {
             + "my_float_counter_total 1.5\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -554,7 +554,7 @@ mod tests {
             + "my_counter_seconds_total 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -597,7 +597,7 @@ mod tests {
             + "my_i64_gauge -1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -612,7 +612,7 @@ mod tests {
             + "my_info_metric_info{env=\"prod\",os=\"GNU/linux\"} 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -627,7 +627,7 @@ mod tests {
             + "my_info_metric_info{env=\"prod\"} 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -668,7 +668,7 @@ mod tests {
             + "my_untyped 3\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -711,7 +711,7 @@ mod tests {
             + "big_total 9007199254740993\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -732,7 +732,7 @@ mod tests {
             + "my_histogram_count 2\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     type HistogramFamily =
@@ -804,7 +804,7 @@ mod tests {
 
         let encoded = encode_to_string(&registry);
         assert_encoded_with_blocks_in_any_order(&encoded, &prefix, &[&get_block, &post_block]);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -846,7 +846,7 @@ mod tests {
 
         let encoded = encode_to_string(&registry);
         assert_encoded_with_blocks_in_any_order(&encoded, &prefix, &[&get_block, &post_block]);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -878,7 +878,7 @@ mod tests {
             + "native_and_classic_count 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -920,7 +920,7 @@ mod tests {
             + "my_prefix_my_histogram_family_count{region=\"eu\",method=\"GET\"} 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -935,7 +935,7 @@ mod tests {
             + "my_counter_total 1\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -986,7 +986,7 @@ mod tests {
         assert!(tail.len() < FLUSH_THRESHOLD);
         assert_eq!(recorder.0.concat(), expected);
 
-        parse_with_python_client(expected);
+        parse_with_python_client(Parser::PrometheusClientParser, &expected);
     }
 
     #[test]
@@ -1011,7 +1011,7 @@ mod tests {
             + "my_gauge{path=\"C:\\\\dir \\\"quoted\\\"\\nnext\"} 2\n";
         let encoded = encode_to_string(&registry);
         assert_eq!(expected, encoded);
-        parse_with_python_client(encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
 
     #[test]
@@ -1122,34 +1122,5 @@ mod tests {
         {
             assert_eq!(expected, GoFloat(v).to_string(), "for {v:?}");
         }
-    }
-
-    fn parse_with_python_client(input: String) {
-        pyo3::Python::initialize();
-
-        println!("{input:?}");
-        Python::attach(|py| {
-            let parser = PyModule::from_code(
-                py,
-                c"
-from prometheus_client.parser import text_string_to_metric_families
-
-def parse(input):
-    families = text_string_to_metric_families(input)
-    list(families)
-",
-                c"parser.py",
-                c"parser",
-            )
-            .map_err(|e| e.to_string())
-            .unwrap();
-
-            parser
-                .getattr("parse")
-                .expect("`parse` to exist.")
-                .call1((input.clone(),))
-                .map_err(|e| e.to_string())
-                .unwrap();
-        })
     }
 }
