@@ -197,9 +197,9 @@ impl<'a> MediaRange<'a> {
     /// subtype and the range has to carry the parameters of the format.
     fn matches(&self, format: Format) -> bool {
         let (type_, subtype) = format.media_type();
-        if (self.type_ != "*" && self.type_ != type_)
-            || (self.subtype != "*" && self.subtype != subtype)
-        {
+        let matches_type = self.type_.eq_ignore_ascii_case(type_);
+        let matches_subtype = self.subtype.eq_ignore_ascii_case(subtype);
+        if !(matches_type || self.type_ == "*") || !(matches_subtype || self.subtype == "*") {
             return false;
         }
 
@@ -212,7 +212,7 @@ impl<'a> MediaRange<'a> {
                 // media type. A wildcard like `*/*` has no default version and
                 // matches nothing, so a client that accepts anything gets the
                 // fallback and not the first offered format.
-                None => *key == "version" && self.type_ == type_ && self.subtype == subtype,
+                None => *key == "version" && matches_type && matches_subtype,
             })
     }
 
@@ -220,7 +220,7 @@ impl<'a> MediaRange<'a> {
         self.params
             .split(';')
             .filter_map(split_param)
-            .find_map(|(k, v)| (k == key).then_some(v))
+            .find_map(|(k, v)| k.eq_ignore_ascii_case(key).then_some(v))
     }
 
     /// `*/*` is the least specific, then `type/*`, then `type/subtype`.
@@ -253,7 +253,7 @@ fn parse_media_range(entry: &str) -> Option<MediaRange<'_>> {
     let q = params
         .split(';')
         .filter_map(split_param)
-        .rfind(|(k, _)| *k == "q")
+        .rfind(|(k, _)| k.eq_ignore_ascii_case("q"))
         .map_or(1.0, |(_, v)| v.parse().unwrap_or(0.0));
 
     Some(MediaRange {
