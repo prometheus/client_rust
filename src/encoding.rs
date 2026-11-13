@@ -15,6 +15,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod negotiate;
 #[cfg(feature = "openmetrics_protobuf")]
 #[cfg_attr(docsrs, doc(cfg(feature = "openmetrics_protobuf")))]
 #[cfg_attr(

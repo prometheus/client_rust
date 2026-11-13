@@ -1,17 +1,17 @@
 use axum::body::Body;
 use axum::extract::State;
-use axum::http::header::CONTENT_TYPE;
-use axum::http::StatusCode;
+use axum::http::header::{ACCEPT, CONTENT_TYPE, VARY};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
-use prometheus_client::encoding::text::encode;
+use prometheus_client::encoding::negotiate::{negotiate, Format};
+use prometheus_client::encoding::{prometheus_text, text};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 use prometheus_client_derive_encode::{EncodeLabelSet, EncodeLabelValue};
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
 pub enum Method {
@@ -40,23 +40,36 @@ pub struct AppState {
     pub registry: Registry,
 }
 
-pub async fn metrics_handler(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
-    let state = state.lock().await;
+pub async fn metrics_handler(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let accept = headers.get(ACCEPT).and_then(|value| value.to_str().ok());
+    let media_type = negotiate(
+        accept,
+        &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
+    );
+
     let mut buffer = String::new();
-    encode(&mut buffer, &state.registry).unwrap();
+    match media_type.format() {
+        Format::PrometheusText0_0_4 => {
+            prometheus_text::encode(&mut buffer, &state.registry).unwrap()
+        }
+        Format::OpenMetricsText1_0_0 => text::encode(&mut buffer, &state.registry).unwrap(),
+        // `Format` is non-exhaustive, and only offered formats are returned.
+        _ => unreachable!(),
+    }
 
     Response::builder()
         .status(StatusCode::OK)
-        .header(
-            CONTENT_TYPE,
-            "application/openmetrics-text; version=1.0.0; charset=utf-8",
-        )
+        .header(CONTENT_TYPE, media_type.content_type())
+        .header(VARY, "Accept")
         .body(Body::from(buffer))
         .unwrap()
 }
 
-pub async fn some_handler(State(metrics): State<Arc<Mutex<Metrics>>>) -> impl IntoResponse {
-    metrics.lock().await.inc_requests(Method::Get);
+pub async fn some_handler(State(metrics): State<Arc<Metrics>>) -> impl IntoResponse {
+    metrics.inc_requests(Method::Get);
     "okay".to_string()
 }
 
@@ -71,8 +84,8 @@ async fn main() {
     state
         .registry
         .register("requests", "Count of requests", metrics.requests.clone());
-    let metrics = Arc::new(Mutex::new(metrics));
-    let state = Arc::new(Mutex::new(state));
+    let metrics = Arc::new(metrics);
+    let state = Arc::new(state);
 
     let router = Router::new()
         .route("/metrics", get(metrics_handler))

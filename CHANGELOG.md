@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Implement `PartialEq`, `Eq` and `Hash` for `metrics::MetricType` and `registry::Unit`. See [PR 366].
 - Added `encoding::prometheus_text::encode` to encode a `Registry` in the Prometheus text exposition format (version 0.0.4). See [Issue 367] and [PR 368].
+- Added `encoding::negotiate::negotiate` to choose the exposition format of a response from the `Accept` header of an HTTP request. See [PR 381].
 
 ### Changed
 
@@ -44,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR 368]: https://github.com/prometheus/client_rust/pull/368
 [PR 370]: https://github.com/prometheus/client_rust/pull/370
 [PR 371]: https://github.com/prometheus/client_rust/pull/371
+[PR 381]: https://github.com/prometheus/client_rust/pull/381
 [Issue 367]: https://github.com/prometheus/client_rust/issues/367
 
 ## [0.25.2]

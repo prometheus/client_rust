@@ -49,6 +49,13 @@ use super::{
     EncodeCounterValue, EncodeExemplarValue, EncodeGaugeValue, EncodeLabelSet, NativeHistogram,
 };
 
+/// The `Content-Type` of the length-delimited Prometheus protobuf format.
+///
+/// Equivalent to `expfmt.FmtProtoDelim` in Go's
+/// [`prometheus/common`](https://github.com/prometheus/common/blob/main/expfmt/expfmt.go).
+pub const CONTENT_TYPE: &str =
+    "application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited";
+
 /// Encode the metrics registered with the provided [`Registry`] into
 /// Prometheus `MetricFamily` messages.
 pub fn encode(

@@ -7,7 +7,14 @@ use hyper::{
     Request, Response,
 };
 use hyper_util::rt::TokioIo;
-use prometheus_client::{encoding::text::encode, metrics::counter::Counter, registry::Registry};
+use prometheus_client::{
+    encoding::{
+        negotiate::{negotiate, Format},
+        prometheus_text, text,
+    },
+    metrics::counter::Counter,
+    registry::Registry,
+};
 use std::{
     io,
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -69,24 +76,35 @@ type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 pub fn make_handler(
     registry: Arc<Registry>,
 ) -> impl Fn(Request<Incoming>) -> BoxFuture<'static, io::Result<Response<BoxBody>>> {
-    // This closure accepts a request and responds with the OpenMetrics encoding of our metrics.
-    move |_req: Request<Incoming>| {
+    // This closure accepts a request and responds with the encoding of our metrics that the
+    // request accepts.
+    move |req: Request<Incoming>| {
         let reg = registry.clone();
+        let accept = req
+            .headers()
+            .get(hyper::header::ACCEPT)
+            .and_then(|value| value.to_str().ok());
+        let media_type = negotiate(
+            accept,
+            &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
+        );
 
         Box::pin(async move {
             let mut buf = String::new();
-            encode(&mut buf, &reg.clone())
-                .map_err(std::io::Error::other)
-                .map(|_| {
-                    let body = full(Bytes::from(buf));
-                    Response::builder()
-                        .header(
-                            hyper::header::CONTENT_TYPE,
-                            "application/openmetrics-text; version=1.0.0; charset=utf-8",
-                        )
-                        .body(body)
-                        .unwrap()
-                })
+            let encoded = match media_type.format() {
+                Format::PrometheusText0_0_4 => prometheus_text::encode(&mut buf, &reg),
+                Format::OpenMetricsText1_0_0 => text::encode(&mut buf, &reg),
+                // `Format` is non-exhaustive, and only offered formats are returned.
+                _ => unreachable!(),
+            };
+            encoded.map_err(std::io::Error::other).map(|_| {
+                let body = full(Bytes::from(buf));
+                Response::builder()
+                    .header(hyper::header::CONTENT_TYPE, media_type.content_type())
+                    .header(hyper::header::VARY, "Accept")
+                    .body(body)
+                    .unwrap()
+            })
         })
     }
 }

@@ -1,5 +1,6 @@
+use prometheus_client::encoding::negotiate::{negotiate, Format};
 use prometheus_client::encoding::EncodeLabelValue;
-use prometheus_client::encoding::{text::encode, EncodeLabelSet};
+use prometheus_client::encoding::{prometheus_text, text, EncodeLabelSet};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
@@ -15,7 +16,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     let mut registry = Registry::default();
     let http_requests_total = Family::<Labels, Counter>::default();
     registry.register(
-        "http_requests_total",
+        "http_requests",
         "Number of HTTP requests",
         http_requests_total.clone(),
     );
@@ -31,11 +32,27 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     app.at("/").get(|_| async { Ok("Hello, world!") });
     app.at("/metrics")
         .get(|req: tide::Request<State>| async move {
+            let accept = req.header("Accept").map(|values| values.as_str());
+            let media_type = negotiate(
+                accept,
+                &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
+            );
+
             let mut encoded = String::new();
-            encode(&mut encoded, &req.state().registry).unwrap();
+            match media_type.format() {
+                Format::PrometheusText0_0_4 => {
+                    prometheus_text::encode(&mut encoded, &req.state().registry).unwrap()
+                }
+                Format::OpenMetricsText1_0_0 => {
+                    text::encode(&mut encoded, &req.state().registry).unwrap()
+                }
+                // `Format` is non-exhaustive, and only offered formats are returned.
+                _ => unreachable!(),
+            }
             let response = tide::Response::builder(200)
                 .body(encoded)
-                .content_type("application/openmetrics-text; version=1.0.0; charset=utf-8")
+                .content_type(media_type.content_type())
+                .header("Vary", "Accept")
                 .build();
             Ok(response)
         });
