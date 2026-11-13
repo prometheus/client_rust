@@ -250,11 +250,15 @@ fn parse_media_range(entry: &str) -> Option<MediaRange<'_>> {
 
     // Only `q` is needed to rank ranges. The other params are read on demand
     // by `MediaRange::param`, which avoids allocating a Vec for them.
-    let q = params
+    let q = match params
         .split(';')
         .filter_map(split_param)
         .rfind(|(k, _)| k.eq_ignore_ascii_case("q"))
-        .map_or(1.0, |(_, v)| v.parse().unwrap_or(0.0));
+    {
+        None => 1.0,
+        // `q=0` means not acceptable, and other weights outside `0..=1`, including `NaN`, are invalid.
+        Some((_, v)) => v.parse::<f32>().ok().filter(|q| *q > 0.0 && *q <= 1.0)?,
+    };
 
     Some(MediaRange {
         type_,
