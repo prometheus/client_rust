@@ -395,6 +395,21 @@ mod tests {
                 "text/plain;q=0.9,application/openmetrics-text;q=0.1",
                 Format::PrometheusText0_0_4,
             ),
+            // Firefox.
+            (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                Format::PrometheusText0_0_4,
+            ),
+            // Prometheus with the default `scrape_protocols`.
+            (
+                concat!(
+                    "application/openmetrics-text;version=1.0.0;escaping=allow-utf-8;q=0.8,",
+                    "application/openmetrics-text;version=0.0.1;q=0.7,",
+                    "text/plain;version=1.0.0;escaping=allow-utf-8;q=0.6,",
+                    "text/plain;version=0.0.4;q=0.5,*/*;q=0.4",
+                ),
+                Format::OpenMetricsText1_0_0,
+            ),
         ];
 
         for (accept, expected) in cases {
@@ -516,8 +531,10 @@ mod tests {
                 )],
             ),
             (
-                "application/openmetrics-text;version=1.0.0,\
-                text/plain;version=0.0.4;q=0.5,*/*;q=0.1",
+                concat!(
+                    "application/openmetrics-text;version=1.0.0,",
+                    "text/plain;version=0.0.4;q=0.5,*/*;q=0.1",
+                ),
                 vec![
                     (
                         "application",
@@ -535,7 +552,7 @@ mod tests {
                 "text, a/b/c, , text/plain",
                 vec![("text", "plain", 1.0, &[])],
             ),
-            ("text/plain;q=abc", vec![("text", "plain", 0.0, &[])]),
+            ("text/plain;q=abc", vec![]),
             (
                 "text/plain;foo;a=b=c;version=0.0.4",
                 vec![(
