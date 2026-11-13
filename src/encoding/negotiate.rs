@@ -395,6 +395,23 @@ mod tests {
                 "text/plain;q=0.9,application/openmetrics-text;q=0.1",
                 Format::PrometheusText0_0_4,
             ),
+            // A weight of 0 means not acceptable.
+            (
+                "application/openmetrics-text;version=1.0.0;q=0",
+                Format::PrometheusText0_0_4,
+            ),
+            (
+                "text/plain;version=0.0.4;q=NaN,application/openmetrics-text;version=1.0.0",
+                Format::OpenMetricsText1_0_0,
+            ),
+            (
+                "text/plain;version=0.0.4;q=2,application/openmetrics-text;version=1.0.0",
+                Format::OpenMetricsText1_0_0,
+            ),
+            (
+                "APPLICATION/OPENMETRICS-TEXT;VERSION=1.0.0",
+                Format::OpenMetricsText1_0_0,
+            ),
             // Firefox.
             (
                 "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
