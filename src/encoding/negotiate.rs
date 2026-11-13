@@ -51,7 +51,7 @@ impl Format {
 }
 
 /// The media type to respond with, as chosen by [`negotiate`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MediaType {
     format: Format,
 }
