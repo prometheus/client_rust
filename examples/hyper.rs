@@ -86,7 +86,7 @@ pub fn make_handler(
             .and_then(|value| value.to_str().ok());
         let media_type = negotiate(
             accept,
-            [Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
+            &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
         );
 
         Box::pin(async move {

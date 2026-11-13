@@ -47,7 +47,7 @@ pub async fn metrics_handler(
     let accept = headers.get(ACCEPT).and_then(|value| value.to_str().ok());
     let media_type = negotiate(
         accept,
-        [Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
+        &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
     );
 
     let mut buffer = String::new();

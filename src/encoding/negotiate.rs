@@ -146,8 +146,7 @@ impl MediaType {
 /// );
 /// assert!(!body.is_empty());
 /// ```
-pub fn negotiate(accept: Option<&str>, offered: impl AsRef<[Format]>) -> MediaType {
-    let offered = offered.as_ref();
+pub fn negotiate(accept: Option<&str>, offered: &[Format]) -> MediaType {
     if offered.is_empty() {
         return MediaType::new(Format::PrometheusText0_0_4);
     }
@@ -431,7 +430,7 @@ mod tests {
 
         for (accept, expected) in cases {
             assert_eq!(
-                negotiate(Some(accept), offered).format(),
+                negotiate(Some(accept), &offered).format(),
                 expected,
                 "{accept}"
             );
@@ -477,7 +476,7 @@ mod tests {
 
         for (accept, expected) in cases {
             assert_eq!(
-                negotiate(Some(accept), offered).format(),
+                negotiate(Some(accept), &offered).format(),
                 expected,
                 "{accept}"
             );
@@ -524,7 +523,7 @@ mod tests {
 
         for (accept, expected) in cases {
             assert_eq!(
-                negotiate(Some(accept), offered).format(),
+                negotiate(Some(accept), &offered).format(),
                 expected,
                 "{accept}"
             );

@@ -35,7 +35,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
             let accept = req.header("Accept").map(|values| values.as_str());
             let media_type = negotiate(
                 accept,
-                [Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
+                &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
             );
 
             let mut encoded = String::new();
