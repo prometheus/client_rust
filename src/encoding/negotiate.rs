@@ -395,7 +395,7 @@ mod tests {
 
         for (accept, expected) in cases {
             assert_eq!(
-                negotiate(Some(accept), &offered).format(),
+                negotiate(Some(accept), offered).format(),
                 expected,
                 "{accept}"
             );
@@ -488,7 +488,7 @@ mod tests {
 
         for (accept, expected) in cases {
             assert_eq!(
-                negotiate(Some(accept), &offered).format(),
+                negotiate(Some(accept), offered).format(),
                 expected,
                 "{accept}"
             );
