@@ -1,6 +1,6 @@
 use axum::body::Body;
 use axum::extract::State;
-use axum::http::header::{ACCEPT, CONTENT_TYPE};
+use axum::http::header::{ACCEPT, CONTENT_TYPE, VARY};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -63,6 +63,7 @@ pub async fn metrics_handler(
     Response::builder()
         .status(StatusCode::OK)
         .header(CONTENT_TYPE, media_type.content_type())
+        .header(VARY, "Accept")
         .body(Body::from(buffer))
         .unwrap()
 }

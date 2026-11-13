@@ -1,4 +1,4 @@
-use actix_web::http::header::ACCEPT;
+use actix_web::http::header::{ACCEPT, VARY};
 use actix_web::middleware::Compress;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder, Result};
 use prometheus_client::encoding::negotiate::{negotiate, Format};
@@ -53,6 +53,7 @@ pub async fn metrics_handler(req: HttpRequest, state: web::Data<AppState>) -> Re
 
     Ok(HttpResponse::Ok()
         .content_type(media_type.content_type())
+        .insert_header((VARY, "Accept"))
         .body(body))
 }
 

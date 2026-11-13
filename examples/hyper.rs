@@ -101,6 +101,7 @@ pub fn make_handler(
                 let body = full(Bytes::from(buf));
                 Response::builder()
                     .header(hyper::header::CONTENT_TYPE, media_type.content_type())
+                    .header(hyper::header::VARY, "Accept")
                     .body(body)
                     .unwrap()
             })

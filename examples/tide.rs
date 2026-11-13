@@ -52,6 +52,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
             let response = tide::Response::builder(200)
                 .body(encoded)
                 .content_type(media_type.content_type())
+                .header("Vary", "Accept")
                 .build();
             Ok(response)
         });
