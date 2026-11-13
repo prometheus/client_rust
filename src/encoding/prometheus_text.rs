@@ -283,7 +283,7 @@ impl MetricEncoder<'_> {
         self.write_labels::<NoLabelSet>(None)?;
         self.writer.write_str(" ")?;
         self.writer
-            .write_str(format_float(&mut dtoa::Buffer::new(), sum))?;
+            .write_str(format_float(&mut zmij::Buffer::new(), sum))?;
         self.writer.write_str("\n")?;
 
         self.write_name("_count")?;
@@ -356,7 +356,7 @@ impl CounterValueEncoder<'_> {
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
         self.writer
-            .write_str(format_float(&mut dtoa::Buffer::new(), v))
+            .write_str(format_float(&mut zmij::Buffer::new(), v))
     }
 
     pub fn encode_u64(&mut self, v: u64) -> Result<(), std::fmt::Error> {
@@ -394,11 +394,11 @@ impl GaugeValueEncoder<'_> {
     pub fn encode_f64(&mut self, v: f64) -> Result<(), std::fmt::Error> {
         self.writer.write_str(" ")?;
         self.writer
-            .write_str(format_float(&mut dtoa::Buffer::new(), v))
+            .write_str(format_float(&mut zmij::Buffer::new(), v))
     }
 }
 
-fn format_float(buf: &mut dtoa::Buffer, value: f64) -> &str {
+fn format_float(buf: &mut zmij::Buffer, value: f64) -> &str {
     if value.is_finite() {
         buf.format_finite(value)
     } else {
@@ -710,6 +710,49 @@ mod tests {
             + "# TYPE big_total counter\n"
             + "big_total 9007199254740993\n";
         let encoded = encode_to_string(&registry);
+        assert_eq!(expected, encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
+    }
+
+    #[test]
+    fn encode_gauge_float_fixed_values() {
+        let mut registry = Registry::default();
+        let gauge = Gauge::<f64, AtomicU64>::default();
+        registry.register("f64_gauge", "Gauge::<f64, AtomicU64>", gauge.clone());
+
+        gauge.set(0.1 + 0.2);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP f64_gauge Gauge::<f64, AtomicU64>.\n".to_owned()
+            + "# TYPE f64_gauge gauge\n"
+            + "f64_gauge 0.30000000000000004\n";
+
+        assert_eq!(expected, encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
+
+        gauge.set(0.000001);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP f64_gauge Gauge::<f64, AtomicU64>.\n".to_owned()
+            + "# TYPE f64_gauge gauge\n"
+            + "f64_gauge 1e-6\n";
+
+        assert_eq!(expected, encoded);
+        parse_with_python_client(Parser::PrometheusClientParser, &encoded);
+
+        gauge.set(10000000000000000.0);
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        let expected = "# HELP f64_gauge Gauge::<f64, AtomicU64>.\n".to_owned()
+            + "# TYPE f64_gauge gauge\n"
+            + "f64_gauge 1e+16\n";
+
         assert_eq!(expected, encoded);
         parse_with_python_client(Parser::PrometheusClientParser, &encoded);
     }
