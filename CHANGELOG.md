@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `encoding::negotiate::negotiate` to choose the exposition format of a response from the `Accept` header of an HTTP request. See [PR 381].
+- Added `encoding::negotiate::MediaType::encode` to encode a `Registry` into an `io::Write` in the negotiated format. See [PR 384].
+
 ### Changed
 
 - The floating point to string library changed from [dtoa] to [zmij].
@@ -17,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   labels, which (depending on the value) could result in a new series. See [PR 369].
 
 [PR 369]: https://github.com/prometheus/client_rust/pull/369
+[PR 381]: https://github.com/prometheus/client_rust/pull/381
+[PR 384]: https://github.com/prometheus/client_rust/pull/384
 [zmij]: https://github.com/vitaut/zmij
 [dtoa]: https://github.com/dtolnay/dtoa
 
@@ -26,7 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Implement `PartialEq`, `Eq` and `Hash` for `metrics::MetricType` and `registry::Unit`. See [PR 366].
 - Added `encoding::prometheus_text::encode` to encode a `Registry` in the Prometheus text exposition format (version 0.0.4). See [Issue 367] and [PR 368].
-- Added `encoding::negotiate::negotiate` to choose the exposition format of a response from the `Accept` header of an HTTP request. See [PR 381].
 
 ### Changed
 
@@ -45,7 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR 368]: https://github.com/prometheus/client_rust/pull/368
 [PR 370]: https://github.com/prometheus/client_rust/pull/370
 [PR 371]: https://github.com/prometheus/client_rust/pull/371
-[PR 381]: https://github.com/prometheus/client_rust/pull/381
 [Issue 367]: https://github.com/prometheus/client_rust/issues/367
 
 ## [0.25.2]

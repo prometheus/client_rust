@@ -8,10 +8,7 @@ use hyper::{
 };
 use hyper_util::rt::TokioIo;
 use prometheus_client::{
-    encoding::{
-        negotiate::{negotiate, Format},
-        prometheus_text, text,
-    },
+    encoding::negotiate::{negotiate, Format},
     metrics::counter::Counter,
     registry::Registry,
 };
@@ -90,21 +87,15 @@ pub fn make_handler(
         );
 
         Box::pin(async move {
-            let mut buf = String::new();
-            let encoded = match media_type.format() {
-                Format::PrometheusText0_0_4 => prometheus_text::encode(&mut buf, &reg),
-                Format::OpenMetricsText1_0_0 => text::encode(&mut buf, &reg),
-                // `Format` is non-exhaustive, and only offered formats are returned.
-                _ => unreachable!(),
-            };
-            encoded.map_err(std::io::Error::other).map(|_| {
-                let body = full(Bytes::from(buf));
-                Response::builder()
-                    .header(hyper::header::CONTENT_TYPE, media_type.content_type())
-                    .header(hyper::header::VARY, "Accept")
-                    .body(body)
-                    .unwrap()
-            })
+            let mut buf = Vec::new();
+            media_type
+                .encode(&mut buf, &reg)
+                .map_err(io::Error::other)?;
+            Ok(Response::builder()
+                .header(hyper::header::CONTENT_TYPE, media_type.content_type())
+                .header(hyper::header::VARY, "Accept")
+                .body(full(Bytes::from(buf)))
+                .unwrap())
         })
     }
 }
