@@ -80,6 +80,9 @@ impl MediaType {
     }
 
     /// Encodes `registry` into `writer` in the format of this media type.
+    ///
+    /// If this returns an error, part of the output may already have been written
+    /// to `writer`, so a handler must not send what was written as the response.
     pub fn encode<W: io::Write>(
         &self,
         writer: &mut W,
