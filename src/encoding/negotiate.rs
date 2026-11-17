@@ -680,6 +680,48 @@ mod tests {
     }
 
     #[test]
+    fn encode_keeps_io_error() {
+        struct FailingWriter;
+
+        impl io::Write for FailingWriter {
+            fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+                Err(io::ErrorKind::BrokenPipe.into())
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        registry.register("my_counter", "My counter", counter.clone());
+
+        let offered = [
+            Format::PrometheusText0_0_4,
+            Format::OpenMetricsText1_0_0,
+            #[cfg(feature = "prometheus_protobuf")]
+            Format::PrometheusProtobuf,
+        ];
+        let accepts = [
+            "text/plain;version=0.0.4",
+            "application/openmetrics-text;version=1.0.0",
+            #[cfg(feature = "prometheus_protobuf")]
+            "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
+        ];
+
+        for accept in accepts {
+            let err = negotiate(Some(accept), &offered)
+                .encode(&mut FailingWriter, &registry)
+                .unwrap_err();
+            assert!(
+                matches!(&err, EncodeError::Io(err) if err.kind() == io::ErrorKind::BrokenPipe),
+                "{accept}: {err:?}"
+            );
+        }
+    }
+
+    #[test]
     fn parses_accept() {
         // The expected media type, `q` and the params to look up by key.
         type Expected<'a> = (&'a str, &'a str, f32, &'a [(&'a str, Option<&'a str>)]);
