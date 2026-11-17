@@ -1,7 +1,10 @@
 //! Choosing the exposition format of a response from the `Accept` header of the
 //! request.
 
+use std::{fmt, io};
+
 use crate::encoding::{prometheus_text, text};
+use crate::registry::Registry;
 
 #[cfg(feature = "prometheus_protobuf")]
 use crate::encoding::prometheus_protobuf;
@@ -75,6 +78,125 @@ impl MediaType {
             Format::PrometheusProtobuf => prometheus_protobuf::CONTENT_TYPE,
         }
     }
+
+    /// Encodes `registry` into `writer` in the format of this media type.
+    pub fn encode<W: io::Write>(
+        &self,
+        registry: &Registry,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
+        match self.format {
+            Format::PrometheusText0_0_4 => {
+                let mut w = FmtWriter::new(writer);
+                let result = prometheus_text::encode(&mut w, registry);
+                w.finish(result)?;
+            }
+            Format::OpenMetricsText1_0_0 => {
+                let mut w = FmtWriter::new(writer);
+                let result = text::encode(&mut w, registry);
+                w.finish(result)?;
+            }
+            #[cfg(feature = "prometheus_protobuf")]
+            Format::PrometheusProtobuf => {
+                let body = prometheus_protobuf::encode_to_vec(registry)?;
+                writer.write_all(&body)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Lets the text encoders, which write to a [`fmt::Write`], write to an [`io::Write`].
+///
+/// Pass the result of the encoder to [`FmtWriter::finish`], so that a failed
+/// write is returned as the `io::Error` of the writer, which [`fmt::Error`]
+/// cannot carry.
+struct FmtWriter<'a, W> {
+    inner: &'a mut W,
+    error: Option<io::Error>,
+}
+
+impl<'a, W> FmtWriter<'a, W> {
+    fn new(inner: &'a mut W) -> Self {
+        Self { inner, error: None }
+    }
+
+    fn finish(self, result: fmt::Result) -> Result<(), EncodeError> {
+        match (self.error, result) {
+            (Some(err), _) => Err(EncodeError::Io(err)),
+            (None, Err(err)) => Err(EncodeError::Fmt(err)),
+            (None, Ok(())) => Ok(()),
+        }
+    }
+}
+
+impl<W: io::Write> fmt::Write for FmtWriter<'_, W> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.inner.write_all(s.as_bytes()).map_err(|err| {
+            self.error = Some(err);
+            fmt::Error
+        })
+    }
+}
+
+/// Errors returned by [`MediaType::encode`].
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum EncodeError {
+    /// Writing to the writer failed.
+    Io(io::Error),
+    /// A metric failed to encode into the text format.
+    Fmt(fmt::Error),
+    /// The generated protobuf message failed to serialize.
+    #[cfg(feature = "prometheus_protobuf")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "prometheus_protobuf")))]
+    Protobuf(prost::EncodeError),
+}
+
+impl fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EncodeError::Io(_) => f.write_str("failed to write the encoded metrics"),
+            EncodeError::Fmt(_) => f.write_str("failed to encode metrics"),
+            #[cfg(feature = "prometheus_protobuf")]
+            EncodeError::Protobuf(_) => {
+                f.write_str("failed to encode metrics into Prometheus protobuf")
+            }
+        }
+    }
+}
+
+impl std::error::Error for EncodeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            EncodeError::Io(err) => Some(err),
+            EncodeError::Fmt(err) => Some(err),
+            #[cfg(feature = "prometheus_protobuf")]
+            EncodeError::Protobuf(err) => Some(err),
+        }
+    }
+}
+
+impl From<io::Error> for EncodeError {
+    fn from(err: io::Error) -> Self {
+        EncodeError::Io(err)
+    }
+}
+
+impl From<fmt::Error> for EncodeError {
+    fn from(err: fmt::Error) -> Self {
+        EncodeError::Fmt(err)
+    }
+}
+
+#[cfg(feature = "prometheus_protobuf")]
+impl From<prometheus_protobuf::EncodeError> for EncodeError {
+    fn from(err: prometheus_protobuf::EncodeError) -> Self {
+        match err {
+            prometheus_protobuf::EncodeError::Fmt(err) => EncodeError::Fmt(err),
+            prometheus_protobuf::EncodeError::Protobuf(err) => EncodeError::Protobuf(err),
+        }
+    }
 }
 
 /// Picks the media type that a client wants most, from the value of its
@@ -98,9 +220,6 @@ impl MediaType {
 ///
 /// ```
 /// use prometheus_client::encoding::negotiate::{negotiate, Format};
-/// use prometheus_client::encoding::{prometheus_text, text};
-/// # #[cfg(feature = "prometheus_protobuf")]
-/// use prometheus_client::encoding::prometheus_protobuf;
 /// use prometheus_client::metrics::counter::Counter;
 /// use prometheus_client::registry::Registry;
 ///
@@ -119,24 +238,8 @@ impl MediaType {
 /// ];
 /// let media_type = negotiate(accept, &offered);
 ///
-/// let body: Vec<u8> = match media_type.format() {
-///     Format::PrometheusText0_0_4 => {
-///         let mut body = String::new();
-///         prometheus_text::encode(&mut body, &registry).unwrap();
-///         body.into_bytes()
-///     }
-///     Format::OpenMetricsText1_0_0 => {
-///         let mut body = String::new();
-///         text::encode(&mut body, &registry).unwrap();
-///         body.into_bytes()
-///     }
-///     // The wire format is `MetricFamily` messages back to back, each with
-///     // a length prefix, which `encode_to_vec` writes.
-///     #[cfg(feature = "prometheus_protobuf")]
-///     Format::PrometheusProtobuf => prometheus_protobuf::encode_to_vec(&registry).unwrap(),
-///     // `Format` is non-exhaustive, and only offered formats are returned.
-///     _ => unreachable!(),
-/// };
+/// let mut body = Vec::new();
+/// media_type.encode(&registry, &mut body).unwrap();
 ///
 /// // Respond with `body`, and `media_type.content_type()` as the `Content-Type`.
 /// assert_eq!(media_type.format(), Format::OpenMetricsText1_0_0);
@@ -279,6 +382,7 @@ fn split_param(param: &str) -> Option<(&str, &str)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::metrics::counter::Counter;
 
     #[test]
     fn falls_back() {
@@ -527,6 +631,48 @@ mod tests {
                 expected,
                 "{accept}"
             );
+        }
+    }
+
+    #[test]
+    fn encodes_formats() {
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        registry.register("my_counter", "My counter", counter.clone());
+        counter.inc();
+
+        let offered = [
+            Format::PrometheusText0_0_4,
+            Format::OpenMetricsText1_0_0,
+            #[cfg(feature = "prometheus_protobuf")]
+            Format::PrometheusProtobuf,
+        ];
+        let mut body = Vec::new();
+        negotiate(Some("text/plain;version=0.0.4"), &offered)
+            .encode(&registry, &mut body)
+            .unwrap();
+        let mut expected = String::new();
+        prometheus_text::encode(&mut expected, &registry).unwrap();
+        assert_eq!(body, expected.as_bytes());
+
+        let mut body = Vec::new();
+        negotiate(Some("application/openmetrics-text;version=1.0.0"), &offered)
+            .encode(&registry, &mut body)
+            .unwrap();
+        let mut expected = String::new();
+        text::encode(&mut expected, &registry).unwrap();
+        assert_eq!(body, expected.as_bytes());
+
+        #[cfg(feature = "prometheus_protobuf")]
+        {
+            let mut body = Vec::new();
+            negotiate(
+                Some("application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited"),
+                &offered,
+            )
+            .encode(&registry, &mut body)
+            .unwrap();
+            assert_eq!(body, prometheus_protobuf::encode_to_vec(&registry).unwrap());
         }
     }
 
