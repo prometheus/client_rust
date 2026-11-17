@@ -40,7 +40,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
 
             let mut encoded = Vec::new();
             media_type
-                .encode(&req.state().registry, &mut encoded)
+                .encode(&mut encoded, &req.state().registry)
                 .unwrap();
             let response = tide::Response::builder(200)
                 .body(encoded)

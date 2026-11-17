@@ -89,7 +89,7 @@ pub fn make_handler(
         Box::pin(async move {
             let mut buf = Vec::new();
             media_type
-                .encode(&reg, &mut buf)
+                .encode(&mut buf, &reg)
                 .map_err(io::Error::other)?;
             Ok(Response::builder()
                 .header(hyper::header::CONTENT_TYPE, media_type.content_type())

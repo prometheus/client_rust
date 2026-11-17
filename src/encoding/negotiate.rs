@@ -82,8 +82,8 @@ impl MediaType {
     /// Encodes `registry` into `writer` in the format of this media type.
     pub fn encode<W: io::Write>(
         &self,
-        registry: &Registry,
         writer: &mut W,
+        registry: &Registry,
     ) -> Result<(), EncodeError> {
         match self.format {
             Format::PrometheusText0_0_4 => {
@@ -239,7 +239,7 @@ impl From<prometheus_protobuf::EncodeError> for EncodeError {
 /// let media_type = negotiate(accept, &offered);
 ///
 /// let mut body = Vec::new();
-/// media_type.encode(&registry, &mut body).unwrap();
+/// media_type.encode(&mut body, &registry).unwrap();
 ///
 /// // Respond with `body`, and `media_type.content_type()` as the `Content-Type`.
 /// assert_eq!(media_type.format(), Format::OpenMetricsText1_0_0);
@@ -649,7 +649,7 @@ mod tests {
         ];
         let mut body = Vec::new();
         negotiate(Some("text/plain;version=0.0.4"), &offered)
-            .encode(&registry, &mut body)
+            .encode(&mut body, &registry)
             .unwrap();
         let mut expected = String::new();
         prometheus_text::encode(&mut expected, &registry).unwrap();
@@ -657,7 +657,7 @@ mod tests {
 
         let mut body = Vec::new();
         negotiate(Some("application/openmetrics-text;version=1.0.0"), &offered)
-            .encode(&registry, &mut body)
+            .encode(&mut body, &registry)
             .unwrap();
         let mut expected = String::new();
         text::encode(&mut expected, &registry).unwrap();
@@ -670,7 +670,7 @@ mod tests {
                 Some("application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited"),
                 &offered,
             )
-            .encode(&registry, &mut body)
+            .encode(&mut body, &registry)
             .unwrap();
             assert_eq!(body, prometheus_protobuf::encode_to_vec(&registry).unwrap());
         }

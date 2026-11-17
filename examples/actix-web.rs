@@ -43,7 +43,7 @@ pub async fn metrics_handler(req: HttpRequest, state: web::Data<AppState>) -> Re
     );
 
     let mut body = Vec::new();
-    media_type.encode(&state.registry, &mut body).unwrap();
+    media_type.encode(&mut body, &state.registry).unwrap();
 
     Ok(HttpResponse::Ok()
         .content_type(media_type.content_type())

@@ -50,7 +50,7 @@ pub async fn metrics_handler(
     );
 
     let mut buffer = Vec::new();
-    media_type.encode(&state.registry, &mut buffer).unwrap();
+    media_type.encode(&mut buffer, &state.registry).unwrap();
 
     Response::builder()
         .status(StatusCode::OK)
