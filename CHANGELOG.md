@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `encoding::negotiate::negotiate` to choose the exposition format of a response from the `Accept` header of an HTTP request. See [PR 381].
 - Added `encoding::negotiate::MediaType::encode` to encode a `Registry` into an `io::Write` in the negotiated format. See [PR 384].
-- Added `http::ScrapeHandler` to answer scrapes over HTTP: it negotiates the format from the `Accept` header, encodes a `Registry` and returns the status, headers and body to copy into the response of any HTTP framework.
+- Added `http::ScrapeHandler` to answer scrapes over HTTP: it negotiates the format from the `Accept` header, encodes a `Registry` and returns the status, headers and body to copy into the response of any HTTP framework. See [PR 387].
 
 ### Changed
 
@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR 369]: https://github.com/prometheus/client_rust/pull/369
 [PR 381]: https://github.com/prometheus/client_rust/pull/381
 [PR 384]: https://github.com/prometheus/client_rust/pull/384
+[PR 387]: https://github.com/prometheus/client_rust/pull/387
 [zmij]: https://github.com/vitaut/zmij
 [dtoa]: https://github.com/dtolnay/dtoa
 
