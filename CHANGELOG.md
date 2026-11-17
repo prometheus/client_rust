@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `encoding::negotiate::MediaType::encode` to encode a `Registry` into an `io::Write` in the negotiated format. See [PR 384].
+
+[PR 384]: https://github.com/prometheus/client_rust/pull/384
+
 ### Changed
 
 - The floating point to string library changed from [dtoa] to [zmij].
