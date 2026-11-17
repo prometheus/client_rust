@@ -8,6 +8,8 @@ use crate::registry::Registry;
 
 #[cfg(feature = "prometheus_protobuf")]
 use crate::encoding::prometheus_protobuf;
+#[cfg(feature = "prometheus_protobuf")]
+use prost::Message;
 
 /// An exposition format that a registry can be encoded in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -101,8 +103,14 @@ impl MediaType {
             }
             #[cfg(feature = "prometheus_protobuf")]
             Format::PrometheusProtobuf => {
-                let body = prometheus_protobuf::encode_to_vec(registry)?;
-                writer.write_all(&body)?;
+                let mut buf = Vec::new();
+                for family in prometheus_protobuf::encode(registry)? {
+                    buf.clear();
+                    family
+                        .encode_length_delimited(&mut buf)
+                        .map_err(EncodeError::Protobuf)?;
+                    writer.write_all(&buf)?;
+                }
             }
         }
         Ok(())
