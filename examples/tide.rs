@@ -1,6 +1,6 @@
-use prometheus_client::encoding::negotiate::{negotiate, Format};
 use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::encoding::EncodeLabelValue;
+use prometheus_client::http::ScrapeHandler;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
@@ -26,28 +26,33 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     };
     let mut app = tide::with_state(State {
         registry: Arc::new(registry),
+        scrape_handler: ScrapeHandler::default(),
     });
 
     app.with(middleware);
     app.at("/").get(|_| async { Ok("Hello, world!") });
     app.at("/metrics")
         .get(|req: tide::Request<State>| async move {
-            let accept = req.header("Accept").map(|values| values.as_str());
-            let media_type = negotiate(
-                accept,
-                &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
-            );
+            let state = req.state();
+            let result = state.scrape_handler.handle(&state.registry, |name| {
+                req.header(name).map(|values| values.as_str())
+            });
 
-            let mut encoded = Vec::new();
-            media_type
-                .encode(&mut encoded, &req.state().registry)
-                .unwrap();
-            let response = tide::Response::builder(200)
-                .body(encoded)
-                .content_type(media_type.content_type())
-                .header("Vary", "Accept")
-                .build();
-            Ok(response)
+            match result {
+                Ok(response) => {
+                    let mut builder = tide::Response::builder(response.status());
+                    for (name, value) in response.headers() {
+                        builder = builder.header(name, value);
+                    }
+                    Ok(builder.body(response.into_body()).build())
+                }
+                Err(err) => {
+                    eprintln!("{err}");
+                    Ok(tide::Response::builder(err.status())
+                        .body(err.to_string())
+                        .build())
+                }
+            }
         });
     app.listen("127.0.0.1:8080").await?;
 
@@ -69,6 +74,7 @@ enum Method {
 #[derive(Clone)]
 struct State {
     registry: Arc<Registry>,
+    scrape_handler: ScrapeHandler,
 }
 
 #[derive(Default)]
