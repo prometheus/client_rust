@@ -2,7 +2,6 @@ use actix_web::http::header::{ACCEPT, VARY};
 use actix_web::middleware::Compress;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder, Result};
 use prometheus_client::encoding::negotiate::{negotiate, Format};
-use prometheus_client::encoding::{prometheus_text, text};
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
@@ -43,13 +42,8 @@ pub async fn metrics_handler(req: HttpRequest, state: web::Data<AppState>) -> Re
         &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
     );
 
-    let mut body = String::new();
-    match media_type.format() {
-        Format::PrometheusText0_0_4 => prometheus_text::encode(&mut body, &state.registry).unwrap(),
-        Format::OpenMetricsText1_0_0 => text::encode(&mut body, &state.registry).unwrap(),
-        // `Format` is non-exhaustive, and only offered formats are returned.
-        _ => unreachable!(),
-    }
+    let mut body = Vec::new();
+    media_type.encode(&state.registry, &mut body).unwrap();
 
     Ok(HttpResponse::Ok()
         .content_type(media_type.content_type())

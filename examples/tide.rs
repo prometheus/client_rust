@@ -1,6 +1,6 @@
 use prometheus_client::encoding::negotiate::{negotiate, Format};
+use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::encoding::EncodeLabelValue;
-use prometheus_client::encoding::{prometheus_text, text, EncodeLabelSet};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
@@ -38,17 +38,10 @@ async fn main() -> std::result::Result<(), std::io::Error> {
                 &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
             );
 
-            let mut encoded = String::new();
-            match media_type.format() {
-                Format::PrometheusText0_0_4 => {
-                    prometheus_text::encode(&mut encoded, &req.state().registry).unwrap()
-                }
-                Format::OpenMetricsText1_0_0 => {
-                    text::encode(&mut encoded, &req.state().registry).unwrap()
-                }
-                // `Format` is non-exhaustive, and only offered formats are returned.
-                _ => unreachable!(),
-            }
+            let mut encoded = Vec::new();
+            media_type
+                .encode(&req.state().registry, &mut encoded)
+                .unwrap();
             let response = tide::Response::builder(200)
                 .body(encoded)
                 .content_type(media_type.content_type())

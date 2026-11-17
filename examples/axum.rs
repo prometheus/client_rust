@@ -6,7 +6,6 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use prometheus_client::encoding::negotiate::{negotiate, Format};
-use prometheus_client::encoding::{prometheus_text, text};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
@@ -50,15 +49,8 @@ pub async fn metrics_handler(
         &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
     );
 
-    let mut buffer = String::new();
-    match media_type.format() {
-        Format::PrometheusText0_0_4 => {
-            prometheus_text::encode(&mut buffer, &state.registry).unwrap()
-        }
-        Format::OpenMetricsText1_0_0 => text::encode(&mut buffer, &state.registry).unwrap(),
-        // `Format` is non-exhaustive, and only offered formats are returned.
-        _ => unreachable!(),
-    }
+    let mut buffer = Vec::new();
+    media_type.encode(&state.registry, &mut buffer).unwrap();
 
     Response::builder()
         .status(StatusCode::OK)
