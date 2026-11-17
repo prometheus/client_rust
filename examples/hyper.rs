@@ -7,11 +7,7 @@ use hyper::{
     Request, Response,
 };
 use hyper_util::rt::TokioIo;
-use prometheus_client::{
-    encoding::negotiate::{negotiate, Format},
-    metrics::counter::Counter,
-    registry::Registry,
-};
+use prometheus_client::{http::ScrapeHandler, metrics::counter::Counter, registry::Registry};
 use std::{
     io,
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -45,6 +41,7 @@ pub async fn start_metrics_server(metrics_addr: SocketAddr, registry: Registry) 
     eprintln!("Starting metrics server on {metrics_addr}");
 
     let registry = Arc::new(registry);
+    let scrape_handler = ScrapeHandler::default();
 
     let tcp_listener = TcpListener::bind(metrics_addr).await.unwrap();
     let server = http1::Builder::new();
@@ -53,8 +50,12 @@ pub async fn start_metrics_server(metrics_addr: SocketAddr, registry: Registry) 
         let io = TokioIo::new(stream);
         let server_clone = server.clone();
         let registry_clone = registry.clone();
+        let scrape_handler_clone = scrape_handler.clone();
         tokio::task::spawn(async move {
-            let conn = server_clone.serve_connection(io, service_fn(make_handler(registry_clone)));
+            let conn = server_clone.serve_connection(
+                io,
+                service_fn(make_handler(registry_clone, scrape_handler_clone)),
+            );
             pin!(conn);
             tokio::select! {
                 _ = conn.as_mut() => {}
@@ -72,31 +73,34 @@ type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 /// This function returns a HTTP handler (i.e. another function)
 pub fn make_handler(
     registry: Arc<Registry>,
+    scrape_handler: ScrapeHandler,
 ) -> impl Fn(Request<Incoming>) -> BoxFuture<'static, io::Result<Response<BoxBody>>> {
     // This closure accepts a request and responds with the encoding of our metrics that the
     // request accepts.
     move |req: Request<Incoming>| {
-        let reg = registry.clone();
-        let accept = req
-            .headers()
-            .get(hyper::header::ACCEPT)
-            .and_then(|value| value.to_str().ok());
-        let media_type = negotiate(
-            accept,
-            &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
-        );
+        let result = scrape_handler.handle(&registry, |name| {
+            req.headers()
+                .get(name)
+                .and_then(|value| value.to_str().ok())
+        });
 
-        Box::pin(async move {
-            let mut buf = Vec::new();
-            media_type
-                .encode(&mut buf, &reg)
-                .map_err(io::Error::other)?;
-            Ok(Response::builder()
-                .header(hyper::header::CONTENT_TYPE, media_type.content_type())
-                .header(hyper::header::VARY, "Accept")
-                .body(full(Bytes::from(buf)))
-                .unwrap())
-        })
+        let response = match result {
+            Ok(response) => {
+                let mut builder = Response::builder().status(response.status());
+                for (name, value) in response.headers() {
+                    builder = builder.header(name, value);
+                }
+                builder.body(full(Bytes::from(response.into_body())))
+            }
+            Err(err) => {
+                eprintln!("{err}");
+                Response::builder()
+                    .status(err.status())
+                    .body(full(Bytes::from(err.to_string())))
+            }
+        };
+
+        Box::pin(async move { Ok(response.unwrap()) })
     }
 }
 

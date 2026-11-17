@@ -87,5 +87,6 @@
 
 pub mod collector;
 pub mod encoding;
+pub mod http;
 pub mod metrics;
 pub mod registry;
