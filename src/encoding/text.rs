@@ -419,7 +419,8 @@ impl MetricEncoder<'_> {
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit()?;
 
-        self.write_suffix("total")?;
+        // One literal write instead of `write_suffix`'s two.
+        self.writer.write_str("_total")?;
 
         self.encode_labels::<NoLabelSet>(None)?;
 
