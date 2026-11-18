@@ -20,10 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`0.1 + 0.2` was `0.30000000000000007` and becomes `0.30000000000000004`).
   This change affects floating point values, and the histogram `le` bucket
   labels, which (depending on the value) could result in a new series. See [PR 369].
+- The text encoders check label values for characters to escape eight bytes at a time,
+  and write the counter `_total` suffix in one write. See [PR 388].
 
 [PR 369]: https://github.com/prometheus/client_rust/pull/369
 [PR 381]: https://github.com/prometheus/client_rust/pull/381
 [PR 384]: https://github.com/prometheus/client_rust/pull/384
+[PR 388]: https://github.com/prometheus/client_rust/pull/388
 [zmij]: https://github.com/vitaut/zmij
 [dtoa]: https://github.com/dtolnay/dtoa
 
