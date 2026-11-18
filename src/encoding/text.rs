@@ -419,7 +419,8 @@ impl MetricEncoder<'_> {
     ) -> Result<(), std::fmt::Error> {
         self.write_prefix_name_unit()?;
 
-        self.write_suffix("total")?;
+        // One literal write instead of `write_suffix`'s two.
+        self.writer.write_str("_total")?;
 
         self.encode_labels::<NoLabelSet>(None)?;
 
@@ -860,12 +861,50 @@ impl LabelValueEncoder<'_> {
     }
 }
 
+/// Whether `bytes` contains a `\\`, `"` or `\n`, checked eight bytes at a
+/// time. Short label values are the common case, and a byte-by-byte check
+/// costs three compares per byte for them.
+fn needs_escaping(bytes: &[u8]) -> bool {
+    const ONES: u64 = u64::from_ne_bytes([0x01; 8]);
+    const HIGHS: u64 = u64::from_ne_bytes([0x80; 8]);
+
+    // Exact (no false positives) test for whether any byte of `word` is zero.
+    fn has_zero_byte(word: u64) -> bool {
+        word.wrapping_sub(ONES) & !word & HIGHS != 0
+    }
+    fn has_special(word: u64) -> bool {
+        has_zero_byte(word ^ (ONES * u64::from(b'\\')))
+            | has_zero_byte(word ^ (ONES * u64::from(b'"')))
+            | has_zero_byte(word ^ (ONES * u64::from(b'\n')))
+    }
+
+    if bytes.len() < 8 {
+        // Zero padding never matches one of the special bytes.
+        let word = bytes
+            .iter()
+            .fold(0u64, |word, &byte| (word << 8) | u64::from(byte));
+        return has_special(word);
+    }
+
+    let (chunks, remainder) = bytes.as_chunks::<8>();
+    if chunks
+        .iter()
+        .any(|chunk| has_special(u64::from_ne_bytes(*chunk)))
+    {
+        return true;
+    }
+    if remainder.is_empty() {
+        return false;
+    }
+    // The last eight bytes overlap the chunks above and cover the remainder.
+    let (_, last) = bytes.split_at(bytes.len() - 8);
+    let (last, _) = last.as_chunks::<8>();
+    has_special(u64::from_ne_bytes(last[0]))
+}
+
 impl std::fmt::Write for LabelValueEncoder<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        let needs_escaping = s.bytes().fold(false, |found, byte| {
-            found | matches!(byte, b'\\' | b'"' | b'\n')
-        });
-        if needs_escaping {
+        if needs_escaping(s.as_bytes()) {
             self.write_str_escaped(s)
         } else {
             self.write_str_unescaped(s)
