@@ -315,12 +315,24 @@ impl<'a> DescriptorEncoder<'a> {
     /// Writes the HELP text, escaping backslash, line feed and double quote as
     /// required by the OpenMetrics text format.
     fn write_help(&mut self, help: &str) -> Result<(), std::fmt::Error> {
+        let needs_escaping = help.bytes().fold(false, |found, byte| {
+            found | matches!(byte, b'\\' | b'"' | b'\n')
+        });
+        if needs_escaping {
+            self.write_help_escaped(help)
+        } else {
+            self.writer.write_str(help)
+        }
+    }
+
+    #[cold]
+    fn write_help_escaped(&mut self, help: &str) -> Result<(), std::fmt::Error> {
         let mut last = 0;
         for (index, byte) in help.bytes().enumerate() {
             let escaped = match byte {
                 b'\\' => "\\\\",
-                b'\n' => "\\n",
                 b'"' => "\\\"",
+                b'\n' => "\\n",
                 _ => continue,
             };
             self.writer.write_str(&help[last..index])?;
