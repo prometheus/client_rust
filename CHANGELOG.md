@@ -26,9 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HELP text in the OpenMetrics text format is now escaped (`\`, `"` and newlines), as the exposition format requires. A newline in a help string no longer breaks the exposition. See [PR 389].
 
 [PR 369]: https://github.com/prometheus/client_rust/pull/369
-[PR 389]: https://github.com/prometheus/client_rust/pull/389
 [PR 381]: https://github.com/prometheus/client_rust/pull/381
 [PR 384]: https://github.com/prometheus/client_rust/pull/384
+[PR 389]: https://github.com/prometheus/client_rust/pull/389
 [zmij]: https://github.com/vitaut/zmij
 [dtoa]: https://github.com/dtolnay/dtoa
 
