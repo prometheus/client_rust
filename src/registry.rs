@@ -109,18 +109,10 @@ impl Registry {
     /// Note: A full stop punctuation mark (`.`) is automatically added to the
     /// passed help text.
     ///
-    /// Note: Each call adds another entry to the [`Registry`]. Registering a
-    /// metric under a name that is already in use is an error: the registry
-    /// will expose the name more than once and will keep growing with every
-    /// call. Debug builds panic in this case. To expose a metric per label
-    /// combination use a [`Family`](crate::metrics::family::Family) instead.
-    ///
-    /// The check compares the exposed name (the name followed by `_` and the
-    /// unit, if any) and only covers this one [`Registry`]. It does not look
-    /// at sub-registries or parent registries, so calling
-    /// [`Registry::sub_registry_with_label`] twice with the same label, or
-    /// registering `sub_size` in a parent next to a sub-registry with the
-    /// prefix `sub` that registers `size`, still produces duplicates.
+    /// Note: Registering a name that is already registered in this
+    /// [`Registry`] is an error and panics when debug assertions are enabled.
+    /// The check does not cover sub-registries. To expose a metric with
+    /// varying label values use a [`Family`](crate::metrics::family::Family).
     ///
     /// Use [`Registry::register_with_unit`] whenever a unit for the given
     /// metric is known.
@@ -193,9 +185,9 @@ impl Registry {
         );
         #[cfg(debug_assertions)]
         {
-            let family_name = match &descriptor.unit {
-                Some(unit) => format!("{}_{}", descriptor.name, unit.as_str()),
-                None => descriptor.name.clone(),
+            let family_name: std::borrow::Cow<'_, str> = match &descriptor.unit {
+                Some(unit) => format!("{}_{}", descriptor.name, unit.as_str()).into(),
+                None => descriptor.name.as_str().into(),
             };
             assert!(
                 !self
@@ -384,8 +376,6 @@ impl Descriptor {
         }
     }
 
-    /// Whether the exposed name (the name followed by `_` and the unit, if
-    /// any) equals `family_name`, without allocating.
     #[cfg(debug_assertions)]
     fn exposed_name_eq(&self, family_name: &str) -> bool {
         match &self.unit {
