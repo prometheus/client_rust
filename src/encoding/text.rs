@@ -312,6 +312,36 @@ impl<'a> DescriptorEncoder<'a> {
         }
     }
 
+    /// Writes the HELP text, escaping backslash, line feed and double quote as
+    /// required by the OpenMetrics text format.
+    fn write_help(&mut self, help: &str) -> Result<(), std::fmt::Error> {
+        let needs_escaping = help.bytes().fold(false, |found, byte| {
+            found | matches!(byte, b'\\' | b'"' | b'\n')
+        });
+        if needs_escaping {
+            self.write_help_escaped(help)
+        } else {
+            self.writer.write_str(help)
+        }
+    }
+
+    #[cold]
+    fn write_help_escaped(&mut self, help: &str) -> Result<(), std::fmt::Error> {
+        let mut last = 0;
+        for (index, byte) in help.bytes().enumerate() {
+            let escaped = match byte {
+                b'\\' => "\\\\",
+                b'"' => "\\\"",
+                b'\n' => "\\n",
+                _ => continue,
+            };
+            self.writer.write_str(&help[last..index])?;
+            self.writer.write_str(escaped)?;
+            last = index + 1;
+        }
+        self.writer.write_str(&help[last..])
+    }
+
     pub fn encode_descriptor<'s>(
         &'s mut self,
         name: &'s str,
@@ -330,7 +360,7 @@ impl<'a> DescriptorEncoder<'a> {
             self.writer.write_str(unit.as_str())?;
         }
         self.writer.write_str(" ")?;
-        self.writer.write_str(help)?;
+        self.write_help(help)?;
         self.writer.write_str("\n")?;
 
         self.writer.write_str("# TYPE ")?;
@@ -1024,6 +1054,32 @@ mod tests {
                 "# TYPE requests counter\n",
                 r#"requests_total{client_version="a\"} evil{x=\"1\\line\nnext"} 1"#,
                 "\n# EOF\n"
+            ),
+            encoded
+        );
+        parse_with_python_client(Parser::OpenMetricsParser, &encoded);
+    }
+
+    #[test]
+    fn escaped_help_produces_parseable_exposition() {
+        let mut registry = Registry::default();
+        let counter: Counter = Counter::default();
+        registry.register(
+            "requests",
+            "Line one\nLine \"two\" in C:\\temp",
+            counter.clone(),
+        );
+        counter.inc();
+
+        let mut encoded = String::new();
+        encode(&mut encoded, &registry).unwrap();
+
+        assert_eq!(
+            concat!(
+                r#"# HELP requests Line one\nLine \"two\" in C:\\temp."#,
+                "\n# TYPE requests counter\n",
+                "requests_total 1\n",
+                "# EOF\n"
             ),
             encoded
         );
