@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`0.1 + 0.2` was `0.30000000000000007` and becomes `0.30000000000000004`).
   This change affects floating point values, and the histogram `le` bucket
   labels, which (depending on the value) could result in a new series. See [PR 369].
+- Registering a metric under a name that is already registered in the same
+  `Registry` now panics when debug assertions are enabled, including default
+  development and test builds. The check is disabled in builds without debug
+  assertions. See [Issue 292].
 
 ### Fixed
 
@@ -29,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR 381]: https://github.com/prometheus/client_rust/pull/381
 [PR 384]: https://github.com/prometheus/client_rust/pull/384
 [PR 389]: https://github.com/prometheus/client_rust/pull/389
+[Issue 292]: https://github.com/prometheus/client_rust/issues/292
 [zmij]: https://github.com/vitaut/zmij
 [dtoa]: https://github.com/dtolnay/dtoa
 

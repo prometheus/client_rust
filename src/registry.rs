@@ -109,6 +109,11 @@ impl Registry {
     /// Note: A full stop punctuation mark (`.`) is automatically added to the
     /// passed help text.
     ///
+    /// Note: Registering a name that is already registered in this
+    /// [`Registry`] is an error and panics when debug assertions are enabled.
+    /// The check does not cover sub-registries. To expose a metric with
+    /// varying label values use a [`Family`](crate::metrics::family::Family).
+    ///
     /// Use [`Registry::register_with_unit`] whenever a unit for the given
     /// metric is known.
     ///
@@ -178,6 +183,21 @@ impl Registry {
             "counter name {} must not end with _total, the suffix is added during encoding",
             descriptor.name
         );
+        #[cfg(debug_assertions)]
+        {
+            let family_name: std::borrow::Cow<'_, str> = match &descriptor.unit {
+                Some(unit) => format!("{}_{}", descriptor.name, unit.as_str()).into(),
+                None => descriptor.name.as_str().into(),
+            };
+            assert!(
+                !self
+                    .metrics
+                    .iter()
+                    .any(|(d, _)| d.exposed_name_eq(&family_name)),
+                "metric name {} is already registered in this registry",
+                family_name
+            );
+        }
         self.metrics.push((descriptor, Box::new(metric)));
     }
 
@@ -355,6 +375,19 @@ impl Descriptor {
             unit,
         }
     }
+
+    #[cfg(debug_assertions)]
+    fn exposed_name_eq(&self, family_name: &str) -> bool {
+        match &self.unit {
+            None => self.name == family_name,
+            Some(unit) => {
+                family_name
+                    .strip_prefix(self.name.as_str())
+                    .and_then(|rest| rest.strip_prefix('_'))
+                    == Some(unit.as_str())
+            }
+        }
+    }
 }
 
 /// Metric units recommended by Open Metrics.
@@ -415,5 +448,55 @@ mod tests {
     fn register_gauge_with_total_suffix() {
         let gauge: Gauge = Gauge::default();
         Registry::default().register("my_gauge_total", "", gauge);
+    }
+
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "metric name my_counter is already registered")
+    )]
+    fn register_same_name_twice() {
+        let mut registry = Registry::default();
+        registry.register("my_counter", "help", Counter::<u64>::default());
+        registry.register("my_counter", "help", Counter::<u64>::default());
+    }
+
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "metric name size_bytes is already registered")
+    )]
+    fn register_same_exposed_name_with_and_without_unit() {
+        let mut registry = Registry::default();
+        registry.register_with_unit("size", "help", Unit::Bytes, Counter::<u64>::default());
+        registry.register("size_bytes", "help", Counter::<u64>::default());
+    }
+
+    #[test]
+    fn register_same_name_with_different_unit() {
+        let mut registry = Registry::default();
+        registry.register("size", "help", Counter::<u64>::default());
+        registry.register_with_unit("size", "help", Unit::Bytes, Counter::<u64>::default());
+
+        let mut encoded = String::new();
+        crate::encoding::text::encode(&mut encoded, &registry).unwrap();
+        assert!(encoded.contains("# TYPE size counter\n"));
+        assert!(encoded.contains("# TYPE size_bytes counter\n"));
+    }
+
+    #[test]
+    fn register_same_name_in_sub_registry() {
+        let mut registry = Registry::default();
+        registry.register("size", "help", Counter::<u64>::default());
+        registry.sub_registry_with_prefix("sub").register(
+            "size",
+            "help",
+            Counter::<u64>::default(),
+        );
+
+        let mut encoded = String::new();
+        crate::encoding::text::encode(&mut encoded, &registry).unwrap();
+        assert!(encoded.contains("# TYPE size counter\n"));
+        assert!(encoded.contains("# TYPE sub_size counter\n"));
     }
 }
