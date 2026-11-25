@@ -41,7 +41,7 @@ pub async fn start_metrics_server(metrics_addr: SocketAddr, registry: Registry) 
     eprintln!("Starting metrics server on {metrics_addr}");
 
     let registry = Arc::new(registry);
-    let scrape_handler = ScrapeHandler::default();
+    let scrape_handler = Arc::new(ScrapeHandler::default());
 
     let tcp_listener = TcpListener::bind(metrics_addr).await.unwrap();
     let server = http1::Builder::new();
@@ -73,7 +73,7 @@ type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 /// This function returns a HTTP handler (i.e. another function)
 pub fn make_handler(
     registry: Arc<Registry>,
-    scrape_handler: ScrapeHandler,
+    scrape_handler: Arc<ScrapeHandler>,
 ) -> impl Fn(Request<Incoming>) -> BoxFuture<'static, io::Result<Response<BoxBody>>> {
     // This closure accepts a request and responds with the encoding of our metrics that the
     // request accepts.
