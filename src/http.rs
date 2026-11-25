@@ -49,7 +49,6 @@ use crate::registry::Registry;
 ///
 /// Copy the status, the headers and the body into the response type of your
 /// HTTP framework.
-#[derive(Debug)]
 pub struct ScrapeResponse {
     status: u16,
     headers: [(&'static str, &'static str); 2],
@@ -73,6 +72,16 @@ impl ScrapeResponse {
     /// The encoded metrics, to respond with as the body.
     pub fn into_body(self) -> Vec<u8> {
         self.body
+    }
+}
+
+impl fmt::Debug for ScrapeResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ScrapeResponse")
+            .field("status", &self.status)
+            .field("headers", &self.headers)
+            .field("body", &format_args!("{} bytes", self.body.len()))
+            .finish()
     }
 }
 
