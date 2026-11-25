@@ -157,6 +157,13 @@ impl ScrapeHandler {
     }
 }
 
+const DEFAULT_FORMATS: &[Format] = &[
+    Format::PrometheusText0_0_4,
+    Format::OpenMetricsText1_0_0,
+    #[cfg(feature = "prometheus_protobuf")]
+    Format::PrometheusProtobuf,
+];
+
 /// A builder for a [`ScrapeHandler`], see [`ScrapeHandler::builder`].
 #[derive(Clone, Debug)]
 pub struct ScrapeHandlerBuilder {
@@ -170,19 +177,25 @@ impl Default for ScrapeHandlerBuilder {
 }
 
 impl ScrapeHandlerBuilder {
-    /// A builder that offers every format this build supports.
+    /// A builder that offers the Prometheus text format (0.0.4), the OpenMetrics
+    /// text format (1.0.0) and, with the `prometheus_protobuf` feature, the
+    /// Prometheus protobuf format.
+    ///
+    /// Formats added in later versions are not offered by default. Use
+    /// [`ScrapeHandlerBuilder::with_formats`] to offer them.
     pub fn new() -> Self {
         Self {
-            offered: vec![
-                Format::PrometheusText0_0_4,
-                Format::OpenMetricsText1_0_0,
-                #[cfg(feature = "prometheus_protobuf")]
-                Format::PrometheusProtobuf,
-            ],
+            offered: DEFAULT_FORMATS.to_vec(),
         }
     }
 
     /// The formats to offer, see [`negotiate`] for how one is picked.
+    ///
+    /// The order is not a preference, since the client's `Accept` header decides.
+    /// It only matters when nothing matches and the Prometheus text format is not
+    /// offered: then the first format is used.
+    ///
+    /// An empty list offers the default formats, see [`ScrapeHandlerBuilder::new`].
     pub fn with_formats(mut self, formats: &[Format]) -> Self {
         self.offered = formats.to_vec();
         self
@@ -191,7 +204,11 @@ impl ScrapeHandlerBuilder {
     /// Builds the [`ScrapeHandler`].
     pub fn build(self) -> ScrapeHandler {
         ScrapeHandler {
-            offered: self.offered,
+            offered: if self.offered.is_empty() {
+                DEFAULT_FORMATS.to_vec()
+            } else {
+                self.offered
+            },
         }
     }
 }
@@ -267,6 +284,12 @@ mod tests {
                 Some("application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited"),
                 prometheus_protobuf::CONTENT_TYPE,
                 protobuf.as_slice(),
+            ),
+            (
+                Some(&[]),
+                Some("application/openmetrics-text;version=1.0.0"),
+                text::CONTENT_TYPE,
+                openmetrics.as_bytes(),
             ),
             (
                 Some(&[Format::OpenMetricsText1_0_0]),
