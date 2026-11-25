@@ -135,7 +135,7 @@ impl ScrapeHandler {
     pub fn handle<'h>(
         &self,
         registry: &Registry,
-        header: impl Fn(&str) -> Option<&'h str>,
+        mut header: impl FnMut(&str) -> Option<&'h str>,
     ) -> Result<ScrapeResponse, ScrapeError> {
         let media_type = negotiate(header("accept"), &self.offered);
         let mut body = Vec::new();
