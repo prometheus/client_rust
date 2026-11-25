@@ -62,7 +62,10 @@ impl ScrapeResponse {
         self.status
     }
 
-    /// The headers to respond with, as `(name, value)` pairs.
+    /// The headers to respond with, as `(name, value)` pairs with lowercase names.
+    ///
+    /// Each name appears at most once, so the headers can be copied either by
+    /// inserting or by appending them.
     pub fn headers(&self) -> impl Iterator<Item = (&str, &str)> {
         self.headers.iter().copied()
     }
@@ -141,8 +144,8 @@ impl ScrapeHandler {
             Ok(()) => Ok(ScrapeResponse {
                 status: 200,
                 headers: [
-                    ("Content-Type", media_type.content_type()),
-                    ("Vary", "Accept"),
+                    ("content-type", media_type.content_type()),
+                    ("vary", "Accept"),
                 ],
                 body,
             }),
@@ -302,7 +305,7 @@ mod tests {
             assert_eq!(response.status(), 200, "{formats:?} {accept:?}");
             assert_eq!(
                 response.headers().collect::<Vec<_>>(),
-                [("Content-Type", *content_type), ("Vary", "Accept")],
+                [("content-type", *content_type), ("vary", "Accept")],
                 "{formats:?} {accept:?}"
             );
             assert_eq!(response.into_body(), *expected, "{formats:?} {accept:?}");
