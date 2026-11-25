@@ -6,6 +6,7 @@ use prometheus_client::http::ScrapeHandler;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
+use std::error::Error;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
 pub enum Method {
@@ -49,7 +50,13 @@ pub async fn metrics_handler(req: HttpRequest, state: web::Data<AppState>) -> Re
             Ok(builder.body(response.into_body()))
         }
         Err(err) => {
-            eprintln!("{err}");
+            eprint!("{err}");
+            let mut source = err.source();
+            while let Some(cause) = source {
+                eprint!(": {cause}");
+                source = cause.source();
+            }
+            eprintln!();
             Ok(
                 HttpResponse::build(StatusCode::from_u16(err.status()).unwrap())
                     .body(err.to_string()),

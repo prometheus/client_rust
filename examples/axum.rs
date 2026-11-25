@@ -9,6 +9,7 @@ use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 use prometheus_client_derive_encode::{EncodeLabelSet, EncodeLabelValue};
+use std::error::Error;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
@@ -53,7 +54,13 @@ pub async fn metrics_handler(State(state): State<Arc<AppState>>, headers: Header
             builder.body(Body::from(response.into_body())).unwrap()
         }
         Err(err) => {
-            eprintln!("{err}");
+            eprint!("{err}");
+            let mut source = err.source();
+            while let Some(cause) = source {
+                eprint!(": {cause}");
+                source = cause.source();
+            }
+            eprintln!();
             let status = StatusCode::from_u16(err.status()).unwrap();
             (status, err.to_string()).into_response()
         }

@@ -9,6 +9,7 @@ use hyper::{
 use hyper_util::rt::TokioIo;
 use prometheus_client::{http::ScrapeHandler, metrics::counter::Counter, registry::Registry};
 use std::{
+    error::Error,
     io,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -93,7 +94,13 @@ pub fn make_handler(
                 builder.body(full(Bytes::from(response.into_body())))
             }
             Err(err) => {
-                eprintln!("{err}");
+                eprint!("{err}");
+                let mut source = err.source();
+                while let Some(cause) = source {
+                    eprint!(": {cause}");
+                    source = cause.source();
+                }
+                eprintln!();
                 Response::builder()
                     .status(err.status())
                     .body(full(Bytes::from(err.to_string())))

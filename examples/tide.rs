@@ -5,6 +5,7 @@ use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 
+use std::error::Error;
 use std::sync::Arc;
 
 use tide::{Middleware, Next, Request, Result};
@@ -47,7 +48,13 @@ async fn main() -> std::result::Result<(), std::io::Error> {
                     Ok(builder.body(response.into_body()).build())
                 }
                 Err(err) => {
-                    eprintln!("{err}");
+                    eprint!("{err}");
+                    let mut source = err.source();
+                    while let Some(cause) = source {
+                        eprint!(": {cause}");
+                        source = cause.source();
+                    }
+                    eprintln!();
                     Ok(tide::Response::builder(err.status())
                         .body(err.to_string())
                         .build())
