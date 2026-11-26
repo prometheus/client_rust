@@ -138,17 +138,24 @@ impl ScrapeHandler {
 
     /// Encodes `registry` in the format the client prefers, see [`negotiate`].
     ///
-    /// `header` looks up a request header by its lowercase name.
+    /// `header` looks up the values of a request header by its lowercase name.
+    /// Returning an [`Option`] is enough for a single value. Only the first
+    /// `Accept` value is used, as in Go's `expfmt.NegotiateAccept`.
     ///
     /// # Errors
     ///
     /// Returns a [`ScrapeError`] if encoding the metrics fails.
-    pub fn handle<'h>(
+    pub fn handle<'h, F, I>(
         &self,
         registry: &Registry,
-        mut header: impl FnMut(&str) -> Option<&'h str>,
-    ) -> Result<ScrapeResponse, ScrapeError> {
-        let media_type = negotiate(header("accept"), &self.inner.offered);
+        mut header: F,
+    ) -> Result<ScrapeResponse, ScrapeError>
+    where
+        F: FnMut(&str) -> I,
+        I: IntoIterator<Item = &'h str>,
+    {
+        let accept = header("accept").into_iter().next();
+        let media_type = negotiate(accept, &self.inner.offered);
         let mut body = Vec::new();
 
         match media_type.encode(&mut body, registry) {
