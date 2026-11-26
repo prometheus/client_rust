@@ -41,6 +41,7 @@
 //! ```
 
 use std::fmt;
+use std::sync::Arc;
 
 use crate::encoding::negotiate::{negotiate, EncodeError, Format};
 use crate::registry::Registry;
@@ -116,10 +117,11 @@ impl std::error::Error for ScrapeError {
 /// `Accept` header.
 ///
 /// Build it once, for example with the state of your HTTP server, and call
-/// [`ScrapeHandler::handle`] on every scrape.
+/// [`ScrapeHandler::handle`] on every scrape. Cloning is cheap, since clones
+/// share the configuration.
 #[derive(Clone, Debug)]
 pub struct ScrapeHandler {
-    offered: Vec<Format>,
+    inner: Arc<ScrapeHandlerInner>,
 }
 
 impl Default for ScrapeHandler {
@@ -146,7 +148,7 @@ impl ScrapeHandler {
         registry: &Registry,
         mut header: impl FnMut(&str) -> Option<&'h str>,
     ) -> Result<ScrapeResponse, ScrapeError> {
-        let media_type = negotiate(header("accept"), &self.offered);
+        let media_type = negotiate(header("accept"), &self.inner.offered);
         let mut body = Vec::new();
 
         match media_type.encode(&mut body, registry) {
@@ -164,6 +166,11 @@ impl ScrapeHandler {
             }),
         }
     }
+}
+
+#[derive(Debug)]
+struct ScrapeHandlerInner {
+    offered: Vec<Format>,
 }
 
 const DEFAULT_FORMATS: &[Format] = &[
@@ -213,11 +220,13 @@ impl ScrapeHandlerBuilder {
     /// Builds the [`ScrapeHandler`].
     pub fn build(self) -> ScrapeHandler {
         ScrapeHandler {
-            offered: if self.offered.is_empty() {
-                DEFAULT_FORMATS.to_vec()
-            } else {
-                self.offered
-            },
+            inner: Arc::new(ScrapeHandlerInner {
+                offered: if self.offered.is_empty() {
+                    DEFAULT_FORMATS.to_vec()
+                } else {
+                    self.offered
+                },
+            }),
         }
     }
 }
