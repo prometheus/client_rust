@@ -729,15 +729,6 @@ impl ExemplarValueEncoder<'_> {
     }
 }
 
-#[cfg(debug_assertions)]
-pub(crate) fn encode_label_set(labels: &impl EncodeLabelSet) -> Result<String, std::fmt::Error> {
-    let mut encoded = String::new();
-    let mut buffer = String::new();
-    LabelList::new("").encode(TextBuf::new(&mut buffer, &mut encoded), labels)?;
-    encoded.push_str(&buffer);
-    Ok(encoded)
-}
-
 /// Joins one or more label sets into a single comma-separated list.
 ///
 /// `open` is written lazily before the first label key, so label sets which

@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Registry` now panics when debug assertions are enabled, including default
   development and test builds. The check is disabled in builds without debug
   assertions. See [Issue 292].
+- Encoding a metric family now panics when two entries encode to the same labels
+  and debug assertions are enabled. The panic message includes the duplicate labels.
+  The check is disabled in release builds without debug assertions. See [Issue 382].
 
 ### Fixed
 
@@ -33,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR 381]: https://github.com/prometheus/client_rust/pull/381
 [PR 384]: https://github.com/prometheus/client_rust/pull/384
 [PR 389]: https://github.com/prometheus/client_rust/pull/389
+[Issue 382]: https://github.com/prometheus/client_rust/issues/382
 [Issue 292]: https://github.com/prometheus/client_rust/issues/292
 [zmij]: https://github.com/vitaut/zmij
 [dtoa]: https://github.com/dtolnay/dtoa
