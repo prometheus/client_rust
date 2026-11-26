@@ -27,7 +27,7 @@ async fn main() -> std::result::Result<(), std::io::Error> {
     };
     let mut app = tide::with_state(State {
         registry: Arc::new(registry),
-        scrape_handler: Arc::new(ScrapeHandler::default()),
+        scrape_handler: ScrapeHandler::default(),
     });
 
     app.with(middleware);
@@ -81,7 +81,7 @@ enum Method {
 #[derive(Clone)]
 struct State {
     registry: Arc<Registry>,
-    scrape_handler: Arc<ScrapeHandler>,
+    scrape_handler: ScrapeHandler,
 }
 
 #[derive(Default)]
