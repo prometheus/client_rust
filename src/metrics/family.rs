@@ -15,6 +15,11 @@ use std::sync::Arc;
 /// type, differentiated by their label values thus spanning a multidimensional
 /// space.
 ///
+/// With debug assertions enabled, encoding panics if two entries in the family
+/// encode to the same sequence of labels. This can happen when a label value
+/// of `None` and an empty string are encoded as the same value. The check is
+/// disabled in builds without debug assertions.
+///
 /// # Generic over the label set
 ///
 /// A [`Family`] is generic over the label type. For convenience one might
@@ -417,6 +422,20 @@ where
 {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
         let guard = self.read();
+        #[cfg(debug_assertions)]
+        if guard.len() > 1 {
+            use crate::encoding::text::{LabelList, TextBuf};
+
+            let mut seen = std::collections::HashSet::with_capacity(guard.len());
+            for label_set in guard.keys() {
+                let labels =
+                    TextBuf::encode_to_string(|buf| LabelList::new("").encode(buf, label_set))?;
+                if let Some(duplicate) = seen.replace(labels) {
+                    panic!("duplicate labels in metric family: {duplicate}");
+                }
+            }
+        }
+
         for (label_set, m) in guard.iter() {
             let encoder = encoder.encode_family(label_set)?;
             m.encode(encoder)?;
@@ -438,6 +457,21 @@ mod tests {
     use super::*;
     use crate::metrics::counter::Counter;
     use crate::metrics::histogram::{exponential_buckets, Histogram};
+
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "duplicate labels in metric family: foo=\"\"")
+    )]
+    fn encode_family_duplicate_labels() {
+        let family = Family::<[(&str, Option<&str>); 1], Counter>::default();
+        family.get_or_create(&[("foo", None)]).inc();
+        family.get_or_create(&[("foo", Some(""))]).inc();
+
+        let mut registry = crate::registry::Registry::default();
+        registry.register("requests", "Number of requests", family);
+        crate::encoding::text::encode(&mut String::new(), &registry).unwrap();
+    }
 
     #[test]
     fn counter_family() {
