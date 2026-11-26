@@ -1,15 +1,15 @@
 use axum::body::Body;
 use axum::extract::State;
-use axum::http::header::{ACCEPT, CONTENT_TYPE, VARY};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
-use prometheus_client::encoding::negotiate::{negotiate, Format};
+use prometheus_client::http::ScrapeHandler;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 use prometheus_client_derive_encode::{EncodeLabelSet, EncodeLabelValue};
+use std::error::Error;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
@@ -37,27 +37,34 @@ impl Metrics {
 #[derive(Debug)]
 pub struct AppState {
     pub registry: Registry,
+    pub scrape_handler: ScrapeHandler,
 }
 
-pub async fn metrics_handler(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
-    let accept = headers.get(ACCEPT).and_then(|value| value.to_str().ok());
-    let media_type = negotiate(
-        accept,
-        &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
-    );
+pub async fn metrics_handler(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    let result = state.scrape_handler.handle(&state.registry, |name| {
+        headers.get(name).and_then(|value| value.to_str().ok())
+    });
 
-    let mut buffer = Vec::new();
-    media_type.encode(&mut buffer, &state.registry).unwrap();
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(CONTENT_TYPE, media_type.content_type())
-        .header(VARY, "Accept")
-        .body(Body::from(buffer))
-        .unwrap()
+    match result {
+        Ok(response) => {
+            let mut builder = Response::builder().status(response.status());
+            for (name, value) in response.headers() {
+                builder = builder.header(name, value);
+            }
+            builder.body(Body::from(response.into_body())).unwrap()
+        }
+        Err(err) => {
+            eprint!("{err}");
+            let mut source = err.source();
+            while let Some(cause) = source {
+                eprint!(": {cause}");
+                source = cause.source();
+            }
+            eprintln!();
+            let status = StatusCode::from_u16(err.status()).unwrap();
+            (status, err.to_string()).into_response()
+        }
+    }
 }
 
 pub async fn some_handler(State(metrics): State<Arc<Metrics>>) -> impl IntoResponse {
@@ -72,6 +79,7 @@ async fn main() {
     };
     let mut state = AppState {
         registry: Registry::default(),
+        scrape_handler: ScrapeHandler::default(),
     };
     state
         .registry

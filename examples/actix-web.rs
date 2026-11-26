@@ -1,11 +1,12 @@
-use actix_web::http::header::{ACCEPT, VARY};
+use actix_web::http::StatusCode;
 use actix_web::middleware::Compress;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder, Result};
-use prometheus_client::encoding::negotiate::{negotiate, Format};
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
+use prometheus_client::http::ScrapeHandler;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
+use std::error::Error;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
 pub enum Method {
@@ -30,25 +31,38 @@ impl Metrics {
 
 pub struct AppState {
     pub registry: Registry,
+    pub scrape_handler: ScrapeHandler,
 }
 
 pub async fn metrics_handler(req: HttpRequest, state: web::Data<AppState>) -> Result<HttpResponse> {
-    let accept = req
-        .headers()
-        .get(ACCEPT)
-        .and_then(|value| value.to_str().ok());
-    let media_type = negotiate(
-        accept,
-        &[Format::PrometheusText0_0_4, Format::OpenMetricsText1_0_0],
-    );
+    let result = state.scrape_handler.handle(&state.registry, |name| {
+        req.headers()
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+    });
 
-    let mut body = Vec::new();
-    media_type.encode(&mut body, &state.registry).unwrap();
-
-    Ok(HttpResponse::Ok()
-        .content_type(media_type.content_type())
-        .insert_header((VARY, "Accept"))
-        .body(body))
+    match result {
+        Ok(response) => {
+            let mut builder = HttpResponse::build(StatusCode::from_u16(response.status()).unwrap());
+            for (name, value) in response.headers() {
+                builder.insert_header((name, value));
+            }
+            Ok(builder.body(response.into_body()))
+        }
+        Err(err) => {
+            eprint!("{err}");
+            let mut source = err.source();
+            while let Some(cause) = source {
+                eprint!(": {cause}");
+                source = cause.source();
+            }
+            eprintln!();
+            Ok(
+                HttpResponse::build(StatusCode::from_u16(err.status()).unwrap())
+                    .body(err.to_string()),
+            )
+        }
+    }
 }
 
 pub async fn some_handler(metrics: web::Data<Metrics>) -> impl Responder {
@@ -63,6 +77,7 @@ async fn main() -> std::io::Result<()> {
     });
     let mut state = AppState {
         registry: Registry::default(),
+        scrape_handler: ScrapeHandler::default(),
     };
     state
         .registry
