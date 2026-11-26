@@ -15,6 +15,10 @@ use std::sync::Arc;
 /// type, differentiated by their label values thus spanning a multidimensional
 /// space.
 ///
+/// In debug builds, encoding returns an error if two entries in the family
+/// encode to the same sequence of labels. This can happen when a label value
+/// of `None` and an empty string are encoded as the same value.
+///
 /// # Generic over the label set
 ///
 /// A [`Family`] is generic over the label type. For convenience one might
@@ -417,6 +421,16 @@ where
 {
     fn encode(&self, mut encoder: MetricEncoder) -> Result<(), std::fmt::Error> {
         let guard = self.read();
+        #[cfg(debug_assertions)]
+        if guard.len() > 1 {
+            let mut encoded_labels = std::collections::HashSet::with_capacity(guard.len());
+            for label_set in guard.keys() {
+                if !encoded_labels.insert(crate::encoding::text::encode_label_set(label_set)?) {
+                    return Err(std::fmt::Error);
+                }
+            }
+        }
+
         for (label_set, m) in guard.iter() {
             let encoder = encoder.encode_family(label_set)?;
             m.encode(encoder)?;
@@ -438,6 +452,50 @@ mod tests {
     use super::*;
     use crate::metrics::counter::Counter;
     use crate::metrics::histogram::{exponential_buckets, Histogram};
+
+    fn registry_with_optional_labels(
+        values: [Option<&'static str>; 2],
+    ) -> crate::registry::Registry {
+        let family = Family::<[(&str, Option<&str>); 1], Counter>::default();
+        for value in values {
+            family.get_or_create(&[("foo", value)]).inc();
+        }
+        let mut registry = crate::registry::Registry::default();
+        registry.register("requests", "Number of requests", family);
+        registry
+    }
+
+    #[test]
+    fn encode_family_duplicate_labels() {
+        let registry = registry_with_optional_labels([None, Some("")]);
+        let mut openmetrics = String::new();
+        let mut prometheus = String::new();
+        let openmetrics_result = crate::encoding::text::encode(&mut openmetrics, &registry);
+        let prometheus_result =
+            crate::encoding::prometheus_text::encode(&mut prometheus, &registry);
+
+        assert_eq!(openmetrics_result.is_err(), cfg!(debug_assertions));
+        assert_eq!(prometheus_result.is_err(), cfg!(debug_assertions));
+        #[cfg(feature = "openmetrics_protobuf")]
+        assert_eq!(
+            crate::encoding::openmetrics_protobuf::encode(&registry).is_err(),
+            cfg!(debug_assertions)
+        );
+        #[cfg(feature = "prometheus_protobuf")]
+        assert_eq!(
+            crate::encoding::prometheus_protobuf::encode(&registry).is_err(),
+            cfg!(debug_assertions)
+        );
+    }
+
+    #[test]
+    fn encode_family_distinct_labels() {
+        let registry = registry_with_optional_labels([None, Some("present")]);
+        let mut buffer = String::new();
+        crate::encoding::text::encode(&mut buffer, &registry).unwrap();
+        assert!(buffer.contains("requests_total{foo=\"\"} 1\n"));
+        assert!(buffer.contains("requests_total{foo=\"present\"} 1\n"));
+    }
 
     #[test]
     fn counter_family() {
